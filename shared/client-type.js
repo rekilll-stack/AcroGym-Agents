@@ -3,41 +3,25 @@
 const { createLogger } = require('./logger');
 const logger = createLogger('client-type');
 
-const RULES = [
-  {
-    type: 'new',
-    keywords: ['new client', 'новый клиент', 'جديد', 'new registration', 'first time'],
-  },
-  {
-    type: 'existing',
-    keywords: ['existing', 'уже', 'حالي', 'current member', 'already registered'],
-  },
-  {
-    type: 'returning',
-    keywords: ['returning', 'возвращ', 'سابق', 'come back', 'was with us'],
-  },
-];
-
 /**
- * Определяет тип клиента по сырому значению из Google Sheets.
+ * Parses client type from Google Sheets raw value.
+ * Matches by emoji prefix — stable anchor regardless of text wording changes.
  *
- * @param {string} rawValue
+ * Expected values:
+ *   "🆕 New client – I want to register for classes"     → 'new'
+ *   "✅ Existing member – signing T&C"                   → 'existing'
+ *   "↩️ Returning client – was here before, coming back" → 'returning'
+ *
+ * @param {string} raw
  * @returns {'new'|'existing'|'returning'|'unknown'}
  */
-function parseClientType(rawValue) {
-  if (!rawValue || typeof rawValue !== 'string' || rawValue.trim() === '') {
-    return 'unknown';
-  }
-
-  const lower = rawValue.toLowerCase().trim();
-
-  for (const { type, keywords } of RULES) {
-    if (keywords.some(kw => lower.includes(kw))) {
-      return type;
-    }
-  }
-
-  logger.warn({ rawValue }, 'client_type не распознан, устанавливаем unknown');
+function parseClientType(raw) {
+  if (!raw || typeof raw !== 'string') return 'unknown';
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('🆕')) return 'new';
+  if (trimmed.startsWith('✅')) return 'existing';
+  if (trimmed.startsWith('↩️')) return 'returning';
+  logger.warn({ raw }, 'Unrecognized client_type value');
   return 'unknown';
 }
 

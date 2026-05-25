@@ -26,23 +26,27 @@ function getDb() {
 function _initSchema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS leads (
-      id                INTEGER PRIMARY KEY AUTOINCREMENT,
-      sheet_row_number  INTEGER UNIQUE,
-      timestamp         TEXT,
-      parent_name       TEXT,
-      parent_phone      TEXT,
-      parent_whatsapp   TEXT,
-      parent_email      TEXT,
-      qid               TEXT,
-      language          TEXT,
-      client_type       TEXT DEFAULT 'unknown',
-      raw_data          TEXT,
-      status            TEXT DEFAULT 'new',
-      notified_at       TEXT,
-      reminder_sent_at  TEXT,
-      responded_at      TEXT,
-      created_at        TEXT DEFAULT (datetime('now')),
-      updated_at        TEXT DEFAULT (datetime('now'))
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      sheet_row_number    INTEGER UNIQUE,
+      timestamp           TEXT,
+      parent_name         TEXT,
+      parent_phone        TEXT,
+      parent_whatsapp     TEXT,
+      parent_email        TEXT,
+      qid                 TEXT,
+      language            TEXT DEFAULT 'en',
+      client_type         TEXT DEFAULT 'unknown',
+      phone_normalized    TEXT,
+      whatsapp_normalized TEXT,
+      email_normalized    TEXT,
+      ref_lead_id         INTEGER,
+      raw_data            TEXT,
+      status              TEXT DEFAULT 'new',
+      notified_at         TEXT,
+      reminder_sent_at    TEXT,
+      responded_at        TEXT,
+      created_at          TEXT DEFAULT (datetime('now')),
+      updated_at          TEXT DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS logs (
@@ -74,22 +78,26 @@ function _initSchema(db) {
   `);
 }
 
-// Аддитивные миграции — идемпотентны
+// Idempotent migrations — safe to run on existing DBs
 function _runMigrations(db) {
   const migrations = [
-    // v1: добавляем client_type если его нет (для существующих БД)
     () => db.exec(`ALTER TABLE leads ADD COLUMN client_type TEXT DEFAULT 'unknown'`),
-    // v2: добавляем responded_at
     () => db.exec(`ALTER TABLE leads ADD COLUMN responded_at TEXT`),
-    // v3: индекс по client_type
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_client_type ON leads(client_type)`),
+    () => db.exec(`ALTER TABLE leads ADD COLUMN phone_normalized TEXT`),
+    () => db.exec(`ALTER TABLE leads ADD COLUMN whatsapp_normalized TEXT`),
+    () => db.exec(`ALTER TABLE leads ADD COLUMN email_normalized TEXT`),
+    () => db.exec(`ALTER TABLE leads ADD COLUMN ref_lead_id INTEGER`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_phone_norm     ON leads(phone_normalized)`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_whatsapp_norm  ON leads(whatsapp_normalized)`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_email_norm     ON leads(email_normalized)`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_ref            ON leads(ref_lead_id)`),
   ];
 
   for (const migrate of migrations) {
     try {
       migrate();
     } catch (err) {
-      // "duplicate column name" и "already exists" — нормально, пропускаем
       if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
         throw err;
       }
@@ -98,43 +106,40 @@ function _runMigrations(db) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// CRUD функции
+// CRUD
 // ─────────────────────────────────────────────────────────────
 
 function insertLead(lead) {
   const db = getDb();
-  const stmt = db.prepare(`
+  return db.prepare(`
     INSERT OR IGNORE INTO leads
       (sheet_row_number, timestamp, parent_name, parent_phone, parent_whatsapp,
-       parent_email, qid, language, client_type, raw_data, status)
+       parent_email, qid, language, client_type,
+       phone_normalized, whatsapp_normalized, email_normalized,
+       ref_lead_id, raw_data, status)
     VALUES
       (@sheet_row_number, @timestamp, @parent_name, @parent_phone, @parent_whatsapp,
-       @parent_email, @qid, @language, @client_type, @raw_data, @status)
-  `);
-  return stmt.run(lead);
+       @parent_email, @qid, @language, @client_type,
+       @phone_normalized, @whatsapp_normalized, @email_normalized,
+       @ref_lead_id, @raw_data, @status)
+  `).run(lead);
 }
 
 function getLeadByRow(sheetRowNumber) {
-  const db = getDb();
-  return db.prepare('SELECT * FROM leads WHERE sheet_row_number = ?').get(sheetRowNumber);
+  return getDb().prepare('SELECT * FROM leads WHERE sheet_row_number = ?').get(sheetRowNumber);
 }
 
 function updateLeadStatus(sheetRowNumber, updates) {
   const db = getDb();
-  const fields = Object.keys(updates)
-    .map(k => `${k} = @${k}`)
-    .join(', ');
-  const stmt = db.prepare(`
-    UPDATE leads
-    SET ${fields}, updated_at = datetime('now')
+  const fields = Object.keys(updates).map(k => `${k} = @${k}`).join(', ');
+  return db.prepare(`
+    UPDATE leads SET ${fields}, updated_at = datetime('now')
     WHERE sheet_row_number = @sheet_row_number
-  `);
-  return stmt.run({ ...updates, sheet_row_number: sheetRowNumber });
+  `).run({ ...updates, sheet_row_number: sheetRowNumber });
 }
 
 function getLeadsNeedingReminder(reminderHours) {
-  const db = getDb();
-  return db.prepare(`
+  return getDb().prepare(`
     SELECT * FROM leads
     WHERE status IN ('notified', 'returning_notified')
       AND reminder_sent_at IS NULL
@@ -143,61 +148,73 @@ function getLeadsNeedingReminder(reminderHours) {
   `).all(`-${reminderHours}`);
 }
 
-// Статистика за конкретный день (для morning-digest)
-// dateStr — 'YYYY-MM-DD' в UTC (конвертируем из Qatar time снаружи)
+/**
+ * Finds an existing lead matching phone, whatsapp, email, or QID.
+ * Returns the most recent match, or null.
+ *
+ * @param {{ phoneNorm, whatsappNorm, emailNorm, qid }} normalized
+ * @returns {object|null}
+ */
+function findExistingLead({ phoneNorm, whatsappNorm, emailNorm, qid }) {
+  return getDb().prepare(`
+    SELECT * FROM leads
+    WHERE
+      (? IS NOT NULL AND phone_normalized    = ?)
+      OR (? IS NOT NULL AND whatsapp_normalized = ?)
+      OR (? IS NOT NULL AND email_normalized    = ?)
+      OR (? IS NOT NULL AND ? != '' AND qid     = ?)
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).get(
+    phoneNorm,    phoneNorm,
+    whatsappNorm, whatsappNorm,
+    emailNorm,    emailNorm,
+    qid,          qid, qid
+  ) || null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Morning-digest helpers
+// ─────────────────────────────────────────────────────────────
+
 function getDailyStats(dateStr) {
   const db = getDb();
   const start = `${dateStr} 00:00:00`;
   const end   = `${dateStr} 23:59:59`;
 
   const byType = db.prepare(`
-    SELECT client_type, COUNT(*) as cnt
-    FROM leads
-    WHERE created_at BETWEEN ? AND ?
-    GROUP BY client_type
+    SELECT client_type, COUNT(*) as cnt FROM leads
+    WHERE created_at BETWEEN ? AND ? GROUP BY client_type
   `).all(start, end);
 
   const byLang = db.prepare(`
-    SELECT language, COUNT(*) as cnt
-    FROM leads
-    WHERE created_at BETWEEN ? AND ?
-      AND client_type = 'new'
-    GROUP BY language
+    SELECT language, COUNT(*) as cnt FROM leads
+    WHERE created_at BETWEEN ? AND ? AND client_type = 'new' GROUP BY language
   `).all(start, end);
 
   const responded = db.prepare(`
     SELECT COUNT(*) as cnt FROM leads
-    WHERE created_at BETWEEN ? AND ?
-      AND client_type = 'new'
-      AND status = 'responded'
+    WHERE created_at BETWEEN ? AND ? AND client_type = 'new' AND status = 'responded'
   `).get(start, end);
 
   const unanswered = db.prepare(`
     SELECT COUNT(*) as cnt FROM leads
-    WHERE created_at BETWEEN ? AND ?
-      AND client_type = 'new'
-      AND status = 'notified'
+    WHERE created_at BETWEEN ? AND ? AND client_type = 'new' AND status = 'notified'
   `).get(start, end);
 
   return { byType, byLang, responded: responded.cnt, unanswered: unanswered.cnt };
 }
 
-// Топ-N неотвеченных лидов (для дайджеста)
 function getTopUnanswered(limit = 3) {
-  const db = getDb();
-  return db.prepare(`
+  return getDb().prepare(`
     SELECT * FROM leads
-    WHERE status = 'notified'
-      AND client_type = 'new'
-    ORDER BY notified_at ASC
-    LIMIT ?
+    WHERE status = 'notified' AND client_type = 'new'
+    ORDER BY notified_at ASC LIMIT ?
   `).all(limit);
 }
 
-// Количество лидов за диапазон дат
 function countLeadsInRange(startDateStr, endDateStr) {
-  const db = getDb();
-  return db.prepare(`
+  return getDb().prepare(`
     SELECT COUNT(*) as cnt FROM leads
     WHERE created_at BETWEEN ? AND ?
   `).get(`${startDateStr} 00:00:00`, `${endDateStr} 23:59:59`).cnt;
@@ -209,6 +226,7 @@ module.exports = {
   getLeadByRow,
   updateLeadStatus,
   getLeadsNeedingReminder,
+  findExistingLead,
   getDailyStats,
   getTopUnanswered,
   countLeadsInRange,

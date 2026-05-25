@@ -1,35 +1,24 @@
 'use strict';
 
-const SYSTEM_PROMPT = `Ты — assistant детского гимнастического центра AcroGym в Катаре (район Pearl). \
-Открытие — сентябрь 2026. Твоя задача — написать тёплое короткое приветственное сообщение в WhatsApp \
-родителю, который только что оставил заявку на занятия для ребёнка. \
-Тон: дружелюбный, профессиональный, без сухости. \
-Длина: 3-5 предложений. \
-Используй эмодзи умеренно (1-2 на сообщение). \
-НЕ упоминай конкретные цены, расписание, адрес — этого мы пока не знаем. \
-Цель сообщения: подтвердить получение заявки, дать понять что мы свяжемся в течение часа, \
-повысить ожидание от знакомства. \
-Подпиши: 'Команда AcroGym 🤸'.`;
-
-const USER_PROMPTS = {
-  RU: (name) => `Напиши приветственное сообщение для родителя по имени ${name} на русском языке.`,
-  EN: (name) => `Write a welcome message for a parent named ${name} in English.`,
-  AR: (name) => `اكتب رسالة ترحيب لولي الأمر باسم ${name} باللغة العربية.`,
-};
+const SYSTEM_PROMPT =
+  'You are the assistant of AcroGym, a children\'s gymnastics center opening September 2026 ' +
+  'in The Pearl, Qatar. Write a warm, short welcome WhatsApp message to a parent who just ' +
+  'submitted an inquiry. Tone: friendly, professional, not dry. Length: 3-5 sentences. ' +
+  'Use emojis sparingly (1-2 per message). Do NOT mention specific prices, schedules, or ' +
+  'address — we don\'t know these yet. Goal: confirm receipt of inquiry, indicate we\'ll ' +
+  'contact within an hour, build excitement. Sign with: \'AcroGym Team 🤸\'.';
 
 /**
- * Строит промпты для генерации приветственного сообщения.
+ * Builds Claude prompt for welcome message generation.
  *
  * @param {object} params
- * @param {string} params.parentName  - имя родителя
- * @param {'RU'|'EN'|'AR'} params.language
+ * @param {string} params.parentName
  * @returns {{ system: string, user: string, maxTokens: number, model: string }}
  */
-function buildGreetingPrompt({ parentName, language }) {
-  const lang = USER_PROMPTS[language] ? language : 'EN';
+function buildGreetingPrompt({ parentName }) {
   return {
     system: SYSTEM_PROMPT,
-    user: USER_PROMPTS[lang](parentName || 'родитель'),
+    user: `Write a welcome message for a parent named ${parentName || 'there'}.`,
     maxTokens: 400,
     model: 'claude-sonnet-4-5',
   };
