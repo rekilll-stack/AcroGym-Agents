@@ -8,3 +8,6 @@ data/*.db-journal
 logs/
 *.log
 .DS_Store
+
+# Brand assets — heavy avatars (svg/png/json tracked, jpg excluded)
+config/brand/*.jpg

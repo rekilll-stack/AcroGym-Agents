@@ -1,0 +1,45 @@
+{
+  "name": "AcroGym",
+  "tagline": "Children's gymnastics center in The Pearl, Qatar",
+  "colors": {
+    "primary_blue": "#28347F",
+    "primary_orange": "#F37021",
+    "white": "#FFFFFF",
+    "primary_blue_cmyk": [100, 91, 12, 2],
+    "primary_orange_cmyk": [0, 66, 90, 0]
+  },
+  "fonts": {
+    "heading": {
+      "name": "Montserrat",
+      "weight": "800",
+      "fallback": "system-ui, -apple-system, sans-serif",
+      "note": "Original brandbook uses Gerhaus (paid). Montserrat Black used as free substitute."
+    },
+    "body": {
+      "name": "Montserrat",
+      "weight": "400",
+      "fallback": "system-ui, -apple-system, sans-serif"
+    },
+    "google_fonts_url": "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap"
+  },
+  "logo": {
+    "svg": "config/brand/logo.svg",
+    "png_color": "config/brand/logo.png",
+    "png_white": "config/brand/logo-white.png",
+    "avatar_orange": "config/brand/logo-avatar-orange.jpg",
+    "avatar_blue": "config/brand/logo-avatar-blue.jpg"
+  },
+  "voice": {
+    "values": ["reliability", "energy", "movement", "professionalism", "safety"],
+    "audience": "Parents of children aged 3-14, expat and local community in Doha"
+  },
+  "chart_palette": {
+    "comment": "Use these colors for chart.js / quickchart in reports",
+    "primary": "#28347F",
+    "secondary": "#F37021",
+    "background": "#FFFFFF",
+    "grid": "#E5E5E5",
+    "text": "#28347F",
+    "series": ["#28347F", "#F37021", "#5A6BC4", "#FF9755", "#1A2356", "#C25617"]
+  }
+}
