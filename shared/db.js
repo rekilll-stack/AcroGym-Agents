@@ -225,6 +225,18 @@ function getLongPending(hours = 24) {
   `).all(hours);
 }
 
+/**
+ * Leads that were responded to on a given date (YYYY-MM-DD, Qatar time).
+ */
+function getYesterdayResponded(dateStr) {
+  return getDb().prepare(`
+    SELECT * FROM leads
+    WHERE status = 'responded'
+      AND DATE(datetime(responded_at, '+3 hours')) = ?
+    ORDER BY responded_at ASC
+  `).all(dateStr);
+}
+
 // ─────────────────────────────────────────────────────────────
 // Analytics / chart data helpers
 // ─────────────────────────────────────────────────────────────
@@ -344,6 +356,7 @@ module.exports = {
   insertLead,
   getLeadByRow,
   getLeadById,
+  getYesterdayResponded,
   updateLeadStatus,
   updateLeadGreeting,
   getLeadsNeedingReminder,

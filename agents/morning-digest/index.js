@@ -75,16 +75,23 @@ async function sendDigest({ withCharts = false, dryRun = false } = {}) {
     console.log(plain);
     console.log('═'.repeat(64));
 
-    if (digest.topUnanswered.length > 0) {
-      console.log(`\nWould send ${digest.topUnanswered.length} pending lead card(s):`);
-      digest.topUnanswered.forEach((l, i) => {
-        const h = dayjs().tz(TIMEZONE).diff(dayjs(l.notified_at), 'hour');
-        console.log(`  ${i+1}. #${l.sheet_row_number} ${l.parent_name || '—'} | ${h}h waiting`);
-      });
+    if (digest.allPending && digest.allPending.length > 0) {
+      console.log(`\n📋 Would send pending list (${digest.allPending.length} leads) with inline buttons:`);
+      for (const l of digest.allPending) {
+        const icon = l.urgency || '🕐';
+        console.log(`  ${icon} ${l.name} | ${l.hoursWaiting}h | ${l.phone || '—'}${l.hasGreeting ? '' : ' ✏️'}`);
+      }
+    } else {
+      console.log('\n✅ No pending leads.');
+    }
+
+    if (digest.yesterdayResponded && digest.yesterdayResponded.length > 0) {
+      console.log(`\n✅ Yesterday responded (${digest.yesterdayResponded.length}):`);
+      digest.yesterdayResponded.forEach(r => console.log(`  ${r.name} at ${r.respondedAt}`));
     }
 
     if (digest.longPending.length > 0) {
-      console.log(`\nLong pending (>24h): ${digest.longPending.length} lead(s)`);
+      console.log(`\n🚨 Long pending (>24h): ${digest.longPending.length} lead(s)`);
     }
 
     if (withCharts && digest.chartBuffers.length > 0) {
@@ -121,37 +128,41 @@ async function sendDigest({ withCharts = false, dryRun = false } = {}) {
     logger.error({ err }, 'Failed to send main digest message');
   }
 
-  // Part 2: top-3 pending lead cards (separate messages with buttons)
+  // Part 2: all pending leads — one message with inline buttons per lead
   const now = dayjs().tz(TIMEZONE);
-  for (let i = 0; i < digest.topUnanswered.length; i++) {
-    const lead = digest.topUnanswered[i];
+  if (digest.allPending && digest.allPending.length > 0) {
     try {
-      const h = now.diff(dayjs(lead.notified_at), 'hour');
-      const phone = lead.parent_phone
-        ? lead.parent_phone.replace(/(\d{3})(\d{4})(\d{4})/, '+$1 $2 $3')
-        : '—';
+      const pending = digest.allPending;
+      let listText  = `📋 <b>Pending leads (${pending.length})</b>\n\n`;
 
-      let card = `🔥 <b>Pending #${i + 1} (${h}h waiting)</b>\n`;
-      card    += `👤 ${lead.parent_name || '—'}\n`;
-      card    += `📱 ${phone}`;
+      const keyboard = [];
+      for (let i = 0; i < pending.length; i++) {
+        const lead = pending[i];
+        const urgencyIcon = lead.urgency || '🕐';
+        const phone       = lead.phone
+          ? lead.phone.replace(/^(974)(\d{4})(\d{4})$/, '+$1 $2 $3')
+          : '—';
+        const greetIcon   = lead.hasGreeting ? '' : ' ✏️';
 
-      if (lead.generated_greeting) {
-        const preview = lead.generated_greeting.slice(0, 300);
-        const ellipsis = lead.generated_greeting.length > 300 ? '…' : '';
-        card += `\n✍️ <b>Draft message:</b>\n${preview}${ellipsis}`;
+        listText += `${i + 1}. ${urgencyIcon} <b>${lead.name}</b>${greetIcon}\n`;
+        listText += `    📱 ${phone} · ${lead.hoursWaiting}h waiting\n`;
+
+        // Two buttons per row: [📋 Copy] [✅ Done]
+        const shortName = lead.name.split(' ')[0].slice(0, 10);
+        keyboard.push([
+          { text: `📋 ${i + 1}. ${shortName}`, callback_data: `copy_text:${lead.id}` },
+          { text: `✅ Done`,                    callback_data: `mark_responded:${lead.id}` },
+        ]);
       }
 
-      const keyboard = {
-        inline_keyboard: [[
-          { text: '📋 Copy text',     callback_data: `copy_text:${lead.id}` },
-          { text: '✅ Mark responded', callback_data: `mark_responded:${lead.id}` },
-        ]],
-      };
+      listText += '\n<i>🕐 &lt;8h  ⚠️ 8-24h  🚨 &gt;24h</i>';
+      if (pending.some(l => !l.hasGreeting)) {
+        listText += '\n<i>✏️ = no draft greeting stored</i>';
+      }
 
-      await sendToOwner(card, { reply_markup: keyboard });
-      if (i < digest.topUnanswered.length - 1) await new Promise(r => setTimeout(r, 600));
+      await sendToOwner(listText, { reply_markup: { inline_keyboard: keyboard } });
     } catch (err) {
-      logger.error({ err, leadId: lead.id }, 'Failed to send pending lead card');
+      logger.error({ err }, 'Failed to send all-pending list');
     }
   }
 

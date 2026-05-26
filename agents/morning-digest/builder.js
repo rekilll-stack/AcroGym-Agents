@@ -20,6 +20,8 @@ const {
   getLeadsByHour,
   countTotalLeads,
   getLongPending,
+  getAllPending,
+  getYesterdayResponded,
 } = require('../../shared/db');
 const { generateText } = require('../../shared/claude');
 
@@ -200,6 +202,52 @@ async function buildInsight(stats) {
 }
 
 /**
+ * All pending leads with urgency flags.
+ * Returns array of { id, name, phone, hoursWaiting, urgency, hasGreeting }.
+ */
+function buildAllPending() {
+  try {
+    return getAllPending(50, 0).map(lead => {
+      const h = Math.floor((Date.now() - new Date(lead.notified_at).getTime()) / 3600000);
+      let urgency = '';
+      if (h >= 24) urgency = '🚨';
+      else if (h >= 8) urgency = '⚠️';
+      return {
+        id:           lead.id,
+        name:         lead.parent_name || '—',
+        phone:        lead.parent_phone || null,
+        hoursWaiting: h,
+        urgency,
+        hasGreeting:  !!lead.generated_greeting,
+      };
+    });
+  } catch (err) {
+    logger.warn({ err }, 'buildAllPending failed');
+    return [];
+  }
+}
+
+/**
+ * Leads responded to on a specific date (YYYY-MM-DD, Qatar time).
+ * Returns array of { name, phone, respondedAt }.
+ */
+function buildYesterdayResponded(dateStr) {
+  try {
+    return getYesterdayResponded(dateStr).map(lead => ({
+      id:          lead.id,
+      name:        lead.parent_name || '—',
+      phone:       lead.parent_phone || null,
+      respondedAt: lead.responded_at
+        ? dayjs(lead.responded_at).tz(TIMEZONE).format('HH:mm')
+        : '—',
+    }));
+  } catch (err) {
+    logger.warn({ err }, 'buildYesterdayResponded failed');
+    return [];
+  }
+}
+
+/**
  * Renders the 3 standard charts and returns array of PNG Buffers.
  * Returns [] on failure — does not block digest delivery.
  */
@@ -287,12 +335,14 @@ async function buildDigest({ dryRun = false, withCharts = false } = {}) {
   else                                                    forecastStatus = '🔴 Behind target';
 
   // ── New sections ──────────────────────────────────────────
-  const sourceBreakdown = buildSourceBreakdown(yesterdayStr);
-  const identErrors     = buildIdentErrors(yesterdayStr);
-  const longPending     = buildLongPending();
-  const systemStatus    = buildSystemStatus();
-  const dowData         = buildDayOfWeek(28);
-  const todData         = buildTimeOfDay(28);
+  const sourceBreakdown     = buildSourceBreakdown(yesterdayStr);
+  const identErrors         = buildIdentErrors(yesterdayStr);
+  const longPending         = buildLongPending();
+  const allPending          = buildAllPending();
+  const yesterdayResponded  = buildYesterdayResponded(yesterdayStr);
+  const systemStatus        = buildSystemStatus();
+  const dowData             = buildDayOfWeek(28);
+  const todData             = buildTimeOfDay(28);
 
   // ── Chart raw data ────────────────────────────────────────
   const last7Days   = getLeadsByDay(7);
@@ -360,7 +410,7 @@ async function buildDigest({ dryRun = false, withCharts = false } = {}) {
   }
 
   // Operational Health
-  if (newCount > 0 || topUnanswered.length > 0) {
+  if (newCount > 0 || topUnanswered.length > 0 || allPending.length > 0) {
     text += `⚡ <b>Operational Health</b>\n`;
     if (newCount > 0) {
       text += `• Responded: ${stats.responded}/${newCount} (${Math.round(stats.responded / newCount * 100)}%)\n`;
@@ -373,6 +423,15 @@ async function buildDigest({ dryRun = false, withCharts = false } = {}) {
     if (oldestUnanswered) {
       const h = now.diff(dayjs(oldestUnanswered.notified_at), 'hour');
       text += `• Oldest pending: ${oldestUnanswered.parent_name || '—'} — ${h}h waiting\n`;
+    }
+    text += '\n';
+  }
+
+  // Yesterday responded (Вариант Б)
+  if (yesterdayResponded.length > 0) {
+    text += `✅ <b>Responded yesterday (${yesterdayResponded.length})</b>\n`;
+    for (const r of yesterdayResponded) {
+      text += `• ${r.name} — responded at ${r.respondedAt}\n`;
     }
     text += '\n';
   }
@@ -417,6 +476,8 @@ async function buildDigest({ dryRun = false, withCharts = false } = {}) {
   return {
     text,
     topUnanswered,
+    allPending,
+    yesterdayResponded,
     copyCallbacks: topUnanswered.map((l, i) => ({ index: i, leadId: l.id, name: l.parent_name })),
     longPending,
     systemStatus,
@@ -431,6 +492,8 @@ module.exports = {
   buildSourceBreakdown,
   buildIdentErrors,
   buildLongPending,
+  buildAllPending,
+  buildYesterdayResponded,
   buildSystemStatus,
   buildDayOfWeek,
   buildTimeOfDay,
