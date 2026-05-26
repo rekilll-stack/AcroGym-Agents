@@ -18,11 +18,14 @@ const {
 const {
   getDb,
   insertLead,
+  getLeadById,
   getLeadByRow,
   updateLeadStatus,
+  updateLeadGreeting,
   getLeadsNeedingReminder,
   findExistingLead,
 } = require('../../shared/db');
+const { markRespondedHandler, copyTextHandler } = require('../../shared/callbacks');
 const { buildGreetingPrompt } = require('./prompts');
 
 const logger = createLogger('lead-helper');
@@ -61,6 +64,7 @@ function parseRow(headers, values, colMap) {
     client_type:     parseClientType(get('client_type')),
     child_name:      childIdx !== -1 ? (values[childIdx] || '').trim() : '',
     ready_date:      get('ready_date'),
+    source:          get('source') || null,
   };
 }
 
@@ -121,7 +125,7 @@ function contactedKeyboard(leadId) {
 // ─────────────────────────────────────────────────────────────
 
 function saveLead(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, status, refLeadId = null) {
-  return insertLead({
+  const result = insertLead({
     sheet_row_number:    rowNumber,
     timestamp:           parsed.timestamp,
     parent_name:         parsed.parent_name,
@@ -138,6 +142,12 @@ function saveLead(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, status,
     raw_data:            JSON.stringify({ parsed }),
     status,
   });
+  // Save source if available (column might not exist in form yet)
+  if (result && result.lastInsertRowid && parsed.source) {
+    getDb().prepare(`UPDATE leads SET source = ? WHERE id = ?`)
+      .run(parsed.source, result.lastInsertRowid);
+  }
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -153,7 +163,10 @@ async function handleNew(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, 
   let greetingText = null;
   try {
     greetingText = await generateText(buildGreetingPrompt({ parentName: parsed.parent_name }));
-    if (greetingText) _greetingCache.set(String(leadId), greetingText);
+    if (greetingText) {
+      _greetingCache.set(String(leadId), greetingText);
+      updateLeadGreeting(leadId, greetingText); // persist to DB — survives restarts
+    }
   } catch (err) {
     logger.warn({ err }, 'Claude unavailable — sending card without draft');
   }
@@ -335,57 +348,11 @@ async function checkReminders() {
 // ─────────────────────────────────────────────────────────────
 
 function setupCallbacks() {
-  // "✅ I responded" / "✅ Contacted"
-  registerCallback('responded', async (query, bot) => {
-    const leadId = parseInt((query.data || '').split(':')[1], 10);
-    if (isNaN(leadId)) return;
+  // "✅ I responded" / "✅ Contacted" — shared handler from callbacks.js
+  registerCallback('responded', markRespondedHandler('admin'));
 
-    try {
-      const lead = getDb().prepare('SELECT * FROM leads WHERE id = ?').get(leadId);
-      if (lead) {
-        updateLeadStatus(lead.sheet_row_number, {
-          status: 'responded',
-          responded_at: new Date().toISOString(),
-        });
-      }
-
-      const time = new Date().toLocaleTimeString('en-GB', {
-        timeZone: process.env.TIMEZONE || 'Asia/Qatar',
-        hour: '2-digit', minute: '2-digit',
-      });
-
-      await editMessage(
-        'admin',
-        query.message.chat.id,
-        query.message.message_id,
-        query.message.text + `\n\n<b>✅ Responded at ${time}</b>`,
-        { reply_markup: { inline_keyboard: [] } }
-      );
-
-      await bot.answerCallbackQuery(query.id, { text: '✅ Marked as responded' });
-      logger.info({ leadId }, 'Lead marked as responded');
-    } catch (err) {
-      logger.error({ err, leadId }, 'Error in responded callback');
-    }
-  });
-
-  // "📋 Copy text only"
-  registerCallback('copy', async (query, bot) => {
-    const leadId = (query.data || '').split(':')[1];
-    if (!leadId) return;
-
-    try {
-      const text = _greetingCache.get(leadId);
-      if (text) {
-        await bot.sendMessage(query.message.chat.id, text);
-        await bot.answerCallbackQuery(query.id, { text: '📋 Text sent above ↑' });
-      } else {
-        await bot.answerCallbackQuery(query.id, { text: '⚠️ Text not available (cache cleared on restart)' });
-      }
-    } catch (err) {
-      logger.error({ err, leadId }, 'Error in copy callback');
-    }
-  });
+  // "📋 Copy text only" — reads from DB first, then in-memory cache
+  registerCallback('copy', copyTextHandler(_greetingCache));
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -5,6 +5,16 @@
  * В будущем часть каналов может переехать на WhatsApp Cloud API —
  * менять только этот файл.
  */
-const { sendToAdmin, sendToOwner } = require('./telegram');
+const {
+  sendToAdmin,
+  sendToOwner,
+  sendPhotoToOwner,
+  sendMediaGroupToOwner,
+} = require('./telegram');
 
-module.exports = { sendToAdmin, sendToOwner };
+module.exports = {
+  sendToAdmin,
+  sendToOwner,
+  sendPhotoToOwner,
+  sendMediaGroupToOwner,
+};

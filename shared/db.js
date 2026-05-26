@@ -92,6 +92,10 @@ function _runMigrations(db) {
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_whatsapp_norm  ON leads(whatsapp_normalized)`),
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_email_norm     ON leads(email_normalized)`),
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_ref            ON leads(ref_lead_id)`),
+    // v12-v14: greeting storage + lead source tracking
+    () => db.exec(`ALTER TABLE leads ADD COLUMN generated_greeting TEXT`),
+    () => db.exec(`ALTER TABLE leads ADD COLUMN source TEXT`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source)`),
   ];
 
   for (const migrate of migrations) {
@@ -174,6 +178,121 @@ function findExistingLead({ phoneNorm, whatsappNorm, emailNorm, qid }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Single-lead helpers
+// ─────────────────────────────────────────────────────────────
+
+function getLeadById(id) {
+  return getDb().prepare('SELECT * FROM leads WHERE id = ?').get(id) || null;
+}
+
+/** Saves the Claude-generated greeting text for a lead. */
+function updateLeadGreeting(leadId, greetingText) {
+  return getDb().prepare(
+    `UPDATE leads SET generated_greeting = ?, updated_at = datetime('now') WHERE id = ?`
+  ).run(greetingText, leadId);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Pending leads helpers
+// ─────────────────────────────────────────────────────────────
+
+function getAllPending(limit = 50, offset = 0) {
+  return getDb().prepare(`
+    SELECT * FROM leads
+    WHERE status = 'notified' AND client_type IN ('new', 'unknown')
+    ORDER BY notified_at ASC
+    LIMIT ? OFFSET ?
+  `).all(limit, offset);
+}
+
+function countPending() {
+  return getDb().prepare(`
+    SELECT COUNT(*) as cnt FROM leads
+    WHERE status = 'notified' AND client_type IN ('new', 'unknown')
+  `).get().cnt;
+}
+
+/**
+ * Returns leads that have been in 'notified' status for more than `hours` hours.
+ */
+function getLongPending(hours = 24) {
+  return getDb().prepare(`
+    SELECT * FROM leads
+    WHERE status = 'notified'
+      AND client_type IN ('new', 'unknown')
+      AND notified_at <= datetime('now', '-' || ? || ' hours')
+    ORDER BY notified_at ASC
+  `).all(hours);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Analytics / chart data helpers
+// ─────────────────────────────────────────────────────────────
+
+/** Total new/unknown leads accumulated (for goal tracking). */
+function countTotalLeads() {
+  return getDb().prepare(`
+    SELECT COUNT(*) as cnt FROM leads WHERE client_type IN ('new', 'unknown')
+  `).get().cnt;
+}
+
+/**
+ * Per-day lead counts for the last N days (Qatar local time).
+ * Returns [{day: 'YYYY-MM-DD', cnt: N}, ...]
+ */
+function getLeadsByDay(days = 7) {
+  return getDb().prepare(`
+    SELECT DATE(datetime(created_at, '+3 hours')) as day, COUNT(*) as cnt
+    FROM leads
+    WHERE created_at >= datetime('now', '-' || ? || ' days')
+    GROUP BY DATE(datetime(created_at, '+3 hours'))
+    ORDER BY day ASC
+  `).all(days);
+}
+
+/**
+ * Per-day-of-week counts for the last N days (Qatar time, 0=Sun).
+ * Returns [{dow: '0'..'6', cnt: N}, ...]
+ */
+function getLeadsByDayOfWeek(days = 28) {
+  return getDb().prepare(`
+    SELECT strftime('%w', datetime(created_at, '+3 hours')) as dow, COUNT(*) as cnt
+    FROM leads
+    WHERE created_at >= datetime('now', '-' || ? || ' days')
+    GROUP BY strftime('%w', datetime(created_at, '+3 hours'))
+    ORDER BY dow ASC
+  `).all(days);
+}
+
+/**
+ * Per-hour counts for the last N days (Qatar time).
+ * Returns [{hour: '00'..'23', cnt: N}, ...]
+ */
+function getLeadsByHour(days = 28) {
+  return getDb().prepare(`
+    SELECT strftime('%H', datetime(created_at, '+3 hours')) as hour, COUNT(*) as cnt
+    FROM leads
+    WHERE created_at >= datetime('now', '-' || ? || ' days')
+    GROUP BY strftime('%H', datetime(created_at, '+3 hours'))
+    ORDER BY hour ASC
+  `).all(days);
+}
+
+/**
+ * Per-day lead counts for a specific date range.
+ * Returns [{day: 'YYYY-MM-DD', cnt: N}, ...]
+ */
+function getLeadsByDayRange(startDate, endDate) {
+  return getDb().prepare(`
+    SELECT DATE(datetime(created_at, '+3 hours')) as day, COUNT(*) as cnt
+    FROM leads
+    WHERE DATE(datetime(created_at, '+3 hours')) BETWEEN ? AND ?
+    GROUP BY DATE(datetime(created_at, '+3 hours'))
+    ORDER BY day ASC
+  `).all(startDate, endDate);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Morning-digest helpers
 // ─────────────────────────────────────────────────────────────
 
@@ -224,9 +343,19 @@ module.exports = {
   getDb,
   insertLead,
   getLeadByRow,
+  getLeadById,
   updateLeadStatus,
+  updateLeadGreeting,
   getLeadsNeedingReminder,
   findExistingLead,
+  getAllPending,
+  countPending,
+  getLongPending,
+  countTotalLeads,
+  getLeadsByDay,
+  getLeadsByDayOfWeek,
+  getLeadsByHour,
+  getLeadsByDayRange,
   getDailyStats,
   getTopUnanswered,
   countLeadsInRange,

@@ -111,6 +111,68 @@ async function editMessage(bot, chatId, messageId, text, options = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Фото / медиа
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Отправляет PNG-картинку всем получателям из OWNER_CHAT_IDS через OWNER_BOT.
+ * @param {Buffer} buffer  — PNG-буфер
+ * @param {string} [caption]
+ * @param {object} [options]  — поддерживает reply_markup
+ */
+async function sendPhotoToOwner(buffer, caption, options = {}) {
+  const chatIds = parseChatIds('OWNER_CHAT_IDS');
+  if (!chatIds.length) {
+    logger.warn('OWNER_CHAT_IDS не задан — фото не отправлено');
+    return [];
+  }
+
+  const bot     = getOwnerBot();
+  const results = [];
+
+  for (const chatId of chatIds) {
+    try {
+      const opts = { parse_mode: 'HTML', ...options };
+      if (caption) opts.caption = caption;
+      const msg = await bot.sendPhoto(chatId, buffer, opts);
+      results.push(msg);
+    } catch (err) {
+      logger.error({ err, chatId }, 'Ошибка отправки фото');
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Отправляет несколько PNG-картинок последовательно всем OWNER_CHAT_IDS.
+ * (Telegram Media Group с Buffer требует form-data; используем последовательные sendPhoto.)
+ *
+ * @param {Buffer[]} buffers  — массив PNG-буферов
+ * @param {string}   [caption]  — подпись к первому фото
+ */
+async function sendMediaGroupToOwner(buffers, caption) {
+  const chatIds = parseChatIds('OWNER_CHAT_IDS');
+  if (!chatIds.length) return;
+
+  const bot = getOwnerBot();
+
+  for (const chatId of chatIds) {
+    for (let i = 0; i < buffers.length; i++) {
+      try {
+        const opts = { parse_mode: 'HTML' };
+        if (i === 0 && caption) opts.caption = caption;
+        await bot.sendPhoto(chatId, buffers[i], opts);
+        // небольшая пауза между фото, чтобы Telegram не считал их как альбом
+        if (i < buffers.length - 1) await new Promise(r => setTimeout(r, 400));
+      } catch (err) {
+        logger.error({ err, chatId, photoIndex: i }, 'Ошибка отправки фото в медиа-группе');
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Callback-handler (inline-кнопки)
 // ─────────────────────────────────────────────────────────────
 
@@ -165,10 +227,114 @@ function startCallbackPolling() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Owner Bot — команды и callback'и от дайджеста
+// ─────────────────────────────────────────────────────────────
+
+let _ownerPollingBot = null;
+const _ownerCallbackHandlers = new Map(); // prefix → handler
+const _ownerCommandHandlers  = new Map(); // '/command' → handler
+
+/**
+ * Регистрирует обработчик callback_query для OWNER_BOT.
+ * @param {string}   prefix   — например 'mark_responded', 'copy_text'
+ * @param {Function} handler  — async (query, bot) => {}
+ */
+function registerOwnerCallback(prefix, handler) {
+  _ownerCallbackHandlers.set(prefix, handler);
+  logger.debug({ prefix }, 'Owner callback handler зарегистрирован');
+}
+
+/**
+ * Регистрирует обработчик текстовой команды для OWNER_BOT.
+ * @param {string}   command  — например '/yesterday', '/week'
+ * @param {Function} handler  — async (msg, bot) => {}
+ */
+function registerOwnerCommand(command, handler) {
+  _ownerCommandHandlers.set(command.toLowerCase(), handler);
+  logger.debug({ command }, 'Owner command handler зарегистрирован');
+}
+
+/**
+ * Запускает polling на OWNER_BOT для приёма:
+ *  - текстовых команд (/yesterday, /week, etc.)
+ *  - callback_query от inline-кнопок дайджеста
+ *
+ * Отвечает ТОЛЬКО на сообщения из OWNER_CHAT_IDS.
+ */
+function startOwnerPolling() {
+  try {
+    const token = process.env.OWNER_BOT_TOKEN;
+    if (!token) { logger.warn('OWNER_BOT_TOKEN не задан — owner polling не запущен'); return; }
+
+    const ownerChatIds = parseChatIds('OWNER_CHAT_IDS');
+
+    _ownerPollingBot = new TelegramBot(token, { polling: true });
+
+    // Текстовые команды
+    _ownerPollingBot.on('message', async (msg) => {
+      const text   = (msg.text || '').trim();
+      if (!text.startsWith('/')) return;
+
+      const chatId = String(msg.chat.id);
+      if (!ownerChatIds.includes(chatId)) {
+        logger.warn({ chatId, text }, 'Owner bot: команда от неизвестного чата — игнор');
+        return;
+      }
+
+      // Парсим команду, убираем @botname суффикс
+      const command = text.split(' ')[0].split('@')[0].toLowerCase();
+      const handler = _ownerCommandHandlers.get(command);
+      if (!handler) return;
+
+      try {
+        await handler(msg, _ownerPollingBot);
+      } catch (err) {
+        logger.error({ err, command }, 'Ошибка в owner command handler');
+      }
+    });
+
+    // Callback'и от inline-кнопок (digest-карточки)
+    _ownerPollingBot.on('callback_query', async (query) => {
+      const chatId = String(query.from.id);
+      if (!ownerChatIds.includes(chatId)) {
+        logger.warn({ chatId }, 'Owner bot: callback от неизвестного чата — игнор');
+        return;
+      }
+
+      const data    = query.data || '';
+      const prefix  = data.split(':')[0];
+      const handler = _ownerCallbackHandlers.get(prefix);
+      if (!handler) { await _ownerPollingBot.answerCallbackQuery(query.id).catch(() => {}); return; }
+
+      try {
+        await handler(query, _ownerPollingBot);
+      } catch (err) {
+        logger.error({ err, data }, 'Ошибка в owner callback handler');
+        await _ownerPollingBot.answerCallbackQuery(query.id, { text: '❌ Error' }).catch(() => {});
+      }
+    });
+
+    _ownerPollingBot.on('polling_error', (err) => {
+      logger.error({ err }, 'Owner bot polling error');
+    });
+
+    logger.info('Owner bot polling запущен (OWNER_BOT)');
+    return _ownerPollingBot;
+  } catch (err) {
+    logger.error({ err }, 'Не удалось запустить owner polling');
+  }
+}
+
 module.exports = {
   sendToAdmin,
   sendToOwner,
+  sendPhotoToOwner,
+  sendMediaGroupToOwner,
   editMessage,
   registerCallback,
   startCallbackPolling,
+  registerOwnerCallback,
+  registerOwnerCommand,
+  startOwnerPolling,
 };
