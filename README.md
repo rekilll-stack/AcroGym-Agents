@@ -16,18 +16,26 @@
 ```
 acrogym/
 ├── agents/                  # Каждый агент — отдельная папка
-│   └── lead-helper/         # Агент #1: обработка новых заявок
-│       ├── index.js         # Точка входа, логика агента
-│       └── prompts.js       # Промпты для Claude
+│   ├── lead-helper/         # Агент #1: обработка новых заявок
+│   │   ├── index.js         # Точка входа, логика агента
+│   │   └── prompts.js       # Промпты для Claude
+│   └── owner-bot/           # Агент #2: аналитика и управление для владельца
+│       ├── index.js         # Точка входа, cron-расписание, polling
+│       ├── builders/        # daily / weekly / monthly builders
+│       ├── commands/        # /menu /yesterday /week /month /pending /status /help /export
+│       ├── callbacks/       # Обработчики inline-кнопок
+│       ├── schedulers/      # Cron-отправка дайджестов
+│       └── exporters/       # PDF / PPTX экспортёры
 │
 ├── shared/                  # Общие модули для всех агентов
 │   ├── db.js                # SQLite (better-sqlite3)
-│   ├── telegram.js          # Telegram Bot API
+│   ├── telegram.js          # Telegram Bot API + escapeMd()
 │   ├── notify.js            # Абстракция канала уведомлений владельца
 │   ├── sheets.js            # Google Sheets API
 │   ├── claude.js            # Claude API с retry
 │   ├── logger.js            # pino логгер (файл + stdout)
-│   └── language.js          # Определение языка по имени (RU/EN/AR)
+│   ├── language.js          # Определение языка по имени (RU/EN/AR)
+│   └── i18n/                # Словари EN/RU (nested JSON, MarkdownV2-совместимые)
 │
 ├── config/
 │   ├── pm2.config.js        # PM2 ecosystem config
@@ -141,10 +149,10 @@ start().catch(err => { logger.fatal({ err }); process.exit(1); });
 | # | Агент | Статус | Описание |
 |---|---|---|---|
 | 1 | `lead-helper` | ✅ **Готов** | Опрос заявок, генерация приветствий, напоминания |
-| 2 | `deduplication` | ⏳ Планируется | Чистка дублей в Google Sheets |
+| 2 | `owner-bot` | ✅ **Готов** | Daily digest (8:00 Doha), weekly slice (Mon 9:00), monthly report (1st 10:00), интерактивное меню, PDF/PPTX экспорт, i18n EN/RU, MarkdownV2 |
 | 3 | `pre-launch-nurture` | ⏳ Планируется | Прогрев лидов серией сообщений до открытия |
-| 4 | `content-agent` | ⏳ Планируется | Генерация постов и подписей для Instagram |
-| 5 | `morning-digest` | ⏳ Планируется | Утренняя сводка: новые лиды, статусы, задачи дня |
+| 4 | `deduplication` | ⏳ Планируется | Чистка дублей в Google Sheets |
+| 5 | `content-agent` | ⏳ Планируется | Генерация постов и подписей для Instagram |
 | 6 | `funnel-dashboard` | ⏳ Планируется | Дашборд воронки (Sheets / Notion) |
 | 7 | `instagram-dm-agent` | ⏳ Планируется | ИИ-ответы в Instagram Direct (Meta API) |
 | 8 | `progress-reports` | ⏳ После in2 | Месячные отчёты родителям о прогрессе ребёнка |

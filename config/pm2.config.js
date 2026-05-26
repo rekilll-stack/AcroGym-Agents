@@ -20,35 +20,35 @@ module.exports = {
     },
 
     // ─────────────────────────────
-    // Агент 2: Morning Digest
+    // Агент 2: Owner Bot
     // ─────────────────────────────
     {
-      name: 'morning-digest',
-      script: 'agents/morning-digest/index.js',
+      name: 'owner-bot',
+      script: 'agents/owner-bot/index.js',
       cwd: '/home/admin/acrogym',
       autorestart: true,
       max_restarts: 5,
       restart_delay: 10000,
       watch: false,
-      error_file: 'logs/morning-digest-error.log',
-      out_file:   'logs/morning-digest-out.log',
+      error_file: 'logs/owner-bot-error.log',
+      out_file:   'logs/owner-bot-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       env: { NODE_ENV: 'production', TZ: 'Asia/Qatar' },
     },
 
     // ─────────────────────────────
-    // Шаблон для следующего агента:
+    // Агент 3: Pre-launch Nurture (следующий)
     // ─────────────────────────────
     // {
-    //   name: 'deduplication',
-    //   script: 'agents/deduplication/index.js',
+    //   name: 'nurture',
+    //   script: 'agents/nurture/index.js',
     //   cwd: '/home/admin/acrogym',
     //   autorestart: true,
     //   max_restarts: 10,
     //   restart_delay: 5000,
     //   watch: false,
-    //   error_file: 'logs/deduplication-error.log',
-    //   out_file:   'logs/deduplication-out.log',
+    //   error_file: 'logs/nurture-error.log',
+    //   out_file:   'logs/nurture-out.log',
     //   log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     //   env: { NODE_ENV: 'production' },
     // },

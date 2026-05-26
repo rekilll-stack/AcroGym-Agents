@@ -9,7 +9,9 @@ const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const { createLogger } = require('../../shared/logger');
+const { createLogger }    = require('../../../shared/logger');
+const { createTranslator } = require('../../../shared/i18n');
+const { escapeMd }        = require('../../../shared/telegram');
 const {
   getDb,
   getDailyStats,
@@ -22,28 +24,35 @@ const {
   getLongPending,
   getAllPending,
   getYesterdayResponded,
-} = require('../../shared/db');
-const { generateText } = require('../../shared/claude');
+} = require('../../../shared/db');
+const { generateText } = require('../../../shared/claude');
 
-const logger       = createLogger('morning-digest');
+const logger       = createLogger('owner-bot');
 const TIMEZONE     = process.env.TIMEZONE || 'Asia/Qatar';
 const OPENING_DATE = '2026-09-01';
 
-const EN_DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-const EN_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// Short day labels for charts (always EN — chart axis labels)
 const DOW_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// dayjs.day() → day_names key mapping (0=Sunday)
+const DOW_KEYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────
 
-function formatUptime(ms) {
+/**
+ * Format uptime milliseconds → "2d 5h" or "5h" (language-aware short suffixes).
+ */
+function formatUptime(ms, tr) {
   if (!ms || ms < 0) return '?';
   const totalH = Math.floor(ms / 3600000);
   const d = Math.floor(totalH / 24);
   const h = totalH % 24;
-  if (d > 0) return `${d}d ${h}h`;
-  return `${totalH}h`;
+  const ds = tr.t('common.uptime.days_short');
+  const hs = tr.t('common.uptime.hours_short');
+  if (d > 0) return `${d}${ds} ${h}${hs}`;
+  return `${totalH}${hs}`;
 }
 
 function formatPhone(phone) {
@@ -56,13 +65,9 @@ function formatPhone(phone) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Section builders (each exported for independent testing)
+// Section builders (exported for independent testing)
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Source breakdown for a given date (YYYY-MM-DD).
- * Returns null if source column absent or no data.
- */
 function buildSourceBreakdown(yesterdayStr) {
   try {
     const db   = getDb();
@@ -73,6 +78,7 @@ function buildSourceBreakdown(yesterdayStr) {
       SELECT COALESCE(NULLIF(TRIM(source), ''), 'Unknown') as src, COUNT(*) as cnt
       FROM leads
       WHERE DATE(datetime(created_at, '+3 hours')) = ?
+        AND client_type != 'legacy'
       GROUP BY src
       ORDER BY cnt DESC
     `).all(yesterdayStr);
@@ -87,9 +93,6 @@ function buildSourceBreakdown(yesterdayStr) {
   }
 }
 
-/**
- * Count of leads auto-filtered as existing/returning duplicates (yesterday).
- */
 function buildIdentErrors(yesterdayStr) {
   try {
     const row = getDb().prepare(`
@@ -101,10 +104,6 @@ function buildIdentErrors(yesterdayStr) {
   } catch { return 0; }
 }
 
-/**
- * Leads pending >24h without response.
- * Returns array of { id, name, phone, hoursWaiting }.
- */
 function buildLongPending() {
   try {
     return getLongPending(24).map(lead => ({
@@ -119,10 +118,6 @@ function buildLongPending() {
   }
 }
 
-/**
- * PM2 process status via `pm2 jlist`.
- * Returns array of process objects or { error } on failure.
- */
 function buildSystemStatus() {
   try {
     const pm2Bin = path.join(process.env.HOME || '/home/admin', '.npm-global/bin/pm2');
@@ -141,10 +136,6 @@ function buildSystemStatus() {
   }
 }
 
-/**
- * Lead count by day of week for last N days.
- * Returns { Sun: N, Mon: N, ..., Sat: N }.
- */
 function buildDayOfWeek(days = 28) {
   try {
     const rows   = getLeadsByDayOfWeek(days);
@@ -160,10 +151,6 @@ function buildDayOfWeek(days = 28) {
   }
 }
 
-/**
- * Lead count by hour of day for last N days.
- * Returns array of 24 numbers (index = hour 0-23).
- */
 function buildTimeOfDay(days = 28) {
   try {
     const rows   = getLeadsByHour(days);
@@ -176,10 +163,6 @@ function buildTimeOfDay(days = 28) {
   }
 }
 
-/**
- * Generates a single AI insight via Claude API.
- * Returns string or null on failure (non-blocking).
- */
 async function buildInsight(stats) {
   try {
     const systemPrompt =
@@ -201,10 +184,6 @@ async function buildInsight(stats) {
   }
 }
 
-/**
- * All pending leads with urgency flags.
- * Returns array of { id, name, phone, hoursWaiting, urgency, hasGreeting }.
- */
 function buildAllPending() {
   try {
     return getAllPending(50, 0).map(lead => {
@@ -227,10 +206,6 @@ function buildAllPending() {
   }
 }
 
-/**
- * Leads responded to on a specific date (YYYY-MM-DD, Qatar time).
- * Returns array of { name, phone, respondedAt }.
- */
 function buildYesterdayResponded(dateStr) {
   try {
     return getYesterdayResponded(dateStr).map(lead => ({
@@ -247,16 +222,12 @@ function buildYesterdayResponded(dateStr) {
   }
 }
 
-/**
- * Renders the 3 standard charts and returns array of PNG Buffers.
- * Returns [] on failure — does not block digest delivery.
- */
 async function renderCharts(chartData) {
   try {
-    const { renderLineChart, renderBarChart, renderHeatmap } = require('../../shared/chart');
+    const { renderLineChart, renderBarChart, renderHeatmap } = require('../../../shared/chart');
     const [c1, c2, c3] = await Promise.all([
       renderLineChart({
-        title:  '7-Day Lead Trend',
+        title:  'Last 7 days — leads per day',
         labels: chartData.trend.labels,
         data:   chartData.trend.data,
       }),
@@ -282,14 +253,17 @@ async function renderCharts(chartData) {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Builds the full digest payload.
+ * Builds the full digest payload (MarkdownV2 text + data).
  *
  * @param {object}  [opts]
  * @param {boolean} [opts.dryRun=false]
- * @param {boolean} [opts.withCharts=false]  — render chart PNGs
+ * @param {boolean} [opts.withCharts=false]
+ * @param {string}  [opts.lang='en']          - 'en' | 'ru'
  * @returns {Promise<DigestPayload>}
  */
-async function buildDigest({ dryRun = false, withCharts = false } = {}) {
+async function buildDigest({ dryRun = false, withCharts = false, lang = 'en' } = {}) {
+  const tr = createTranslator(lang);
+
   const now          = dayjs().tz(TIMEZONE);
   const yesterday    = now.subtract(1, 'day');
   const yesterdayStr = yesterday.format('YYYY-MM-DD');
@@ -300,11 +274,10 @@ async function buildDigest({ dryRun = false, withCharts = false } = {}) {
   const byType = {};
   for (const { client_type, cnt } of stats.byType) byType[client_type] = cnt;
 
-  const newCount       = byType['new']      || 0;
-  const existingCount  = byType['existing'] || 0;
-  const returningCount = byType['returning']|| 0;
-  const unknownCount   = byType['unknown']  || 0;
-  const totalCount     = newCount + existingCount + returningCount + unknownCount;
+  const newCount       = byType['new']       || 0;
+  const existingCount  = byType['existing']  || 0;
+  const returningCount = byType['returning'] || 0;
+  const totalCount     = newCount + existingCount + returningCount + (byType['unknown'] || 0);
 
   const topUnanswered    = getTopUnanswered(3);
   const oldestUnanswered = topUnanswered[0] || null;
@@ -320,45 +293,46 @@ async function buildDigest({ dryRun = false, withCharts = false } = {}) {
   const avgPerDay  = last7Count > 0 ? last7Count / 7 : 0;
 
   // ── Goal tracking ─────────────────────────────────────────
-  const opening          = dayjs(OPENING_DATE).tz(TIMEZONE);
-  const daysLeft         = opening.diff(now.startOf('day'), 'day');
-  const TARGET_STUDENTS  = 300;
-  const TARGET_CONV      = 0.26;
-  const neededLeads      = Math.round(TARGET_STUDENTS / TARGET_CONV);
+  const opening         = dayjs(OPENING_DATE).tz(TIMEZONE);
+  const daysLeft        = opening.diff(now.startOf('day'), 'day');
+  const TARGET_STUDENTS = 300;
+  const TARGET_CONV     = 0.26;
+  const neededLeads     = Math.round(TARGET_STUDENTS / TARGET_CONV);
   const totalAccumulated = countTotalLeads();
   const remaining        = Math.max(0, neededLeads - totalAccumulated);
   const requiredPace     = daysLeft > 0 ? (remaining / daysLeft).toFixed(1) : '?';
 
+  // Goal status — full translated string (already has bullet)
   let forecastStatus;
-  if (avgPerDay >= parseFloat(requiredPace))             forecastStatus = '🟢 On track';
-  else if (avgPerDay >= parseFloat(requiredPace) * 0.7)  forecastStatus = '🟡 Slightly below target';
-  else                                                    forecastStatus = '🔴 Behind target';
+  if (avgPerDay >= parseFloat(requiredPace))            forecastStatus = tr.t('daily.goal_status_green');
+  else if (avgPerDay >= parseFloat(requiredPace) * 0.7) forecastStatus = tr.t('daily.goal_status_yellow');
+  else                                                   forecastStatus = tr.t('daily.goal_status_red');
 
   // ── New sections ──────────────────────────────────────────
-  const sourceBreakdown     = buildSourceBreakdown(yesterdayStr);
-  const identErrors         = buildIdentErrors(yesterdayStr);
-  const longPending         = buildLongPending();
-  const allPending          = buildAllPending();
-  const yesterdayResponded  = buildYesterdayResponded(yesterdayStr);
-  const systemStatus        = buildSystemStatus();
-  const dowData             = buildDayOfWeek(28);
-  const todData             = buildTimeOfDay(28);
+  const sourceBreakdown    = buildSourceBreakdown(yesterdayStr);
+  const identErrors        = buildIdentErrors(yesterdayStr);
+  const longPending        = buildLongPending();
+  const allPending         = buildAllPending();
+  const yesterdayResponded = buildYesterdayResponded(yesterdayStr);
+  const systemStatus       = buildSystemStatus();
+  const dowData            = buildDayOfWeek(28);
+  const todData            = buildTimeOfDay(28);
 
   // ── Chart raw data ────────────────────────────────────────
-  const last7Days   = getLeadsByDay(7);
-  const allLabels   = Array.from({ length: 7 }, (_, i) =>
+  const last7Days = getLeadsByDay(7);
+  const allLabels = Array.from({ length: 7 }, (_, i) =>
     now.subtract(7 - i, 'day').format('MM-DD')
   );
-  const last7Map    = Object.fromEntries(last7Days.map(r => [r.day.slice(5), r.cnt]));
-  const chartData   = {
+  const last7Map  = Object.fromEntries(last7Days.map(r => [r.day.slice(5), r.cnt]));
+  const chartData = {
     trend:     { labels: allLabels, data: allLabels.map(d => last7Map[d] || 0) },
     dayOfWeek: dowData,
     timeOfDay: todData,
   };
 
-  // ── Insight (Claude) ──────────────────────────────────────
+  // ── Insight (Claude, always English) ─────────────────────
   const insightStats = {
-    yesterday: { total: totalCount, new: newCount, existing: existingCount, returning: returningCount, unknown: unknownCount },
+    yesterday: { total: totalCount, new: newCount, existing: existingCount, returning: returningCount },
     response:  { responded: stats.responded, unanswered: stats.unanswered },
     trend_7d:  { total: last7Count, avg_per_day: +avgPerDay.toFixed(1), vs_prev7: prev7Count },
     pending:   { today: stats.unanswered, long_24h: longPending.length },
@@ -371,110 +345,139 @@ async function buildDigest({ dryRun = false, withCharts = false } = {}) {
   if (withCharts) chartBuffers = await renderCharts(chartData);
 
   // ─────────────────────────────────────────────────────────
-  // Build HTML text — new English format (ЭТАП 5)
+  // Build MarkdownV2 text
+  // Static i18n strings are pre-escaped for MarkdownV2.
+  // Dynamic values go through escapeMd().
   // ─────────────────────────────────────────────────────────
 
-  const dateStr = `${now.date()} ${EN_MONTHS[now.month()]} ${now.year()}, ${EN_DAYS[now.day()]} — Doha time`;
-  const dryMark = dryRun ? '\n<i>[DRY RUN — not sent to Telegram]</i>' : '';
+  // Date components
+  const monthObj  = tr.tObj('month_names');
+  const dayObj    = tr.tObj('day_names');
+  const monthName = monthObj[String(now.month() + 1)] || String(now.month() + 1);
+  const dayName   = dayObj[DOW_KEYS[now.day()]] || DOW_KEYS[now.day()];
+  const dateStr   = `${now.date()} ${monthName} ${now.year()}`;
 
-  let text = `🤸 <b>AcroGym Daily Digest</b>${dryMark}\n`;
-  text    += `<i>${dateStr}</i>\n\n`;
+  const dryMark = dryRun ? '\n_dry run_' : '';
 
-  // Yesterday Overview
-  text += `📊 <b>Yesterday Overview</b>\n`;
+  let text = tr.t('daily.title') + dryMark + '\n';
+
+  // Date line (dynamic values escaped before insertion)
+  text += tr.t('daily.date_line', {
+    date:      escapeMd(dateStr),
+    day_name:  escapeMd(dayName),
+    doha_time: tr.t('common.doha_time'),  // pure letters, no escape needed
+  }) + '\n\n';
+
+  // ── Yesterday Overview ────────────────────────────────────
+  text += tr.t('daily.section_overview') + '\n';
   if (totalCount === 0) {
-    text += `• No submissions received yesterday.\n`;
+    text += tr.t('daily.overview_empty') + '\n';
   } else {
-    text += `• Total submissions: ${totalCount}\n`;
-    if (newCount)       text += `• New leads: ${newCount}\n`;
-    if (existingCount)  text += `• Existing T&C: ${existingCount}\n`;
-    if (returningCount) text += `• Returning: ${returningCount}\n`;
-    if (unknownCount)   text += `• Type unknown: ${unknownCount}\n`;
-    if (identErrors > 0) text += `• Duplicates filtered: ${identErrors}\n`;
+    text += tr.t('daily.overview_total',     { count: totalCount })    + '\n';
+    if (newCount)       text += tr.t('daily.overview_new',       { count: newCount })       + '\n';
+    if (existingCount)  text += tr.t('daily.overview_existing',  { count: existingCount })  + '\n';
+    if (returningCount) text += tr.t('daily.overview_returning', { count: returningCount }) + '\n';
+    if (identErrors > 0) text += tr.t('daily.overview_duplicates', { count: identErrors })  + '\n';
   }
   text += '\n';
 
-  // Sources (only if data exists)
+  // ── Sources ───────────────────────────────────────────────
   if (sourceBreakdown && Object.keys(sourceBreakdown).length > 0) {
-    text += `📍 <b>Sources</b>\n`;
+    text += tr.t('daily.section_sources') + '\n';
     for (const [src, cnt] of Object.entries(sourceBreakdown)) {
-      text += `• ${src}: ${cnt}\n`;
+      text += `• ${escapeMd(src)}: ${cnt}\n`;
     }
     text += '\n';
   }
 
-  // Form errors (only if > 0)
+  // ── Form errors ───────────────────────────────────────────
   if (identErrors > 0) {
-    text += `⚠️ <b>Form errors</b>\n`;
-    text += `• ${identErrors} existing client${identErrors > 1 ? 's' : ''} marked as "New" — auto-filtered.\n\n`;
+    text += tr.t('daily.section_errors') + '\n';
+    text += tr.t('daily.errors_existing_as_new', { count: identErrors }) + '\n\n';
   }
 
-  // Operational Health
+  // ── Operational Health ────────────────────────────────────
   if (newCount > 0 || topUnanswered.length > 0 || allPending.length > 0) {
-    text += `⚡ <b>Operational Health</b>\n`;
+    text += tr.t('daily.section_health') + '\n';
     if (newCount > 0) {
-      text += `• Responded: ${stats.responded}/${newCount} (${Math.round(stats.responded / newCount * 100)}%)\n`;
+      const pct = Math.round(stats.responded / newCount * 100);
+      text += tr.t('daily.health_responded', {
+        responded: stats.responded,
+        total:     newCount,
+        percent:   pct,
+      }) + '\n';
       if (stats.unanswered > 0) {
-        text += `• Still pending: ${stats.unanswered}\n`;
-      } else {
-        text += `• All leads responded ✅\n`;
+        text += tr.t('daily.health_pending', { count: stats.unanswered }) + '\n';
       }
     }
     if (oldestUnanswered) {
       const h = now.diff(dayjs(oldestUnanswered.notified_at), 'hour');
-      text += `• Oldest pending: ${oldestUnanswered.parent_name || '—'} — ${h}h waiting\n`;
+      text += tr.t('daily.health_oldest_pending', {
+        name:  escapeMd(oldestUnanswered.parent_name || '—'),
+        hours: h,
+      }) + '\n';
     }
     text += '\n';
   }
 
-  // Yesterday responded (Вариант Б)
+  // ── Responded yesterday ───────────────────────────────────
   if (yesterdayResponded.length > 0) {
-    text += `✅ <b>Responded yesterday (${yesterdayResponded.length})</b>\n`;
-    for (const r of yesterdayResponded) {
-      text += `• ${r.name} — responded at ${r.respondedAt}\n`;
+    text += tr.t('daily.section_responded_yesterday') + '\n';
+    text += tr.t('daily.responded_count', { count: yesterdayResponded.length }) + '\n\n';
+  }
+
+  // ── Long pending >24h ─────────────────────────────────────
+  if (longPending.length > 0) {
+    text += tr.t('daily.section_long_pending') + '\n';
+    for (const lp of longPending) {
+      text += tr.t('daily.long_pending_item', {
+        name:  escapeMd(lp.name),
+        hours: lp.hoursWaiting,
+      }) + '\n';
     }
     text += '\n';
   }
 
-  // Long pending >24h
-  if (longPending.length > 0) {
-    text += `🚨 <b>Long pending (&gt;24h)</b>\n`;
-    for (const lp of longPending) text += `• ${lp.name} — ${lp.hoursWaiting}h\n`;
-    text += '\n';
-  }
-
-  // Goal Tracking
-  text += `🎯 <b>Goal Tracking</b>\n`;
-  text += `• Days until launch (1 Sep 2026): ${daysLeft}\n`;
-  text += `• Total leads accumulated: ${totalAccumulated} / target ${neededLeads}\n`;
+  // ── Goal Tracking ─────────────────────────────────────────
+  text += tr.t('daily.section_goal') + '\n';
+  text += tr.t('daily.goal_days_left',    { days: daysLeft }) + '\n';
+  text += tr.t('daily.goal_accumulated',  { current: totalAccumulated, target: neededLeads }) + '\n';
   if (avgPerDay > 0) {
-    text += `• Required pace: ${requiredPace} leads/day from now\n`;
-    text += `• Status: ${forecastStatus}\n`;
+    text += tr.t('daily.goal_pace_required', { pace: escapeMd(requiredPace) }) + '\n';
+    text += forecastStatus + '\n';
   } else {
-    text += `• Status: 📊 Not enough data for projection yet\n`;
+    text += tr.t('common.no_data_yet') + '\n';
   }
   text += '\n';
 
-  // Insight
+  // ── Insight ───────────────────────────────────────────────
   if (insightText) {
-    text += `💡 <b>Insight of the day</b>\n<i>${insightText}</i>\n\n`;
+    text += tr.t('daily.section_insight') + '\n';
+    text += escapeMd(insightText) + '\n\n';
   }
 
-  // System status
-  text += `🤖 <b>System</b>\n`;
+  // ── System Status ─────────────────────────────────────────
+  text += tr.t('daily.section_system') + '\n';
   if (Array.isArray(systemStatus) && systemStatus.length > 0) {
     for (const p of systemStatus) {
-      const icon  = p.status === 'online' ? '🟢' : p.status === 'stopped' ? '🔴' : '🟡';
-      const up    = p.uptime ? formatUptime(p.uptime) : '?';
-      const rst   = p.restarts > 0 ? `, restarts ${p.restarts}` : '';
-      text += `• ${p.name}: ${icon} ${p.status} (uptime ${up}${rst})\n`;
+      const up = p.uptime ? formatUptime(p.uptime, tr) : '?';
+      if (p.status === 'online') {
+        text += tr.t('daily.system_online', {
+          agent:    escapeMd(p.name),
+          uptime:   escapeMd(up),
+          restarts: p.restarts,
+        }) + '\n';
+      } else {
+        text += tr.t('daily.system_offline', { agent: escapeMd(p.name) }) + '\n';
+      }
     }
   } else {
-    text += `• ⚠️ PM2 status unavailable\n`;
+    text += tr.t('daily.system_offline', { agent: 'pm2' }) + '\n';
   }
 
   return {
     text,
+    lang,
     topUnanswered,
     allPending,
     yesterdayResponded,
@@ -499,4 +502,5 @@ module.exports = {
   buildTimeOfDay,
   buildInsight,
   renderCharts,
+  formatUptime,
 };

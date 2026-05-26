@@ -7,6 +7,18 @@ const { createLogger } = require('./logger');
 const logger = createLogger('telegram');
 
 // ─────────────────────────────────────────────────────────────
+// MarkdownV2 escape helper
+// Экранирует все специальные символы Telegram MarkdownV2:
+// _ * [ ] ( ) ~ ` > # + - = | { } . !  и  \
+// Используйте для ДИНАМИЧЕСКИХ значений (имена, телефоны, числа).
+// Статические строки из словаря не требуют экранирования —
+// они уже написаны с учётом MarkdownV2.
+// ─────────────────────────────────────────────────────────────
+function escapeMd(text) {
+  return String(text ?? '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+}
+
+// ─────────────────────────────────────────────────────────────
 // Инициализация ботов (lazy, с кэшем)
 // ─────────────────────────────────────────────────────────────
 
@@ -53,7 +65,17 @@ async function _send(bot, chatIds, text, options = {}) {
       logger.debug({ chatId, msgId: msg.message_id }, 'Сообщение отправлено');
       results.push(msg);
     } catch (err) {
-      logger.error({ err, chatId }, 'Ошибка отправки сообщения');
+      // Если упал с ошибкой парсинга — логируем полный текст для диагностики
+      const isParseError = err?.message && (
+        err.message.includes('can\'t parse entities') ||
+        err.message.includes('Bad Request') ||
+        err.message.includes('parse')
+      );
+      if (isParseError) {
+        logger.error({ err, chatId, parse_mode: merged.parse_mode, text }, 'Parse error: Telegram rejected message — check MarkdownV2 escaping');
+      } else {
+        logger.error({ err, chatId }, 'Ошибка отправки сообщения');
+      }
       // Не падаем — продолжаем остальных получателей
     }
   }
@@ -81,6 +103,7 @@ async function sendToAdmin(text, options = {}) {
 /**
  * Отправляет стратегические/аналитические сообщения (дайджест, метрики)
  * всем получателям из OWNER_CHAT_IDS через OWNER_BOT_TOKEN.
+ * parse_mode по умолчанию: MarkdownV2 (все строки Owner bot написаны для MDv2).
  */
 async function sendToOwner(text, options = {}) {
   const chatIds = parseChatIds('OWNER_CHAT_IDS');
@@ -88,7 +111,7 @@ async function sendToOwner(text, options = {}) {
     logger.warn('OWNER_CHAT_IDS не задан — сообщение не отправлено');
     return [];
   }
-  return _send(getOwnerBot(), chatIds, text, options);
+  return _send(getOwnerBot(), chatIds, text, { parse_mode: 'MarkdownV2', ...options });
 }
 
 /**
@@ -98,10 +121,12 @@ async function sendToOwner(text, options = {}) {
 async function editMessage(bot, chatId, messageId, text, options = {}) {
   try {
     const instance = bot === 'owner' ? getOwnerBot() : getAdminBot();
+    // Owner bot messages use MarkdownV2; admin bot uses HTML
+    const defaultMode = bot === 'owner' ? 'MarkdownV2' : 'HTML';
     return await instance.editMessageText(text, {
       chat_id: chatId,
       message_id: messageId,
-      parse_mode: 'HTML',
+      parse_mode: defaultMode,
       ...options,
     });
   } catch (err) {
@@ -132,7 +157,7 @@ async function sendPhotoToOwner(buffer, caption, options = {}) {
 
   for (const chatId of chatIds) {
     try {
-      const opts = { parse_mode: 'HTML', ...options };
+      const opts = { parse_mode: 'MarkdownV2', ...options };
       if (caption) opts.caption = caption;
       const msg = await bot.sendPhoto(chatId, buffer, opts);
       results.push(msg);
@@ -160,7 +185,7 @@ async function sendMediaGroupToOwner(buffers, caption) {
   for (const chatId of chatIds) {
     for (let i = 0; i < buffers.length; i++) {
       try {
-        const opts = { parse_mode: 'HTML' };
+        const opts = { parse_mode: 'MarkdownV2' };
         if (i === 0 && caption) opts.caption = caption;
         await bot.sendPhoto(chatId, buffers[i], opts);
         // небольшая пауза между фото, чтобы Telegram не считал их как альбом
@@ -327,6 +352,7 @@ function startOwnerPolling() {
 }
 
 module.exports = {
+  escapeMd,
   sendToAdmin,
   sendToOwner,
   sendPhotoToOwner,

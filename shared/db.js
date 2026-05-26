@@ -199,7 +199,7 @@ function updateLeadGreeting(leadId, greetingText) {
 function getAllPending(limit = 50, offset = 0) {
   return getDb().prepare(`
     SELECT * FROM leads
-    WHERE status = 'notified' AND client_type IN ('new', 'unknown')
+    WHERE status = 'notified' AND client_type = 'new'
     ORDER BY notified_at ASC
     LIMIT ? OFFSET ?
   `).all(limit, offset);
@@ -208,7 +208,7 @@ function getAllPending(limit = 50, offset = 0) {
 function countPending() {
   return getDb().prepare(`
     SELECT COUNT(*) as cnt FROM leads
-    WHERE status = 'notified' AND client_type IN ('new', 'unknown')
+    WHERE status = 'notified' AND client_type = 'new'
   `).get().cnt;
 }
 
@@ -219,7 +219,7 @@ function getLongPending(hours = 24) {
   return getDb().prepare(`
     SELECT * FROM leads
     WHERE status = 'notified'
-      AND client_type IN ('new', 'unknown')
+      AND client_type = 'new'
       AND notified_at <= datetime('now', '-' || ? || ' hours')
     ORDER BY notified_at ASC
   `).all(hours);
@@ -241,10 +241,10 @@ function getYesterdayResponded(dateStr) {
 // Analytics / chart data helpers
 // ─────────────────────────────────────────────────────────────
 
-/** Total new/unknown leads accumulated (for goal tracking). */
+/** Total new leads accumulated (for goal tracking). Excludes legacy/test data. */
 function countTotalLeads() {
   return getDb().prepare(`
-    SELECT COUNT(*) as cnt FROM leads WHERE client_type IN ('new', 'unknown')
+    SELECT COUNT(*) as cnt FROM leads WHERE client_type = 'new'
   `).get().cnt;
 }
 
@@ -257,6 +257,7 @@ function getLeadsByDay(days = 7) {
     SELECT DATE(datetime(created_at, '+3 hours')) as day, COUNT(*) as cnt
     FROM leads
     WHERE created_at >= datetime('now', '-' || ? || ' days')
+      AND client_type != 'legacy'
     GROUP BY DATE(datetime(created_at, '+3 hours'))
     ORDER BY day ASC
   `).all(days);
@@ -271,6 +272,7 @@ function getLeadsByDayOfWeek(days = 28) {
     SELECT strftime('%w', datetime(created_at, '+3 hours')) as dow, COUNT(*) as cnt
     FROM leads
     WHERE created_at >= datetime('now', '-' || ? || ' days')
+      AND client_type != 'legacy'
     GROUP BY strftime('%w', datetime(created_at, '+3 hours'))
     ORDER BY dow ASC
   `).all(days);
@@ -285,6 +287,7 @@ function getLeadsByHour(days = 28) {
     SELECT strftime('%H', datetime(created_at, '+3 hours')) as hour, COUNT(*) as cnt
     FROM leads
     WHERE created_at >= datetime('now', '-' || ? || ' days')
+      AND client_type != 'legacy'
     GROUP BY strftime('%H', datetime(created_at, '+3 hours'))
     ORDER BY hour ASC
   `).all(days);
@@ -299,6 +302,7 @@ function getLeadsByDayRange(startDate, endDate) {
     SELECT DATE(datetime(created_at, '+3 hours')) as day, COUNT(*) as cnt
     FROM leads
     WHERE DATE(datetime(created_at, '+3 hours')) BETWEEN ? AND ?
+      AND client_type != 'legacy'
     GROUP BY DATE(datetime(created_at, '+3 hours'))
     ORDER BY day ASC
   `).all(startDate, endDate);
@@ -315,7 +319,7 @@ function getDailyStats(dateStr) {
 
   const byType = db.prepare(`
     SELECT client_type, COUNT(*) as cnt FROM leads
-    WHERE created_at BETWEEN ? AND ? GROUP BY client_type
+    WHERE created_at BETWEEN ? AND ? AND client_type != 'legacy' GROUP BY client_type
   `).all(start, end);
 
   const byLang = db.prepare(`
@@ -348,6 +352,7 @@ function countLeadsInRange(startDateStr, endDateStr) {
   return getDb().prepare(`
     SELECT COUNT(*) as cnt FROM leads
     WHERE created_at BETWEEN ? AND ?
+      AND client_type != 'legacy'
   `).get(`${startDateStr} 00:00:00`, `${endDateStr} 23:59:59`).cnt;
 }
 

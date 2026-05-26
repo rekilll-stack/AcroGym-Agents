@@ -2,7 +2,7 @@
 
 /**
  * shared/callbacks.js — центральные обработчики inline-кнопок.
- * Используются как в lead-helper (ADMIN_BOT), так и в morning-digest (OWNER_BOT).
+ * Используются как в lead-helper (ADMIN_BOT), так и в owner-bot (OWNER_BOT).
  * Логика одна — бот указывается параметром.
  */
 
@@ -16,7 +16,8 @@ dayjs.extend(timezone);
 
 const { createLogger }                  = require('./logger');
 const { getLeadById, updateLeadStatus } = require('./db');
-const { editMessage }                   = require('./telegram');
+const { editMessage, escapeMd }         = require('./telegram');
+const { t }                             = require('./i18n');
 
 const logger   = createLogger('callbacks');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
@@ -27,7 +28,7 @@ const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
 
 /**
  * Обработчик "✅ Mark responded" / "✅ I responded" / "✅ Contacted".
- * Работает для префиксов 'responded' (lead-helper) и 'mark_responded' (morning-digest).
+ * Работает для префиксов 'responded' (lead-helper) и 'mark_responded' (owner-bot).
  *
  * @param {'admin'|'owner'} botName  — через какой бот было отправлено исходное сообщение
  * @returns {Function} handler(query, bot)
@@ -55,11 +56,16 @@ function markRespondedHandler(botName) {
 
       // Редактируем исходное сообщение: убираем кнопки, добавляем строку с временем
       const originalText = query.message.text || query.message.caption || '';
+      // For owner bot (MarkdownV2): append i18n string (pre-escaped).
+      // For admin bot (HTML): use plain text.
+      const appendText = botName === 'owner'
+        ? '\n\n' + t('daily.marked_responded', 'en', { time: escapeMd(time) })
+        : `\n\n✅ Marked responded at ${time} (Doha)`;
       await editMessage(
         botName,
         query.message.chat.id,
         query.message.message_id,
-        originalText + `\n\n✅ Marked responded at ${time} (Doha)`,
+        originalText + appendText,
         { reply_markup: { inline_keyboard: [] } }
       );
 
@@ -79,7 +85,7 @@ function markRespondedHandler(botName) {
  * Обработчик "📋 Copy text only" / "📋 Copy text".
  * Достаёт generated_greeting из БД, шлёт отдельным сообщением (без обвески).
  *
- * Работает для префиксов 'copy' (lead-helper) и 'copy_text' / 'digest_copy' (morning-digest).
+ * Работает для префиксов 'copy' (lead-helper) и 'copy_text' / 'digest_copy' (owner-bot).
  *
  * @param {Map|null} [greetingCache]  — опциональный in-memory fallback (из lead-helper)
  * @returns {Function} handler(query, bot)
