@@ -55,8 +55,8 @@ async function fetchAllResponses() {
 
   const [headers, ...dataRows] = rows;
 
-  // Логируем заголовки при первом чтении — для диагностики маппинга
-  logger.info({ headers }, 'Заголовки таблицы прочитаны');
+  // debug: дамп заголовков только при LOG_LEVEL=debug (не спамим в out.log)
+  logger.debug({ headers }, 'Sheet headers read (set LOG_LEVEL=debug to inspect)');
 
   return dataRows.map((values, idx) => ({
     rowNumber: idx + 2, // +2: строка 1 — заголовки, данные с 2-й

@@ -293,7 +293,7 @@ async function pollSheets() {
 
   if (!_colMap) {
     _colMap = mapColumns(rows[0].headers);
-    logger.info({ colMap: _colMap }, 'Column map initialized');
+    logger.debug({ colMap: _colMap }, 'Column map initialized');
   }
 
   for (const { rowNumber, headers, values } of rows) {

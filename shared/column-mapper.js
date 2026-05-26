@@ -135,9 +135,10 @@ function mapColumns(headers) {
     });
 
   if (uncovered.length > 0) {
-    logger.warn(
+    // debug: не спамим в out.log при каждом старте — включается через LOG_LEVEL=debug
+    logger.debug(
       { uncovered: uncovered.map(u => `[${u.i}] ${u.h}`) },
-      'Непокрытые колонки таблицы (маппинг не найден)'
+      `Unmapped columns: ${uncovered.length} (set LOG_LEVEL=debug to inspect)`
     );
   }
 
