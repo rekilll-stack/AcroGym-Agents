@@ -27,18 +27,24 @@ const handlePending   = require('./commands/pending');
 const handleStatus    = require('./commands/status');
 const handleHelp      = require('./commands/help');
 const handleExport    = require('./commands/export');
+const handleLang      = require('./commands/lang');
 
 // Callbacks
 const { setupDigestCallbacks } = require('./callbacks/digest-callbacks');
 const { setupMenuCallbacks }   = require('./callbacks/menu-callbacks');
 const { setupExportCallbacks } = require('./callbacks/export-callbacks');
+const { setupLangCallbacks }   = require('./callbacks/lang-callbacks');
 
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
 
-const DRY_RUN    = process.argv.includes('--dry-run');
-const WITH_CHARTS = process.argv.includes('--with-charts');
-const TEST_SEND  = process.argv.includes('--test-send');
+const DRY_RUN          = process.argv.includes('--dry-run');
+const WEEKLY_DRY_RUN   = process.argv.includes('--weekly-dry-run');
+const MONTHLY_DRY_RUN  = process.argv.includes('--monthly-dry-run');
+const WITH_CHARTS      = process.argv.includes('--with-charts');
+const TEST_SEND        = process.argv.includes('--test-send');
+const LANG_ARG         = (() => { const i = process.argv.indexOf('--lang'); return i >= 0 ? process.argv[i + 1] : 'en'; })();
+const MONTH_ARG        = (() => { const i = process.argv.indexOf('--month'); return i >= 0 ? process.argv[i + 1] : undefined; })();
 
 // ─────────────────────────────────────────────────────────────
 // Unknown-input handler: anything not matching a command
@@ -55,8 +61,22 @@ function registerUnknownInputHandler() {
 async function start() {
   // ── One-shot modes ────────────────────────────────────────
   if (DRY_RUN) {
-    logger.info({ withCharts: WITH_CHARTS }, 'DRY RUN mode');
-    await sendDailyDigest({ dryRun: true, withCharts: WITH_CHARTS });
+    logger.info({ withCharts: WITH_CHARTS, lang: LANG_ARG }, 'DRY RUN mode (daily)');
+    await sendDailyDigest({ dryRun: true, withCharts: WITH_CHARTS, lang: LANG_ARG });
+    process.exit(0);
+    return;
+  }
+
+  if (WEEKLY_DRY_RUN) {
+    logger.info({ withCharts: WITH_CHARTS, lang: LANG_ARG }, 'DRY RUN mode (weekly)');
+    await sendWeeklySlice({ dryRun: true, withCharts: WITH_CHARTS, lang: LANG_ARG });
+    process.exit(0);
+    return;
+  }
+
+  if (MONTHLY_DRY_RUN) {
+    logger.info({ lang: LANG_ARG, month: MONTH_ARG }, 'DRY RUN mode (monthly)');
+    await sendMonthlyReport({ dryRun: true, lang: LANG_ARG, month: MONTH_ARG });
     process.exit(0);
     return;
   }
@@ -76,6 +96,7 @@ async function start() {
   setupDigestCallbacks();
   setupMenuCallbacks();
   setupExportCallbacks();
+  setupLangCallbacks();
 
   // Register text commands
   registerOwnerCommand('/menu',      handleMenu);
@@ -86,30 +107,37 @@ async function start() {
   registerOwnerCommand('/pending',   handlePending);
   registerOwnerCommand('/status',    handleStatus);
   registerOwnerCommand('/export',    handleExport);
+  registerOwnerCommand('/lang',      handleLang);
   registerOwnerCommand('/help',      handleHelp);
 
   // Start OWNER_BOT polling
   startOwnerPolling();
 
-  // ── Cron: daily digest 08:00 Asia/Qatar ──────────────────
+  // ── Cron: daily digest 08:00 Asia/Qatar — send EN then RU ─
   cron.schedule('0 8 * * *', async () => {
-    await sendDailyDigest({ withCharts: true }).catch(err =>
-      logger.error({ err }, 'sendDailyDigest cron unhandled error')
-    );
+    for (const lang of ['en', 'ru']) {
+      await sendDailyDigest({ withCharts: true, lang }).catch(err =>
+        logger.error({ err, lang }, 'sendDailyDigest cron unhandled error')
+      );
+    }
   }, { timezone: TIMEZONE });
 
-  // ── Cron: weekly slice 09:00 Monday Asia/Qatar ───────────
+  // ── Cron: weekly slice 09:00 Monday — send EN then RU ────
   cron.schedule('0 9 * * 1', async () => {
-    await sendWeeklySlice({}).catch(err =>
-      logger.error({ err }, 'sendWeeklySlice cron unhandled error')
-    );
+    for (const lang of ['en', 'ru']) {
+      await sendWeeklySlice({ lang }).catch(err =>
+        logger.error({ err, lang }, 'sendWeeklySlice cron unhandled error')
+      );
+    }
   }, { timezone: TIMEZONE });
 
-  // ── Cron: monthly report 10:00 1st of month Asia/Qatar ───
+  // ── Cron: monthly 10:00 1st of month — send EN then RU ───
   cron.schedule('0 10 1 * *', async () => {
-    await sendMonthlyReport({}).catch(err =>
-      logger.error({ err }, 'sendMonthlyReport cron unhandled error')
-    );
+    for (const lang of ['en', 'ru']) {
+      await sendMonthlyReport({ lang }).catch(err =>
+        logger.error({ err, lang }, 'sendMonthlyReport cron unhandled error')
+      );
+    }
   }, { timezone: TIMEZONE });
 
   logger.info('Owner-bot running ✅ (daily 08:00 | weekly Mon 09:00 | monthly 1st 10:00 | polling active)');

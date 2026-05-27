@@ -12,6 +12,7 @@ const { sendToOwner, sendMediaGroupToOwner } = require('../../../shared/notify')
 const { escapeMd }                           = require('../../../shared/telegram');
 const { buildDigest }                        = require('../builders/daily-builder');
 const { createTranslator }                   = require('../../../shared/i18n');
+const { BACK_KB }                            = require('../keyboards');
 
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
@@ -95,8 +96,15 @@ async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en'
 
   // Part 1: main text (MarkdownV2)
   try {
-    await sendToOwner(digest.text);
-    logger.info('[daily] Digest main message sent');
+    const results = await sendToOwner(digest.text, { reply_markup: BACK_KB });
+    if (results.length > 0) {
+      logger.info('[daily] Digest main message sent');
+    } else {
+      logger.error('[daily] sendToOwner returned 0 results — Telegram likely rejected the message (MarkdownV2 parse error?)');
+      await sendToOwner(
+        '⚠️ Daily digest generated but failed to send \\(formatting error\\)\\. Check PM2 logs\\.',
+      ).catch(() => {});
+    }
   } catch (err) {
     logger.error({ err }, '[daily] Failed to send main digest message');
   }
@@ -124,6 +132,7 @@ async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en'
         ]);
       }
 
+      keyboard.push(BACK_KB.inline_keyboard[0]); // append "⬅ Back to menu" row
       await sendToOwner(listText, { reply_markup: { inline_keyboard: keyboard } });
       logger.info({ count: pending.length }, '[daily] Pending list sent');
     } catch (err) {

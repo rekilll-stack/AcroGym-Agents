@@ -96,6 +96,12 @@ function _runMigrations(db) {
     () => db.exec(`ALTER TABLE leads ADD COLUMN generated_greeting TEXT`),
     () => db.exec(`ALTER TABLE leads ADD COLUMN source TEXT`),
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source)`),
+    // v15: owner language preferences
+    () => db.exec(`CREATE TABLE IF NOT EXISTS user_preferences (
+      chat_id            INTEGER PRIMARY KEY,
+      preferred_language TEXT    DEFAULT NULL,
+      updated_at         TEXT    DEFAULT (datetime('now'))
+    )`),
   ];
 
   for (const migrate of migrations) {
@@ -356,6 +362,72 @@ function countLeadsInRange(startDateStr, endDateStr) {
   `).get(`${startDateStr} 00:00:00`, `${endDateStr} 23:59:59`).cnt;
 }
 
+/**
+ * Client-type breakdown for a date range (Qatar local time, +3h offset).
+ * Returns [{client_type: string, cnt: N}, ...]
+ */
+function getTypeBreakdownInRange(startDate, endDate) {
+  return getDb().prepare(`
+    SELECT client_type, COUNT(*) as cnt
+    FROM leads
+    WHERE DATE(datetime(created_at, '+3 hours')) BETWEEN ? AND ?
+      AND client_type != 'legacy'
+    GROUP BY client_type
+  `).all(startDate, endDate);
+}
+
+/**
+ * Source breakdown for new leads in a date range (Qatar local time).
+ * Returns [{source: string, cnt: N}, ...] ordered by cnt DESC.
+ */
+function getSourceBreakdownInRange(startDate, endDate) {
+  return getDb().prepare(`
+    SELECT COALESCE(NULLIF(TRIM(source), ''), 'Unknown') as source, COUNT(*) as cnt
+    FROM leads
+    WHERE DATE(datetime(created_at, '+3 hours')) BETWEEN ? AND ?
+      AND client_type = 'new'
+    GROUP BY COALESCE(NULLIF(TRIM(source), ''), 'Unknown')
+    ORDER BY cnt DESC
+  `).all(startDate, endDate);
+}
+
+/**
+ * Response quality stats for new leads in a date range.
+ * Returns: { avg_seconds: number|null, total_responded: number, within_hour: number, pending_24h: number }
+ */
+function getQualityStatsInRange(startDate, endDate) {
+  const db = getDb();
+
+  const resp = db.prepare(`
+    SELECT
+      AVG(CAST((julianday(responded_at) - julianday(notified_at)) * 86400 AS INTEGER)) AS avg_seconds,
+      COUNT(*) AS total_responded,
+      SUM(CASE WHEN (julianday(responded_at) - julianday(notified_at)) * 24 <= 1 THEN 1 ELSE 0 END) AS within_hour
+    FROM leads
+    WHERE DATE(datetime(created_at, '+3 hours')) BETWEEN ? AND ?
+      AND client_type = 'new'
+      AND status = 'responded'
+      AND responded_at IS NOT NULL
+      AND notified_at IS NOT NULL
+  `).get(startDate, endDate);
+
+  const pend24 = db.prepare(`
+    SELECT COUNT(*) AS cnt
+    FROM leads
+    WHERE DATE(datetime(created_at, '+3 hours')) BETWEEN ? AND ?
+      AND client_type = 'new'
+      AND status = 'notified'
+      AND notified_at <= datetime('now', '-24 hours')
+  `).get(startDate, endDate);
+
+  return {
+    avg_seconds:     resp.avg_seconds     || null,
+    total_responded: resp.total_responded || 0,
+    within_hour:     resp.within_hour     || 0,
+    pending_24h:     pend24.cnt,
+  };
+}
+
 module.exports = {
   getDb,
   insertLead,
@@ -377,4 +449,7 @@ module.exports = {
   getDailyStats,
   getTopUnanswered,
   countLeadsInRange,
+  getTypeBreakdownInRange,
+  getSourceBreakdownInRange,
+  getQualityStatsInRange,
 };

@@ -172,12 +172,17 @@ async function buildInsight(stats) {
       'No fluff, no generic advice. If data is too sparse for meaningful insight — say exactly: ' +
       '"Not enough data yet for meaningful insights."';
 
-    return await generateText({
-      system:    systemPrompt,
-      user:      JSON.stringify(stats, null, 2),
-      maxTokens: 200,
-      model:     'claude-sonnet-4-5',
-    });
+    return await Promise.race([
+      generateText({
+        system:    systemPrompt,
+        user:      JSON.stringify(stats, null, 2),
+        maxTokens: 200,
+        model:     'claude-sonnet-4-5',
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Claude insight timeout (15s)')), 15000)
+      ),
+    ]);
   } catch (err) {
     logger.warn({ err: err.message }, 'buildInsight: Claude API failed — skipping insight block');
     return null;

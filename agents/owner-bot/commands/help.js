@@ -3,6 +3,7 @@
 const { createLogger } = require('../../../shared/logger');
 const { t }            = require('../../../shared/i18n');
 const { escapeMd }     = require('../../../shared/telegram');
+const { BACK_KB }      = require('../keyboards');
 
 const logger = createLogger('owner-bot');
 
@@ -23,6 +24,7 @@ module.exports = async function handleHelp(msg, bot) {
     t('help.cmd_month',     lang),               // /month — monthly report
     t('help.cmd_pending',   lang),               // /pending — list of pending leads
     t('help.cmd_export',    lang),               // /export — export reports \(PDF/PPTX\)
+    t('help.cmd_lang',      lang),               // /lang — change language preference
     t('help.cmd_status',    lang),               // /status — system health check
     t('help.cmd_help',      lang),               // /help — this message
     '',
@@ -30,7 +32,7 @@ module.exports = async function handleHelp(msg, bot) {
   ];
 
   try {
-    await bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'MarkdownV2' });
+    await bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'MarkdownV2', reply_markup: BACK_KB });
   } catch (err) {
     logger.error({ err }, '/help command failed');
   }
