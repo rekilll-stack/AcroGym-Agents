@@ -6,9 +6,9 @@
  * The dispatcher in shared/telegram routes by prefix 'menu'.
  */
 
-const { createLogger }          = require('../../../shared/logger');
-const { registerOwnerCallback } = require('../../../shared/telegram');
-const { t }                     = require('../../../shared/i18n');
+const { createLogger }                    = require('../../../shared/logger');
+const { registerOwnerCallback, escapeMd } = require('../../../shared/telegram');
+const { t }                               = require('../../../shared/i18n');
 const { sendDailyDigest }       = require('../schedulers/daily');
 const { sendWeeklySlice }       = require('../schedulers/weekly');
 const { sendMonthlyReport }     = require('../schedulers/monthly');
@@ -81,28 +81,34 @@ async function menuCallbackHandler(query, bot) {
     // ── Pending ───────────────────────────────────────────────
     case 'pending': {
       const { getAllPending, countPending } = require('../../../shared/db');
+      const pendingLang = getPreferredLanguage(chatId) || 'en';
       const total = countPending();
       if (total === 0) {
-        await bot.sendMessage(chatId, '✅ No pending leads right now\\.', {
+        await bot.sendMessage(chatId, t('pending.empty', pendingLang), {
           parse_mode:   'MarkdownV2',
           reply_markup: BACK_KB,
         });
       } else {
         const leads    = getAllPending(20, 0);
-        let   text     = `📋 <b>Pending leads (${total})</b>\n\n`;
+        let   text     = `${t('pending.title', pendingLang)}\n${t('pending.count_summary', pendingLang, { count: total })}\n\n`;
         const keyboard = [];
         for (let i = 0; i < leads.length; i++) {
           const l = leads[i];
           const h = Math.floor((Date.now() - new Date(l.notified_at).getTime()) / 3600000);
-          text += `${i + 1}. ${l.parent_name || '—'} — ${h}h | ${l.parent_phone || '—'}\n`;
+          text += t('pending.lead_line', pendingLang, {
+            n:     i + 1,
+            name:  escapeMd(l.parent_name  || '—'),
+            hours: h,
+            phone: escapeMd(l.parent_phone || '—'),
+          }) + '\n';
           keyboard.push([
             { text: `📋 Copy #${i + 1}`, callback_data: `copy_text:${l.id}` },
             { text: '✅ Done',            callback_data: `mark_responded:${l.id}` },
           ]);
         }
-        keyboard.push([{ text: t('common.back_to_menu', 'en'), callback_data: 'menu:back' }]);
+        keyboard.push([{ text: t('common.back_to_menu', pendingLang), callback_data: 'menu:back' }]);
         await bot.sendMessage(chatId, text, {
-          parse_mode:   'HTML',
+          parse_mode:   'MarkdownV2',
           reply_markup: { inline_keyboard: keyboard },
         });
       }
@@ -117,10 +123,12 @@ async function menuCallbackHandler(query, bot) {
       break;
 
     // ── Back to menu ──────────────────────────────────────────
-    case 'back':
-      await sendMainMenu(chatId, bot, 'en').catch(err =>
+    case 'back': {
+      const backLang = getPreferredLanguage(chatId) || 'en';
+      await sendMainMenu(chatId, bot, backLang).catch(err =>
         logger.error({ err }, 'menu:back sendMainMenu failed'));
       break;
+    }
 
     // ── Other ─────────────────────────────────────────────────
     case 'nurture':
@@ -130,12 +138,11 @@ async function menuCallbackHandler(query, bot) {
       });
       break;
 
-    case 'export':
-      await bot.sendMessage(chatId,
-        '📤 *Export reports*\n_Coming in ЭТАП 6\\._',
-        { parse_mode: 'MarkdownV2', reply_markup: BACK_KB }
-      );
+    case 'export': {
+      const handleExport = require('../commands/export');
+      await handleExport({ chat: { id: chatId }, text: '/export' }, bot);
       break;
+    }
 
     case 'status': {
       const handleStatus = require('../commands/status');

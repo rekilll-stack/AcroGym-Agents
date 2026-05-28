@@ -11,7 +11,10 @@ const {
   registerOwnerCommand,
   startOwnerPolling,
 } = require('../../shared/telegram');
-const { sendToOwner } = require('../../shared/notify');
+const { sendToOwner }      = require('../../shared/notify');
+const { gcExpiredStates }  = require('../../shared/state');
+const fs   = require('fs');
+const path = require('path');
 
 // Schedulers
 const { sendDailyDigest }  = require('./schedulers/daily');
@@ -37,6 +40,38 @@ const { setupLangCallbacks }   = require('./callbacks/lang-callbacks');
 
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
+
+// ─────────────────────────────────────────────────────────────
+// Single-instance lock (daemon mode only)
+// ─────────────────────────────────────────────────────────────
+const LOCK_FILE = path.join(__dirname, '../../data/owner-bot.lock');
+
+function acquireLock() {
+  if (fs.existsSync(LOCK_FILE)) {
+    const raw = fs.readFileSync(LOCK_FILE, 'utf8').trim();
+    const existingPid = parseInt(raw, 10);
+    if (!isNaN(existingPid)) {
+      try {
+        process.kill(existingPid, 0); // throws ESRCH if dead
+        console.error(`[owner-bot] Already running as PID ${existingPid}. Exiting.`);
+        process.exit(1);
+      } catch {
+        // Stale lock — previous process is gone
+        console.warn(`[owner-bot] Stale lock (PID ${existingPid} dead). Overwriting.`);
+      }
+    }
+  }
+  fs.writeFileSync(LOCK_FILE, String(process.pid), 'utf8');
+}
+
+function releaseLock() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      const pid = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim(), 10);
+      if (pid === process.pid) fs.unlinkSync(LOCK_FILE);
+    }
+  } catch {}
+}
 
 const DRY_RUN          = process.argv.includes('--dry-run');
 const WEEKLY_DRY_RUN   = process.argv.includes('--weekly-dry-run');
@@ -90,7 +125,8 @@ async function start() {
   }
 
   // ── Daemon mode ───────────────────────────────────────────
-  logger.info({ timezone: TIMEZONE }, 'Owner-bot starting');
+  acquireLock();
+  logger.info({ timezone: TIMEZONE, pid: process.pid }, 'Owner-bot starting');
 
   // Register callbacks (must happen before startOwnerPolling)
   setupDigestCallbacks();
@@ -140,6 +176,33 @@ async function start() {
     }
   }, { timezone: TIMEZONE });
 
+  // ── GC: expired export states every 10 min ────────────────
+  setInterval(() => {
+    gcExpiredStates();
+  }, 10 * 60 * 1000);
+
+  // ── Cleanup: delete generated PDFs older than 24h (keep font-test-*) ──
+  const EXPORTS_DIR = path.join(__dirname, '../../exports');
+  setInterval(() => {
+    try {
+      if (!fs.existsSync(EXPORTS_DIR)) return;
+      const now   = Date.now();
+      const files = fs.readdirSync(EXPORTS_DIR);
+      for (const file of files) {
+        if (file.startsWith('font-test')) continue; // keep test files
+        if (!file.endsWith('.pdf'))        continue;
+        const fp   = path.join(EXPORTS_DIR, file);
+        const stat = fs.statSync(fp);
+        if (now - stat.mtimeMs > 24 * 60 * 60 * 1000) {
+          fs.unlinkSync(fp);
+          logger.info({ file }, 'exports cleanup: deleted old PDF');
+        }
+      }
+    } catch (err) {
+      logger.warn({ err }, 'exports cleanup failed');
+    }
+  }, 30 * 60 * 1000);
+
   logger.info('Owner-bot running ✅ (daily 08:00 | weekly Mon 09:00 | monthly 1st 10:00 | polling active)');
 }
 
@@ -147,8 +210,9 @@ async function start() {
 // Process guards
 // ─────────────────────────────────────────────────────────────
 
-process.on('SIGTERM', () => { logger.info('SIGTERM'); process.exit(0); });
-process.on('SIGINT',  () => { logger.info('SIGINT');  process.exit(0); });
+process.on('SIGTERM', () => { logger.info('SIGTERM'); releaseLock(); process.exit(0); });
+process.on('SIGINT',  () => { logger.info('SIGINT');  releaseLock(); process.exit(0); });
+process.on('exit',    ()  => { releaseLock(); });
 
 process.on('uncaughtException', async (err) => {
   logger.fatal({ err }, 'Uncaught exception');

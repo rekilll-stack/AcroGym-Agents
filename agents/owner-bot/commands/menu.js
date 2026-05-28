@@ -3,8 +3,9 @@
 // ЭТАП 3: inline main menu (MarkdownV2)
 // Callbacks (menu:*) are routed in callbacks/menu-callbacks.js
 
-const { createLogger } = require('../../../shared/logger');
-const { t }            = require('../../../shared/i18n');
+const { createLogger }         = require('../../../shared/logger');
+const { t }                    = require('../../../shared/i18n');
+const { getPreferredLanguage } = require('../../../shared/preferences');
 
 const logger = createLogger('owner-bot');
 
@@ -45,8 +46,9 @@ async function sendMainMenu(chatId, bot, lang = 'en') {
 
 module.exports = async function handleMenu(msg, bot) {
   const chatId = msg.chat.id;
+  const lang   = getPreferredLanguage(chatId) || 'en';
   try {
-    await sendMainMenu(chatId, bot, 'en');
+    await sendMainMenu(chatId, bot, lang);
   } catch (err) {
     logger.error({ err }, '/menu command failed');
     await bot.sendMessage(chatId, `❌ Error: \`${err.message}\``, { parse_mode: 'MarkdownV2' });

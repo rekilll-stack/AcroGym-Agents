@@ -2,6 +2,8 @@
 
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 
+const fs   = require('fs');
+const path = require('path');
 const cron = require('node-cron');
 const { createLogger }      = require('../../shared/logger');
 const { fetchAllResponses } = require('../../shared/sheets');
@@ -356,11 +358,44 @@ function setupCallbacks() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Single-instance lock (daemon mode only)
+// ─────────────────────────────────────────────────────────────
+const LOCK_FILE = path.join(__dirname, '../../data/lead-helper.lock');
+
+function acquireLock() {
+  if (fs.existsSync(LOCK_FILE)) {
+    const raw = fs.readFileSync(LOCK_FILE, 'utf8').trim();
+    const existingPid = parseInt(raw, 10);
+    if (!isNaN(existingPid)) {
+      try {
+        process.kill(existingPid, 0); // throws ESRCH if dead
+        console.error(`[lead-helper] Already running as PID ${existingPid}. Exiting.`);
+        process.exit(1);
+      } catch {
+        // Stale lock — previous process is gone
+        console.warn(`[lead-helper] Stale lock (PID ${existingPid} dead). Overwriting.`);
+      }
+    }
+  }
+  fs.writeFileSync(LOCK_FILE, String(process.pid), 'utf8');
+}
+
+function releaseLock() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      const pid = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim(), 10);
+      if (pid === process.pid) fs.unlinkSync(LOCK_FILE);
+    }
+  } catch {}
+}
+
+// ─────────────────────────────────────────────────────────────
 // Start
 // ─────────────────────────────────────────────────────────────
 
 async function start() {
-  logger.info({ pollInterval: `${POLL_INTERVAL / 1000}s`, reminderHours: REMINDER_HOURS }, 'Lead-helper starting');
+  acquireLock();
+  logger.info({ pollInterval: `${POLL_INTERVAL / 1000}s`, reminderHours: REMINDER_HOURS, pid: process.pid }, 'Lead-helper starting');
 
   setupCallbacks();
   startCallbackPolling();
@@ -378,8 +413,9 @@ async function start() {
   logger.info('Lead-helper running ✅');
 }
 
-process.on('SIGTERM', () => { logger.info('SIGTERM received'); process.exit(0); });
-process.on('SIGINT',  () => { logger.info('SIGINT received');  process.exit(0); });
+process.on('SIGTERM', () => { logger.info('SIGTERM received'); releaseLock(); process.exit(0); });
+process.on('SIGINT',  () => { logger.info('SIGINT received');  releaseLock(); process.exit(0); });
+process.on('exit',    ()  => { releaseLock(); });
 process.on('uncaughtException', async (err) => {
   logger.fatal({ err }, 'Uncaught exception');
   await sendToAdmin(`🚨 Lead-helper crashed: <code>${err.message}</code>`).catch(() => {});

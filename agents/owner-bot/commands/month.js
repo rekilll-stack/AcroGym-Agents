@@ -30,6 +30,14 @@ module.exports = async function handleMonth(msg, bot) {
     for (const l of langList) {
       await sendMonthlyReport({ lang: l });
     }
+    // PDF download button after the report
+    await bot.sendMessage(chatId, '📄', {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '📤 Download as PDF', callback_data: 'month:export_pdf' },
+        ]],
+      },
+    });
   } catch (err) {
     logger.error({ err }, '/month command failed');
     await bot.sendMessage(

@@ -255,4 +255,52 @@ async function renderWeeklyComparison({ title, current_week, previous_week, labe
   return canvas.renderToBuffer(config);
 }
 
-module.exports = { renderLineChart, renderBarChart, renderHeatmap, renderWeeklyComparison };
+// ─────────────────────────────────────────────────────────────
+// renderPieChart
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Круговая / пончиковая диаграмма.
+ * @param {{ title, labels, data, width?, height?, doughnut? }} opts
+ *   doughnut — если true, рисует "пончик" (по умолчанию false = pie)
+ * @returns {Promise<Buffer>}
+ */
+async function renderPieChart({ title, labels, data, width = 500, height = 500, doughnut = false }) {
+  const palette = _palette();
+  const canvas  = _canvas(width, height);
+  const colors  = palette.series || [palette.primary, palette.secondary, '#5A6BC4', '#FF9755', '#1A2356', '#C25617'];
+
+  const config = {
+    type: doughnut ? 'doughnut' : 'pie',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: labels.map((_, i) => colors[i % colors.length]),
+        borderColor:     '#FFFFFF',
+        borderWidth:     2,
+      }],
+    },
+    options: {
+      responsive: false,
+      animation:  false,
+      plugins: {
+        title: {
+          display: !!title,
+          text:    title,
+          color:   palette.text || '#28347F',
+          font:    { size: 15, weight: 'bold' },
+          padding: { bottom: 12 },
+        },
+        legend: {
+          display:  false,
+        },
+      },
+    },
+    plugins: [WATERMARK_PLUGIN],
+  };
+
+  return canvas.renderToBuffer(config);
+}
+
+module.exports = { renderLineChart, renderBarChart, renderHeatmap, renderWeeklyComparison, renderPieChart };

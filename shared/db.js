@@ -102,6 +102,15 @@ function _runMigrations(db) {
       preferred_language TEXT    DEFAULT NULL,
       updated_at         TEXT    DEFAULT (datetime('now'))
     )`),
+    // v16: multi-step export state
+    () => db.exec(`CREATE TABLE IF NOT EXISTS user_state (
+      chat_id        INTEGER PRIMARY KEY,
+      current_action TEXT,
+      current_step   TEXT,
+      params_json    TEXT,
+      updated_at     TEXT DEFAULT (datetime('now'))
+    )`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_user_state_updated ON user_state(updated_at)`),
   ];
 
   for (const migrate of migrations) {

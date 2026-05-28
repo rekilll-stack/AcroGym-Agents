@@ -259,6 +259,7 @@ function startCallbackPolling() {
 let _ownerPollingBot = null;
 const _ownerCallbackHandlers = new Map(); // prefix → handler
 const _ownerCommandHandlers  = new Map(); // '/command' → handler
+let   _ownerTextHandler      = null;      // single handler for plain-text input
 
 /**
  * Регистрирует обработчик callback_query для OWNER_BOT.
@@ -281,6 +282,16 @@ function registerOwnerCommand(command, handler) {
 }
 
 /**
+ * Регистрирует обработчик ТЕКСТОВЫХ сообщений (не команд) от OWNER_CHAT_IDS.
+ * Используется для ввода дат в /export flow.
+ * @param {Function} handler — async (msg, bot) => {}
+ */
+function registerOwnerTextHandler(handler) {
+  _ownerTextHandler = handler;
+  logger.debug('Owner text handler зарегистрирован');
+}
+
+/**
  * Запускает polling на OWNER_BOT для приёма:
  *  - текстовых команд (/yesterday, /week, etc.)
  *  - callback_query от inline-кнопок дайджеста
@@ -296,45 +307,63 @@ function startOwnerPolling() {
 
     _ownerPollingBot = new TelegramBot(token, { polling: true });
 
-    // Текстовые команды
+    // Текстовые сообщения (команды + plain text для /export flow)
     _ownerPollingBot.on('message', async (msg) => {
       const text   = (msg.text || '').trim();
-      if (!text.startsWith('/')) return;
-
       const chatId = String(msg.chat.id);
+
       if (!ownerChatIds.includes(chatId)) {
-        logger.warn({ chatId, text }, 'Owner bot: команда от неизвестного чата — игнор');
+        logger.warn({ chatId, text }, 'Owner bot: сообщение от неизвестного чата — игнор');
         return;
       }
 
-      // Парсим команду, убираем @botname суффикс
-      const command = text.split(' ')[0].split('@')[0].toLowerCase();
-      const handler = _ownerCommandHandlers.get(command);
-      if (!handler) return;
-
-      try {
-        await handler(msg, _ownerPollingBot);
-      } catch (err) {
-        logger.error({ err, command }, 'Ошибка в owner command handler');
+      if (text.startsWith('/')) {
+        // Slash-команда
+        const command = text.split(' ')[0].split('@')[0].toLowerCase();
+        const handler = _ownerCommandHandlers.get(command);
+        if (!handler) return;
+        try {
+          await handler(msg, _ownerPollingBot);
+        } catch (err) {
+          logger.error({ err, command }, 'Ошибка в owner command handler');
+        }
+      } else if (_ownerTextHandler) {
+        // Plain text — передаём в зарегистрированный text handler (для ввода дат)
+        try {
+          await _ownerTextHandler(msg, _ownerPollingBot);
+        } catch (err) {
+          logger.error({ err }, 'Ошибка в owner text handler');
+        }
       }
     });
 
     // Callback'и от inline-кнопок (digest-карточки)
     _ownerPollingBot.on('callback_query', async (query) => {
+      const data   = query.data || '';
+      const prefix = data.split(':')[0];
+      console.log('[CALLBACK] received:', JSON.stringify(data), '| prefix:', prefix, '| from:', query.from.id);
+
       const chatId = String(query.from.id);
       if (!ownerChatIds.includes(chatId)) {
+        console.log('[CALLBACK] REJECTED — not owner. chatId:', chatId, '| ownerChatIds:', JSON.stringify(ownerChatIds));
         logger.warn({ chatId }, 'Owner bot: callback от неизвестного чата — игнор');
         return;
       }
 
-      const data    = query.data || '';
-      const prefix  = data.split(':')[0];
       const handler = _ownerCallbackHandlers.get(prefix);
-      if (!handler) { await _ownerPollingBot.answerCallbackQuery(query.id).catch(() => {}); return; }
+      console.log('[CALLBACK] handler for prefix', JSON.stringify(prefix), ':', handler ? 'FOUND' : 'NOT FOUND',
+        '| registered prefixes:', JSON.stringify([..._ownerCallbackHandlers.keys()]));
+
+      if (!handler) {
+        await _ownerPollingBot.answerCallbackQuery(query.id).catch(() => {});
+        return;
+      }
 
       try {
         await handler(query, _ownerPollingBot);
+        console.log('[CALLBACK] handler completed for', JSON.stringify(data));
       } catch (err) {
+        console.error('[CALLBACK] handler ERROR for', JSON.stringify(data), ':', err.message);
         logger.error({ err, data }, 'Ошибка в owner callback handler');
         await _ownerPollingBot.answerCallbackQuery(query.id, { text: '❌ Error' }).catch(() => {});
       }
@@ -351,16 +380,117 @@ function startOwnerPolling() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// sendDocumentToOwner — отправка PDF/файлов владельцу
+// ─────────────────────────────────────────────────────────────
+
+const https = require('https');
+
+/**
+ * Отправляет документ (Buffer) всем получателям из OWNER_CHAT_IDS.
+ *
+ * @param {Buffer} buffer        — содержимое файла
+ * @param {string} filename      — имя файла (с расширением)
+ * @param {string} [caption]     — подпись (MarkdownV2)
+ * @param {object} [options]     — { reply_markup, parse_mode }
+ */
+async function sendDocumentToOwner(buffer, filename, caption, options = {}) {
+  const chatIds = parseChatIds('OWNER_CHAT_IDS');
+  if (!chatIds.length) {
+    logger.warn('OWNER_CHAT_IDS не задан — документ не отправлен');
+    return;
+  }
+
+  const token = process.env.OWNER_BOT_TOKEN;
+  if (!token) { logger.warn('OWNER_BOT_TOKEN не задан — документ не отправлен'); return; }
+
+  // 50 MB limit check
+  const MAX_BYTES = 50 * 1024 * 1024;
+  if (buffer.length > MAX_BYTES) {
+    logger.error({ size: buffer.length, filename }, 'sendDocumentToOwner: file too large (>50 MB)');
+    await sendToOwner(`❌ File too large to send\\. Saved on server\\.`).catch(() => {});
+    return;
+  }
+
+  const results = [];
+
+  for (const chatId of chatIds) {
+    try {
+      const boundary = '----AcroGymBoundary' + Date.now();
+      const parts    = [];
+
+      parts.push(Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${chatId}\r\n`
+      ));
+      if (caption) {
+        parts.push(Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${caption}\r\n`
+        ));
+        const pm = options.parse_mode || 'MarkdownV2';
+        parts.push(Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="parse_mode"\r\n\r\n${pm}\r\n`
+        ));
+      }
+      if (options.reply_markup) {
+        parts.push(Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="reply_markup"\r\n\r\n${JSON.stringify(options.reply_markup)}\r\n`
+        ));
+      }
+      parts.push(Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="document"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`
+      ));
+      parts.push(buffer);
+      parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+
+      const body = Buffer.concat(parts);
+
+      const result = await new Promise((resolve, reject) => {
+        const req = https.request({
+          hostname: 'api.telegram.org',
+          path:     `/bot${token}/sendDocument`,
+          method:   'POST',
+          headers:  {
+            'Content-Type':   `multipart/form-data; boundary=${boundary}`,
+            'Content-Length': body.length,
+          },
+        }, res => {
+          let data = '';
+          res.on('data', d => data += d);
+          res.on('end', () => {
+            try {
+              const j = JSON.parse(data);
+              if (j.ok) resolve(j.result);
+              else reject(new Error(`Telegram API error: ${JSON.stringify(j)}`));
+            } catch (e) { reject(e); }
+          });
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+      });
+
+      results.push(result);
+      logger.debug({ chatId, filename }, 'Document sent');
+    } catch (err) {
+      logger.error({ err, chatId, filename }, 'sendDocumentToOwner failed');
+    }
+  }
+
+  return results;
+}
+
 module.exports = {
   escapeMd,
   sendToAdmin,
   sendToOwner,
   sendPhotoToOwner,
   sendMediaGroupToOwner,
+  sendDocumentToOwner,
   editMessage,
   registerCallback,
   startCallbackPolling,
   registerOwnerCallback,
   registerOwnerCommand,
+  registerOwnerTextHandler,
   startOwnerPolling,
 };

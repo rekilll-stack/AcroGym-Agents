@@ -1,15 +1,16 @@
 'use strict';
 
-const { createLogger } = require('../../../shared/logger');
-const { t }            = require('../../../shared/i18n');
-const { escapeMd }     = require('../../../shared/telegram');
-const { BACK_KB }      = require('../keyboards');
+const { createLogger }         = require('../../../shared/logger');
+const { t }                    = require('../../../shared/i18n');
+const { escapeMd }             = require('../../../shared/telegram');
+const { BACK_KB }              = require('../keyboards');
+const { getPreferredLanguage } = require('../../../shared/preferences');
 
 const logger = createLogger('owner-bot');
 
 module.exports = async function handleHelp(msg, bot) {
   const chatId = msg.chat.id;
-  const lang   = 'en';
+  const lang   = getPreferredLanguage(chatId) || 'en';
 
   // Strings with intentional *bold* / _italic_ → use directly (pre-escaped MDv2).
   // Strings that are plain text with potential special chars → wrap in escapeMd().

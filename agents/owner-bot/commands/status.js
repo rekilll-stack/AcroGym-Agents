@@ -13,13 +13,14 @@ const { createLogger }           = require('../../../shared/logger');
 const { buildSystemStatus, formatUptime } = require('../builders/daily-builder');
 const { t, createTranslator }    = require('../../../shared/i18n');
 const { escapeMd }               = require('../../../shared/telegram');
+const { getPreferredLanguage }   = require('../../../shared/preferences');
 
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
 
 module.exports = async function handleStatus(msg, bot) {
   const chatId = msg.chat.id;
-  const lang   = 'en';
+  const lang   = getPreferredLanguage(chatId) || 'en';
   const tr     = createTranslator(lang);
 
   try {
