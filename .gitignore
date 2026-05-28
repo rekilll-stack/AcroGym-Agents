@@ -12,5 +12,14 @@ logs/
 # Brand assets — heavy avatars (svg/png/json tracked, jpg excluded)
 config/brand/*.jpg
 
-# Generated PDF exports (auto-cleaned every 24h, font-test-* tracked separately)
+# Runtime lock files (PID-based single-instance guard)
+*.lock
+data/*.lock
+
+# Font debug / test scripts and their output PDFs
+font-test-*.js
+font-test-*.pdf
+
+# Generated PDF exports — keep the directory via .gitkeep
 exports/*.pdf
+!exports/.gitkeep
