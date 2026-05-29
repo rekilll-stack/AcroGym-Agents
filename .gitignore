@@ -20,6 +20,7 @@ data/*.lock
 font-test-*.js
 font-test-*.pdf
 
-# Generated PDF exports — keep the directory via .gitkeep
+# Generated PDF/PPTX exports — keep the directory via .gitkeep
 exports/*.pdf
+exports/*.pptx
 !exports/.gitkeep
