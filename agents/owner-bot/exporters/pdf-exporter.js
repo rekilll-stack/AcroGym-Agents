@@ -15,13 +15,8 @@ const path        = require('path');
 
 const icons                    = require('../../../shared/pdf-icons');
 const { renderPieChart, renderLineChart } = require('../../../shared/chart');
-const {
-  countLeadsInRange,
-  getSourceBreakdownInRange,
-  getLeadsByDayRange,
-  getQualityStatsInRange,
-} = require('../../../shared/db');
-const { createLogger } = require('../../../shared/logger');
+const { buildReportData, formatDuration } = require('../../../shared/report-data');
+const { createLogger }         = require('../../../shared/logger');
 
 const logger = createLogger('pdf-exporter');
 
@@ -46,13 +41,26 @@ const TX = {
     revenue_label:     'REVENUE (QAR)',
     members_label:     'ACTIVE MEMBERS',
     pending_label:     'in2 pending',
-    status_revenue:    'Revenue: behind target (in2 data pending)',
-    status_leads:      (n) => `Leads: on pace (${n} this month, target 40)`,
-    status_response:   'Response: behind target (avg 4.2h, goal ≤ 2h)',
+    status_revenue:    'Revenue: in2 data pending (August 2026)',
+    status_leads_zero:    'Leads: no activity (0 this month, target 40)',
+    status_leads_red:     (n) => `Leads: below target (${n} this month, target 40)`,
+    status_leads_yellow:  (n) => `Leads: approaching target (${n} this month, target 40)`,
+    status_leads_green:   (n) => `Leads: on target (${n} this month, target 40)`,
+    status_response_none: 'Response: no responses yet',
+    status_response_calc: (t, goal) => `Avg first-response ${t}, goal ≤ ${goal}`,
     key_events:        'Key Events',
-    ev_leads:          (n) => `${n} new leads this month — highest since February`,
+    ev_leads_zero:     'No new leads this month',
+    ev_leads_some:     (n) => `${n} new leads this month`,
     ev_in2:            'Revenue & attendance data pending in2 (Aug 2026)',
-    ev_response:       'Avg first-response 4.2h — target ≤ 2h not met',
+    ev_response_none:  'Avg first-response: no data yet',
+    ev_response_calc:  (t, goal, met) => `Avg first-response ${t} — target ≤ ${goal} ${met ? 'met' : 'not met'}`,
+    vs_prev_pos:       (p) => `+${p}% vs prev month`,
+    vs_prev_neg:       (p) => `${p}% vs prev month`,
+    vs_prev_zero:      '0% vs prev month',
+    vs_no_prior:       'no prior data',
+    vs_no_activity:    '—',
+    chart_no_data:     'No daily activity for this period',
+    pie_no_data:       'No source data for this period',
     leads_header:      'LEADS & PIPELINE',
     funnel_title:      'Conversion Funnel',
     f_submitted:       'Submitted',
@@ -89,13 +97,26 @@ const TX = {
     revenue_label:     'ВЫРУЧКА (QAR)',
     members_label:     'АКТИВНЫХ ЧЛЕНОВ',
     pending_label:     'ожидает in2',
-    status_revenue:    'Выручка: ниже плана (данные in2 ожидаются)',
-    status_leads:      (n) => `Лиды: в рамках плана (${n} за месяц, цель 40)`,
-    status_response:   'Отклик: ниже цели (ср. 4,2 ч, цель ≤ 2 ч)',
+    status_revenue:    'Выручка: данные in2 ожидаются (август 2026)',
+    status_leads_zero:    'Лиды: активности не было (0 за месяц, цель 40)',
+    status_leads_red:     (n) => `Лиды: ниже цели (${n} за месяц, цель 40)`,
+    status_leads_yellow:  (n) => `Лиды: приближаются к цели (${n} за месяц, цель 40)`,
+    status_leads_green:   (n) => `Лиды: цель достигнута (${n} за месяц, цель 40)`,
+    status_response_none: 'Отклик: ответов ещё не было',
+    status_response_calc: (t, goal) => `Ср. время ответа ${t}, цель ≤ ${goal}`,
     key_events:        'Ключевые события',
-    ev_leads:          (n) => `${n} новых лидов — максимум с февраля`,
+    ev_leads_zero:     'Заявок в этом месяце не было',
+    ev_leads_some:     (n) => `${n} новых лидов в этом месяце`,
     ev_in2:            'Выручка и посещаемость ожидают in2 (авг. 2026)',
-    ev_response:       'Ср. время ответа 4,2 ч — цель ≤ 2 ч не достигнута',
+    ev_response_none:  'Ср. время ответа: данных пока нет',
+    ev_response_calc:  (t, goal, met) => `Ср. время ответа ${t} — цель ≤ ${goal} ${met ? 'достигнута' : 'не достигнута'}`,
+    vs_prev_pos:       (p) => `+${p}% к прошлому месяцу`,
+    vs_prev_neg:       (p) => `${p}% к прошлому месяцу`,
+    vs_prev_zero:      '0% к прошлому месяцу',
+    vs_no_prior:       'нет данных за прошлый месяц',
+    vs_no_activity:    '—',
+    chart_no_data:     'Нет активности за период',
+    pie_no_data:       'Нет данных по источникам за период',
     leads_header:      'ЛИДЫ И ВОРОНКА ПРОДАЖ',
     funnel_title:      'Воронка конверсии',
     f_submitted:       'Подано заявок',
@@ -125,22 +146,6 @@ const TX = {
   },
 };
 
-// ── Period-aware titles ──────────────────────────────────────
-const PERIOD_TITLES = {
-  en: {
-    day:    { cover: 'DAILY REPORT',    summary: 'DAILY SUMMARY',     chart: 'Lead Activity — Selected Day',   footer: 'AcroGym · Daily Report'   },
-    week:   { cover: 'WEEKLY REPORT',   summary: 'WEEKLY SUMMARY',    chart: 'Daily Leads — This Week',        footer: 'AcroGym · Weekly Report'  },
-    month:  { cover: 'MONTHLY REPORT',  summary: 'EXECUTIVE SUMMARY', chart: 'Daily Leads — Last 4 Weeks',     footer: 'AcroGym · Monthly Report' },
-    custom: { cover: 'PERIOD REPORT',   summary: 'PERIOD SUMMARY',    chart: 'Daily Leads — Selected Period',  footer: 'AcroGym · Period Report'  },
-  },
-  ru: {
-    day:    { cover: 'ЕЖЕДНЕВНЫЙ ОТЧЁТ',  summary: 'ИТОГИ ДНЯ',       chart: 'Активность за выбранный день',       footer: 'AcroGym · Ежедневный отчёт' },
-    week:   { cover: 'НЕДЕЛЬНЫЙ ОТЧЁТ',   summary: 'ИТОГИ НЕДЕЛИ',    chart: 'Лиды по дням — выбранная неделя',   footer: 'AcroGym · Недельный отчёт'  },
-    month:  { cover: 'ЕЖЕМЕСЯЧНЫЙ ОТЧЁТ', summary: 'ИТОГИ МЕСЯЦА',    chart: 'Лиды по дням — последние 4 недели', footer: 'AcroGym · Месячный отчёт'   },
-    custom: { cover: 'ОТЧЁТ ЗА ПЕРИОД',   summary: 'ИТОГИ ПЕРИОДА',   chart: 'Лиды по дням — выбранный период',   footer: 'AcroGym · Отчёт за период'  },
-  },
-};
-
 // ── Helpers ──────────────────────────────────────────────────
 
 function noLig(str) {
@@ -150,84 +155,67 @@ function noLig(str) {
     .replace(/ff/g, 'f‌f');
 }
 
-function formatDate(dateStr, lang) {
-  // "2026-05-27" → "May 2026" / "Май 2026"
-  const d   = new Date(dateStr + 'T00:00:00Z');
-  const loc = lang === 'ru' ? 'ru-RU' : 'en-US';
-  return new Intl.DateTimeFormat(loc, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
-}
-
-function formatDateShort(dateStr, lang) {
-  // "2026-05-27" → "27.05" (ru) or "05/27" (en)
-  const [, mm, dd] = dateStr.split('-');
-  return lang === 'ru' ? `${dd}.${mm}` : `${mm}/${dd}`;
-}
-
-function formatGenerated(dateStr) {
-  // "2026-05-27" → "27.05.2026"
-  const [y, m, d] = dateStr.split('-');
-  return `${d}.${m}.${y}`;
-}
-
-function coverDateForPeriod(period, dateFrom, dateTo, lang) {
-  const loc = lang === 'ru' ? 'ru-RU' : 'en-US';
-  if (period === 'day') {
-    // "27 мая 2026" / "May 27, 2026"
-    const d = new Date(dateFrom + 'T00:00:00Z');
-    return new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d);
-  }
-  if (period === 'month') {
-    return formatDate(dateFrom, lang); // "May 2026" / "май 2026"
-  }
-  // week or custom: "18 мая — 24 мая 2026" / "18 May — 24 May 2026"
-  const d1 = new Date(dateFrom + 'T00:00:00Z');
-  const d2 = new Date(dateTo   + 'T00:00:00Z');
-  const fmt = new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long', timeZone: 'UTC' });
-  return `${fmt.format(d1)} — ${fmt.format(d2)} ${d2.getUTCFullYear()}`;
-}
-
 // ── Main export function ─────────────────────────────────────
 
 async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } = {}) {
   const tx = TX[lang] || TX.en;
-  // Period-aware titles (cover, summary header, chart title, footer)
-  const ptLang = PERIOD_TITLES[lang] || PERIOD_TITLES.en;
-  const pt     = ptLang[period] || ptLang.month;
 
-  // ── Fetch real data ──────────────────────────────────────
-  const totalLeads  = countLeadsInRange(dateFrom, dateTo);
-  const rawSources  = getSourceBreakdownInRange(dateFrom, dateTo);
-  const dailyRows   = getLeadsByDayRange(dateFrom, dateTo);
-  const quality     = getQualityStatsInRange(dateFrom, dateTo);
+  // ── Shared data (DB + derived) ────────────────────────────
+  const rd = await buildReportData({ period, lang, dateFrom, dateTo });
+  const {
+    pt, totalLeads, respondedCount,
+    srcLabels, srcCounts, srcTotal, SRC_COLORS, hasSourceData,
+    lineLabels, lineData, maxIdx, minIdx, hasLineData,
+    avgResponseSeconds, prevTotal, prevDelta, prevDeltaPct,
+    coverDateLabel, coverGenerated,
+  } = rd;
 
-  // Source breakdown (top 4)
-  const SRC_COLORS  = ['#28347F', '#F37021', '#5A6BC4', '#FF9755', '#1A2356', '#C25617'];
-  const srcLabels   = rawSources.slice(0, 4).map(r => r.source);
-  const srcCounts   = rawSources.slice(0, 4).map(r => r.cnt);
-  const srcTotal    = srcCounts.reduce((a, b) => a + b, 0) || 1;
-
-  // Daily line chart data
-  const lineLabels = dailyRows.map(r => formatDateShort(r.day, lang));
-  const lineData   = dailyRows.map(r => r.cnt);
-
-  // Responded count
-  const respondedCount = quality.total_responded || 0;
-
-  // Pre-render charts
+  // ── Pre-render charts only when there's data (avoid fake single-segment pie / flat line) ──
   const [pieBuffer, lineBuffer] = await Promise.all([
-    renderPieChart({ title: '', labels: srcLabels.length ? srcLabels : ['No data'], data: srcCounts.length ? srcCounts : [1], width: 220, height: 220 }),
-    renderLineChart({ title: noLig(pt.chart), labels: lineLabels.length ? lineLabels : ['—'], data: lineData.length ? lineData : [0], width: 960, height: 320 }),
+    hasSourceData
+      ? renderPieChart({ title: '', labels: srcLabels, data: srcCounts, width: 220, height: 220 })
+      : Promise.resolve(null),
+    hasLineData
+      ? renderLineChart({ title: noLig(pt.chart), labels: lineLabels, data: lineData, width: 960, height: 320 })
+      : Promise.resolve(null),
   ]);
 
-  const maxIdx      = lineData.length ? lineData.indexOf(Math.max(...lineData)) : 0;
-  const minIdx      = lineData.length ? lineData.indexOf(Math.min(...lineData)) : 0;
-  const insightStr  = lineData.length
+  const insightStr = hasLineData
     ? `${tx.best_label(lineLabels[maxIdx] || '—', lineData[maxIdx] || 0)}  ·  ${tx.worst_label(lineLabels[minIdx] || '—', lineData[minIdx] || 0)}`
     : '';
 
-  // Cover date label — period-aware
-  const coverDateLabel  = coverDateForPeriod(period, dateFrom, dateTo, lang);
-  const coverGenerated  = lang === 'ru' ? formatGenerated(dateTo) : dateTo;
+  // ── Card 1 sub: vs prev (honest, no fake +12%) ─────────────
+  function vsPrevSub() {
+    if (totalLeads === 0)          return { text: tx.vs_no_activity, color: '#C8C8C8' };
+    if (prevDeltaPct === null)     return { text: tx.vs_no_prior,    color: '#C8C8C8' };
+    if (prevDeltaPct === 0)        return { text: tx.vs_prev_zero,   color: '#888888' };
+    if (prevDeltaPct  >  0)        return { text: tx.vs_prev_pos(prevDeltaPct),       color: '#16A34A' };
+    return                                { text: tx.vs_prev_neg(prevDeltaPct),       color: '#DC2626' };
+  }
+  const card1Sub = vsPrevSub();
+
+  // ── Status helpers (severity-aware) ─────────────────────────
+  function leadsStatus(n) {
+    if (n === 0) return { text: tx.status_leads_zero,        color: '#DC2626' };
+    if (n < 20)  return { text: tx.status_leads_red(n),      color: '#DC2626' };
+    if (n < 40)  return { text: tx.status_leads_yellow(n),   color: '#F59E0B' };
+    return       { text: tx.status_leads_green(n),           color: '#16A34A' };
+  }
+  function responseStatus(seconds, responded) {
+    if (!responded || seconds == null) return { text: tx.status_response_none, color: '#DC2626' };
+    const dur = formatDuration(seconds, lang);
+    const sec = seconds;
+    const color = sec <= 2 * 3600 ? '#16A34A' : sec <= 4 * 3600 ? '#F59E0B' : '#DC2626';
+    return { text: tx.status_response_calc(dur, lang === 'ru' ? '2 ч' : '2h'), color };
+  }
+  const stLeads    = leadsStatus(totalLeads);
+  const stResponse = responseStatus(avgResponseSeconds, respondedCount);
+
+  // ── Key Events (honest copy, no "highest since February") ──
+  const evLeadsText    = totalLeads === 0 ? tx.ev_leads_zero    : tx.ev_leads_some(totalLeads);
+  const evResponseText = (avgResponseSeconds == null || respondedCount === 0)
+    ? tx.ev_response_none
+    : tx.ev_response_calc(formatDuration(avgResponseSeconds, lang), lang === 'ru' ? '2 ч' : '2h', avgResponseSeconds <= 2*3600);
 
   // ── Build PDF ────────────────────────────────────────────
   const doc    = new PDFDocument({ size: 'A4', margin: 0 });
@@ -301,9 +289,9 @@ async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } =
 
   const colW = (W - M * 2) / 3;
   const COLS = [
-    { label: tx.leads_label,   value: String(totalLeads), sub: '+12% vs prev', real: true  },
-    { label: tx.revenue_label, value: '—',                sub: tx.pending_label, real: false },
-    { label: tx.members_label, value: '—',                sub: tx.pending_label, real: false },
+    { label: tx.leads_label,   value: String(totalLeads), sub: card1Sub.text, subColor: card1Sub.color, real: totalLeads > 0 },
+    { label: tx.revenue_label, value: '—', sub: tx.pending_label, subColor: '#C8C8C8', real: false },
+    { label: tx.members_label, value: '—', sub: tx.pending_label, subColor: '#C8C8C8', real: false },
   ];
 
   COLS.forEach((col, i) => {
@@ -312,7 +300,7 @@ async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } =
     txt(col.value, cx, 68, { width: colW, align: 'center' });
     doc.fontSize(8).fillColor(GREY).font('M-Bold');
     txt(col.label, cx, 138, { width: colW, align: 'center' });
-    doc.fontSize(7.5).fillColor(col.real ? '#16A34A' : '#C8C8C8').font('M-Regular');
+    doc.fontSize(7.5).fillColor(col.subColor).font('M-Regular');
     txt(noLig(col.sub), cx, 152, { width: colW, align: 'center' });
     if (i < 2) {
       doc.moveTo(M + (i + 1) * colW, 62).lineTo(M + (i + 1) * colW, 170)
@@ -325,9 +313,9 @@ async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } =
      .roundedRect(M, STATUS_Y, W - M * 2, 92, 5).fill(LIGHT);
 
   const STATUSES = [
-    { fill: '#DC2626', line: tx.status_revenue },
-    { fill: '#F59E0B', line: tx.status_leads(totalLeads) },
-    { fill: '#DC2626', line: tx.status_response },
+    { fill: '#F59E0B',     line: tx.status_revenue },  // in2 pending = yellow (was red — consistency with PPTX)
+    { fill: stLeads.color, line: stLeads.text      },
+    { fill: stResponse.color, line: stResponse.text },
   ];
   STATUSES.forEach((s, i) => {
     const sy = STATUS_Y + 14 + i * 24;
@@ -341,9 +329,9 @@ async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } =
   txt(tx.key_events, M, KE_Y);
 
   const EVENTS = [
-    { icon: 'TrendingUp',    color: '#16A34A', text: tx.ev_leads(totalLeads)    },
-    { icon: 'Package',       color: ORANGE,    text: noLig(tx.ev_in2)          },
-    { icon: 'AlertTriangle', color: '#DC2626', text: noLig(tx.ev_response)     },
+    { icon: 'TrendingUp',    color: '#16A34A', text: evLeadsText            },
+    { icon: 'Package',       color: ORANGE,    text: noLig(tx.ev_in2)        },
+    { icon: 'AlertTriangle', color: '#DC2626', text: noLig(evResponseText)   },
   ];
   EVENTS.forEach((ev, i) => {
     const ey = KE_Y + 22 + i * 32;
@@ -409,25 +397,33 @@ async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } =
   txt(noLig(tx.sources_title), M, CHART_Y);
 
   const PIE_Y = CHART_Y + 16;
-  doc.image(pieBuffer, M, PIE_Y, { width: PIE_PDF_W });
+  if (hasSourceData) {
+    doc.image(pieBuffer, M, PIE_Y, { width: PIE_PDF_W });
 
-  doc.fontSize(9).fillColor(GREY).font('M-Bold');
-  txt(tx.src_col_source, TABLE_X, PIE_Y + 4);
-  txt(tx.src_col_leads, TABLE_X + TABLE_W - 60, PIE_Y + 4);
-  txt('%', TABLE_X + TABLE_W - 20, PIE_Y + 4);
-  doc.moveTo(TABLE_X, PIE_Y + 16).lineTo(TABLE_X + TABLE_W, PIE_Y + 16)
-     .lineWidth(0.5).strokeColor('#DDDDDD').stroke();
+    doc.fontSize(9).fillColor(GREY).font('M-Bold');
+    txt(tx.src_col_source, TABLE_X, PIE_Y + 4);
+    txt(tx.src_col_leads, TABLE_X + TABLE_W - 60, PIE_Y + 4);
+    txt('%', TABLE_X + TABLE_W - 20, PIE_Y + 4);
+    doc.moveTo(TABLE_X, PIE_Y + 16).lineTo(TABLE_X + TABLE_W, PIE_Y + 16)
+       .lineWidth(0.5).strokeColor('#DDDDDD').stroke();
 
-  srcLabels.forEach((lbl, i) => {
-    const ty = PIE_Y + 24 + i * 22;
-    doc.circle(TABLE_X + 6, ty + 6, 4).fill(SRC_COLORS[i % SRC_COLORS.length]);
-    doc.fontSize(9).fillColor(DARK).font('M-Regular');
-    txt(lbl, TABLE_X + 16, ty + 2);
-    doc.font('M-Bold');
-    txt(String(srcCounts[i]), TABLE_X + TABLE_W - 60, ty + 2);
-    doc.font('M-Regular').fillColor(GREY);
-    txt(`${Math.round(srcCounts[i] / srcTotal * 100)}%`, TABLE_X + TABLE_W - 20, ty + 2);
-  });
+    srcLabels.forEach((lbl, i) => {
+      const ty = PIE_Y + 24 + i * 22;
+      doc.circle(TABLE_X + 6, ty + 6, 4).fill(SRC_COLORS[i % SRC_COLORS.length]);
+      doc.fontSize(9).fillColor(DARK).font('M-Regular');
+      txt(lbl, TABLE_X + 16, ty + 2);
+      doc.font('M-Bold');
+      txt(String(srcCounts[i]), TABLE_X + TABLE_W - 60, ty + 2);
+      doc.font('M-Regular').fillColor(GREY);
+      txt(`${Math.round(srcCounts[i] / srcTotal * 100)}%`, TABLE_X + TABLE_W - 20, ty + 2);
+    });
+  } else {
+    // Placeholder block sized like the pie chart area, centered italic text
+    doc.rect(M, PIE_Y, W - M * 2, PIE_PDF_W).fill(LIGHT)
+       .roundedRect(M, PIE_Y, W - M * 2, PIE_PDF_W, 6).fill(LIGHT);
+    doc.fontSize(11).fillColor('#999999').font('M-Regular');
+    txt(noLig(tx.pie_no_data), 0, PIE_Y + PIE_PDF_W / 2 - 7, { width: W, align: 'center' });
+  }
 
   // Line chart
   const LINE_Y = CHART_Y + 16 + PIE_PDF_W + 14;
@@ -438,7 +434,15 @@ async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } =
     doc.fontSize(8.5).fillColor(GREY).font('M-Regular');
     txt(`  ·  ${noLig(insightStr)}`, M + headW, LINE_Y + 1.5);
   }
-  doc.image(lineBuffer, M, LINE_Y + 18, { width: LINE_PDF_W });
+  if (hasLineData) {
+    doc.image(lineBuffer, M, LINE_Y + 18, { width: LINE_PDF_W });
+  } else {
+    const LINE_PH_H = 160;
+    doc.rect(M, LINE_Y + 18, LINE_PDF_W, LINE_PH_H).fill(LIGHT)
+       .roundedRect(M, LINE_Y + 18, LINE_PDF_W, LINE_PH_H, 6).fill(LIGHT);
+    doc.fontSize(11).fillColor('#999999').font('M-Regular');
+    txt(noLig(tx.chart_no_data), 0, LINE_Y + 18 + LINE_PH_H / 2 - 7, { width: W, align: 'center' });
+  }
 
   footer(3, 4);
 
