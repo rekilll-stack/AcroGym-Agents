@@ -30,6 +30,7 @@ const {
 } = require('../../../shared/state');
 const { getPreferredLanguage } = require('../../../shared/preferences');
 const { generatePdf }          = require('../exporters/pdf-exporter');
+const { generatePptx }         = require('../exporters/pptx-exporter');
 const {
   buildCalendarKeyboard,
   currentYearMonth,
@@ -152,9 +153,9 @@ function langKeyboard(lang, defaultLang) {
 function formatKeyboard(lang) {
   return {
     inline_keyboard: [
-      [{ text: t('export.btn_format_pdf',  lang),                    callback_data: 'export:format:pdf'  }],
-      [{ text: `${t('export.btn_format_pptx', lang)} (soon)`,        callback_data: 'export:format:pptx' }],
-      [{ text: `${t('export.btn_format_both', lang)} (soon)`,        callback_data: 'export:format:both' }],
+      [{ text: t('export.btn_format_pdf',  lang), callback_data: 'export:format:pdf'  }],
+      [{ text: t('export.btn_format_pptx', lang), callback_data: 'export:format:pptx' }],
+      [{ text: t('export.btn_format_both', lang), callback_data: 'export:format:both' }],
       backCancelRow(lang),
     ],
   };
@@ -212,34 +213,48 @@ async function showFormatStep(chatId, bot, lang) {
 async function generateAndSend(chatId, bot, lang, state) {
   const { params } = state;
   const { dateFrom, dateTo, period } = params;
-  const exportLang  = params.lang || 'en';
-  const uiLang      = lang;
+  const exportLang   = params.lang   || 'en';
+  const exportFormat = params.format || 'pdf';
+  const uiLang       = lang;
 
   setStep(chatId, 'generating');
 
   // "⏳ Generating..."
   await bot.sendMessage(chatId, t('export.generating', uiLang), { parse_mode: 'MarkdownV2' }).catch(() => {});
 
-  const langs = exportLang === 'both' ? ['en', 'ru'] : [exportLang];
+  const langs   = exportLang   === 'both' ? ['en', 'ru']     : [exportLang];
+  const formats = exportFormat === 'both' ? ['pdf', 'pptx']  : [exportFormat];
+
+  // Build all (lang × format) tasks for parallel generation
+  const tasks = [];
+  for (const l of langs) {
+    for (const f of formats) {
+      tasks.push({
+        lang: l,
+        format: f,
+        promise: f === 'pptx'
+          ? generatePptx({ period, lang: l, dateFrom, dateTo })
+          : generatePdf({  period, lang: l, dateFrom, dateTo }),
+      });
+    }
+  }
 
   try {
-    const buffers = await Promise.all(
-      langs.map(l => generatePdf({ period, lang: l, dateFrom, dateTo }))
-    );
+    const buffers = await Promise.all(tasks.map(t => t.promise));
 
-    // Ensure exports dir exists
     if (!fs.existsSync(EXPORTS_DIR)) fs.mkdirSync(EXPORTS_DIR, { recursive: true });
 
-    for (let i = 0; i < langs.length; i++) {
-      const l        = langs[i];
+    for (let i = 0; i < tasks.length; i++) {
+      const { lang: l, format: f } = tasks[i];
       const from     = (dateFrom || '').replace(/-/g, '');
       const to       = (dateTo   || '').replace(/-/g, '');
-      const filename = `acrogym-${period}-${from}-to-${to}_${l}.pdf`;
+      const filename = `acrogym-${period}-${from}-to-${to}_${l}.${f}`;
       const filepath = path.join(EXPORTS_DIR, filename);
 
       fs.writeFileSync(filepath, buffers[i]);
 
-      const caption = t('export.file_caption_pdf', uiLang, {
+      const captionKey = f === 'pptx' ? 'export.file_caption_pptx' : 'export.file_caption_pdf';
+      const caption = t(captionKey, uiLang, {
         period: `${dateFrom} — ${dateTo}`,
         lang:   l.toUpperCase(),
       });
@@ -285,19 +300,7 @@ async function exportCallbackHandler(query, bot) {
   const value  = parts[2];
   console.log('[EXPORT] parts:', JSON.stringify(parts), '| action:', action, '| value:', value, '| lang:', lang);
 
-  // ── PPTX / Both: single answerCallbackQuery with alert (must be the only call) ──
-  if (action === 'format' && (value === 'pptx' || value === 'both')) {
-    console.log('[EXPORT] MATCHED branch: format/pptx-or-both (alert)');
-    try {
-      await bot.answerCallbackQuery(query.id, {
-        text:       'PPTX coming soon — use PDF for now.',
-        show_alert: true,
-      });
-    } catch {}
-    return;
-  }
-
-  // For all other actions: answer immediately to close the spinner
+  // Answer immediately to close the spinner
   try { await bot.answerCallbackQuery(query.id); } catch {}
 
   // ── Cancel ───────────────────────────────────────────────
@@ -492,9 +495,10 @@ async function exportCallbackHandler(query, bot) {
     if (!state) { console.log('[EXPORT] format: no state — aborting'); return; }
     if (await checkTimeout(state, chatId, bot, lang)) return;
 
-    if (value === 'pdf') {
-      console.log('[EXPORT] format: generating PDF, state.params:', JSON.stringify(state.params));
-      await generateAndSend(chatId, bot, lang, state);
+    if (value === 'pdf' || value === 'pptx' || value === 'both') {
+      console.log('[EXPORT] format:', value, '— starting generation, state.params:', JSON.stringify(state.params));
+      const merged = { ...state, params: { ...state.params, format: value } };
+      await generateAndSend(chatId, bot, lang, merged);
     }
     return;
   }
