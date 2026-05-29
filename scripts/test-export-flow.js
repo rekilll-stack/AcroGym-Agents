@@ -32,10 +32,12 @@ function createMockBot() {
   const log = [];
   return {
     _log: log,
-    sendMessage:         async (chatId, text, opts = {}) => { log.push({ type: 'msg', text, opts }); return { message_id: Date.now() }; },
-    answerCallbackQuery: async (id, opts = {})           => { log.push({ type: 'answer', opts }); return {}; },
-    lastMsg:             ()                              => log.filter(x => x.type === 'msg').slice(-1)[0],
-    clear:               ()                              => { log.length = 0; },
+    sendMessage:            async (chatId, text, opts = {}) => { log.push({ type: 'msg', text, opts }); return { message_id: Date.now() }; },
+    answerCallbackQuery:    async (id, opts = {})           => { log.push({ type: 'answer', opts }); return {}; },
+    deleteMessage:          async ()                        => { log.push({ type: 'del' }); return true; },
+    editMessageReplyMarkup: async ()                        => { log.push({ type: 'edit' }); return true; },
+    lastMsg:                ()                              => log.filter(x => x.type === 'msg').slice(-1)[0],
+    clear:                  ()                              => { log.length = 0; },
   };
 }
 
@@ -158,16 +160,16 @@ async function test2() {
   checkState('period');
 
   await exportCb(mockCb('export:period:custom'), bot);
-  checkState('date_start');
-  console.log('   step=date_start ✅');
+  checkState('cal_start');
+  console.log('   step=cal_start ✅');
 
-  // Text: start date
-  await textHandler(mockMsg('2026-05-01'), bot);
-  checkState('date_end');
-  console.log('   step=date_end ✅');
+  // Pick start date via calendar callback
+  await exportCb(mockCb('cal:pick:2026-05-01'), bot);
+  checkState('cal_end');
+  console.log('   step=cal_end ✅');
 
-  // Text: end date
-  await textHandler(mockMsg('2026-05-15'), bot);
+  // Pick end date via calendar callback
+  await exportCb(mockCb('cal:pick:2026-05-15'), bot);
   const s = checkState('lang');
   if (s.params.dateFrom !== '2026-05-01') throw new Error('dateFrom wrong');
   if (s.params.dateTo   !== '2026-05-15') throw new Error('dateTo wrong');
@@ -194,41 +196,36 @@ async function test2() {
 // ─────────────────────────────────────────────────────────────
 
 async function test3() {
+  // Calendar-based custom range rejects future dates silently (no state change).
   const bot = createMockBot();
 
   await handleExport(mockMsg('/export'), bot);
-  await exportCb(mockCb('export:period:day'), bot);
-  checkState('date_single');
-  console.log('   step=date_single ✅');
+  await exportCb(mockCb('export:period:custom'), bot);
+  checkState('cal_start');
 
-  // Invalid: garbage
+  // Garbage callback — ignored
   bot.clear();
-  await textHandler(mockMsg('tomorrow'), bot);
-  checkState('date_single'); // still same step
-  const msg1 = bot.lastMsg();
-  if (!msg1 || !msg1.text.includes('YYYY-MM-DD') && !msg1.text.includes('2026')) {
-    // Check that some error message was sent
-    if (bot._log.filter(x => x.type === 'msg').length === 0) throw new Error('No error message sent for invalid input');
-  }
-  console.log('   "tomorrow" rejected, step unchanged ✅');
+  await exportCb(mockCb('cal:pick:not-a-date'), bot);
+  checkState('cal_start');
+  console.log('   "not-a-date" rejected, step unchanged ✅');
 
-  // Invalid: bad date
+  // Future date — ignored (no state change)
   bot.clear();
-  await textHandler(mockMsg('2026-99-99'), bot);
-  checkState('date_single');
-  console.log('   "2026-99-99" rejected, step unchanged ✅');
-
-  // Future date
-  bot.clear();
-  await textHandler(mockMsg('2099-01-01'), bot);
-  checkState('date_single');
+  await exportCb(mockCb('cal:pick:2099-01-01'), bot);
+  checkState('cal_start');
   console.log('   "2099-01-01" (future) rejected, step unchanged ✅');
 
-  // Valid date
+  // Valid past date — advances to cal_end
   bot.clear();
-  await textHandler(mockMsg('2026-05-25'), bot);
-  checkState('lang');
-  console.log('   "2026-05-25" accepted, step=lang ✅');
+  await exportCb(mockCb('cal:pick:2026-05-25'), bot);
+  checkState('cal_end');
+  console.log('   "2026-05-25" accepted, step=cal_end ✅');
+
+  // End < start — rejected, stays on cal_end
+  bot.clear();
+  await exportCb(mockCb('cal:pick:2026-05-01'), bot);
+  checkState('cal_end');
+  console.log('   end<start rejected, step=cal_end ✅');
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -240,7 +237,7 @@ async function test4() {
 
   await handleExport(mockMsg('/export'), bot);
   await exportCb(mockCb('export:period:day'), bot);
-  checkState('date_single');
+  checkState('day_choice');
 
   // Cancel
   bot.clear();
@@ -261,11 +258,13 @@ async function test4() {
 // ─────────────────────────────────────────────────────────────
 
 async function test5() {
+  // Timeout check at the lang step (universal across all period flows).
   const bot = createMockBot();
 
   await handleExport(mockMsg('/export'), bot);
-  await exportCb(mockCb('export:period:day'), bot);
-  checkState('date_single');
+  await exportCb(mockCb('export:period:month'), bot);
+  await exportCb(mockCb('export:month_choice:this_month'), bot);
+  checkState('lang');
 
   // Force updated_at to 6 minutes ago
   getDb().prepare(
@@ -273,9 +272,9 @@ async function test5() {
   ).run(CHAT_ID);
   console.log('   updated_at forced to 6 min ago ✅');
 
-  // Text input should trigger timeout
+  // Next callback should trigger timeout
   bot.clear();
-  await textHandler(mockMsg('2026-05-25'), bot);
+  await exportCb(mockCb('export:lang:en'), bot);
 
   // State should be cleared
   const s = getState(CHAT_ID);
@@ -286,7 +285,6 @@ async function test5() {
   const msgs = bot._log.filter(x => x.type === 'msg');
   if (msgs.length === 0) throw new Error('No timeout message sent');
   const timeoutMsg = msgs[0].text;
-  // The timeout message should contain some indicator (from i18n export.timeout)
   console.log(`   timeout message sent: "${timeoutMsg.slice(0, 40)}..." ✅`);
 }
 
@@ -328,13 +326,79 @@ async function test6() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Cleanup generated test PDFs
+// TEST 7: Month + EN + PPTX
+// ─────────────────────────────────────────────────────────────
+
+async function test7() {
+  const bot = createMockBot();
+
+  await handleExport(mockMsg('/export'), bot);
+  await exportCb(mockCb('export:period:month'), bot);
+  await exportCb(mockCb('export:month_choice:this_month'), bot);
+  checkState('lang');
+
+  await exportCb(mockCb('export:lang:en'), bot);
+  checkState('format');
+  console.log('   step=format ✅');
+
+  console.log('   Generating EN PPTX...');
+  await exportCb(mockCb('export:format:pptx'), bot);
+
+  const file = findExportFile(/acrogym-month-.*_en\.pptx$/);
+  if (!file) throw new Error('Expected acrogym-month-*_en.pptx not found');
+  const stat = fs.statSync(file);
+  if (stat.size < 100 * 1024) throw new Error(`PPTX too small: ${stat.size} bytes (expected >100KB)`);
+  console.log(`   PPTX: ${path.basename(file)}, ${Math.round(stat.size / 1024)}KB ✅`);
+
+  if (getState(CHAT_ID) !== null) throw new Error('State not cleared after PPTX generation');
+  console.log('   state cleared ✅');
+}
+
+// ─────────────────────────────────────────────────────────────
+// TEST 8: Month + Both langs + Both formats (4 files)
+// ─────────────────────────────────────────────────────────────
+
+async function test8() {
+  const bot = createMockBot();
+
+  await handleExport(mockMsg('/export'), bot);
+  await exportCb(mockCb('export:period:month'), bot);
+  await exportCb(mockCb('export:month_choice:this_month'), bot);
+  checkState('lang');
+
+  await exportCb(mockCb('export:lang:both'), bot);
+  checkState('format');
+
+  console.log('   Generating 4 files (EN+RU × PDF+PPTX)...');
+  await exportCb(mockCb('export:format:both'), bot);
+
+  const expected = [
+    [/acrogym-month-.*_en\.pdf$/,  'EN PDF'],
+    [/acrogym-month-.*_ru\.pdf$/,  'RU PDF'],
+    [/acrogym-month-.*_en\.pptx$/, 'EN PPTX'],
+    [/acrogym-month-.*_ru\.pptx$/, 'RU PPTX'],
+  ];
+
+  for (const [pattern, label] of expected) {
+    const file = findExportFile(pattern);
+    if (!file) throw new Error(`${label} not found in exports/`);
+    const stat = fs.statSync(file);
+    if (stat.size < 100 * 1024) throw new Error(`${label} too small: ${stat.size} bytes`);
+    console.log(`   ${label}: ${path.basename(file)}, ${Math.round(stat.size / 1024)}KB ✅`);
+  }
+
+  if (getState(CHAT_ID) !== null) throw new Error('State not cleared after both/both');
+  console.log('   state cleared ✅');
+}
+
+// ─────────────────────────────────────────────────────────────
+// Cleanup generated test files (PDF + PPTX)
 // ─────────────────────────────────────────────────────────────
 
 function cleanupTestPdfs() {
   if (!fs.existsSync(EXPORTS_DIR)) return;
   const files = fs.readdirSync(EXPORTS_DIR).filter(f =>
-    f.startsWith('acrogym-') && f.endsWith('.pdf')
+    f.startsWith('acrogym-') && (f.endsWith('.pdf') || f.endsWith('.pptx'))
   );
   for (const f of files) {
     fs.unlinkSync(path.join(EXPORTS_DIR, f));
@@ -411,6 +475,8 @@ async function main() {
     await runTest('TEST 4: Cancel flow',                test4);
     await runTest('TEST 5: Timeout expiration',         test5);
     await runTest('TEST 6: Both languages (EN+RU PDFs)',test6);
+    await runTest('TEST 7: Month + EN + PPTX',          test7);
+    await runTest('TEST 8: Month + Both + Both (4 files)', test8);
   } catch {
     // runTest already logged, stop here
     printReport();
