@@ -28,7 +28,13 @@ const {
   findExistingLead,
 } = require('../../shared/db');
 const { markRespondedHandler, copyTextHandler } = require('../../shared/callbacks');
+const { writeHeartbeat } = require('../../shared/heartbeat');
 const { buildGreetingPrompt } = require('./prompts');
+
+// Test-only: freeze heartbeat writes while polling continues normally, so the
+// watchdog's "online + stale = hung" branch can be exercised without dropping
+// live leads. Never set in production.
+const HEARTBEAT_FROZEN = process.env.HEARTBEAT_FREEZE === '1';
 
 const logger = createLogger('lead-helper');
 
@@ -288,7 +294,13 @@ async function pollSheets() {
     rows = await fetchAllResponses();
   } catch (err) {
     logger.error({ err }, 'Failed to read Google Sheets');
-    return;
+    return; // no heartbeat — staleness lets the watchdog catch a silent Google/Sheets stall
+  }
+
+  // Reached Google Sheets successfully — this counts as a healthy cycle even if 0 rows.
+  if (!HEARTBEAT_FROZEN) {
+    try { writeHeartbeat('lead-helper', `sheets ok, ${rows ? rows.length : 0} rows`); }
+    catch (err) { logger.warn({ err }, 'writeHeartbeat failed'); }
   }
 
   if (!rows || rows.length === 0) return;

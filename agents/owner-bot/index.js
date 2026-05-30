@@ -10,9 +10,14 @@ const { createLogger }  = require('../../shared/logger');
 const {
   registerOwnerCommand,
   startOwnerPolling,
+  getOwnerPollingErrorStats,
 } = require('../../shared/telegram');
 const { sendToOwner }      = require('../../shared/notify');
+const { writeHeartbeat }   = require('../../shared/heartbeat');
 const { gcExpiredStates }  = require('../../shared/state');
+
+// Test-only: freeze heartbeat writes to exercise the watchdog "hung" branch.
+const HEARTBEAT_FROZEN = process.env.HEARTBEAT_FREEZE === '1';
 const fs   = require('fs');
 const path = require('path');
 
@@ -147,7 +152,31 @@ async function start() {
   registerOwnerCommand('/help',      handleHelp);
 
   // Start OWNER_BOT polling
-  startOwnerPolling();
+  const ownerBot = startOwnerPolling();
+
+  // ── Heartbeat probe: owner-bot is reactive (no work loop), so liveness is
+  //    proven by an active getMe() probe every 60s. Success means event loop
+  //    alive + Telegram API reachable + token valid. polling_error stats are
+  //    folded into the detail so the watchdog can also see whether updates are
+  //    actually arriving without errors. ──
+  if (ownerBot) {
+    const ownerProbe = async () => {
+      try {
+        await ownerBot.getMe();
+        if (HEARTBEAT_FROZEN) return;
+        const { count, lastAt } = getOwnerPollingErrorStats();
+        const errPart = count === 0
+          ? 'poll_err: 0'
+          : `poll_err: ${count}, last ${new Date(lastAt).toLocaleTimeString('en-GB', { timeZone: TIMEZONE })}`;
+        writeHeartbeat('owner-bot', `getMe ok; ${errPart}`);
+      } catch (err) {
+        logger.warn({ err }, 'owner-bot heartbeat probe failed (getMe)');
+        // No heartbeat write — staleness lets the watchdog catch it.
+      }
+    };
+    ownerProbe();
+    setInterval(ownerProbe, 60 * 1000);
+  }
 
   // ── Cron: daily digest 08:00 Asia/Qatar — send EN then RU ─
   cron.schedule('0 8 * * *', async () => {

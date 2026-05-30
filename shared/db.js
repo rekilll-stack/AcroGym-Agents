@@ -111,6 +111,17 @@ function _runMigrations(db) {
       updated_at     TEXT DEFAULT (datetime('now'))
     )`),
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_user_state_updated ON user_state(updated_at)`),
+    // v17: watchdog heartbeats + anti-spam alert state
+    () => db.exec(`CREATE TABLE IF NOT EXISTS heartbeats (
+      agent_name TEXT PRIMARY KEY,
+      last_ok_at INTEGER,
+      detail     TEXT
+    )`),
+    () => db.exec(`CREATE TABLE IF NOT EXISTS watchdog_state (
+      agent_name TEXT PRIMARY KEY,
+      alert_state TEXT,
+      alerted_at  INTEGER
+    )`),
   ];
 
   for (const migrate of migrations) {

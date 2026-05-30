@@ -261,6 +261,16 @@ const _ownerCallbackHandlers = new Map(); // prefix → handler
 const _ownerCommandHandlers  = new Map(); // '/command' → handler
 let   _ownerTextHandler      = null;      // single handler for plain-text input
 
+// Owner polling-error telemetry — surfaced in owner-bot heartbeat detail so the
+// watchdog can tell "loop alive + Telegram reachable" (getMe ok) apart from
+// "updates not actually arriving" (polling errors piling up).
+const _ownerPollErr = { count: 0, lastAt: null };
+
+/** @returns {{count:number, lastAt:number|null}} */
+function getOwnerPollingErrorStats() {
+  return { count: _ownerPollErr.count, lastAt: _ownerPollErr.lastAt };
+}
+
 /**
  * Регистрирует обработчик callback_query для OWNER_BOT.
  * @param {string}   prefix   — например 'mark_responded', 'copy_text'
@@ -370,6 +380,8 @@ function startOwnerPolling() {
     });
 
     _ownerPollingBot.on('polling_error', (err) => {
+      _ownerPollErr.count += 1;
+      _ownerPollErr.lastAt = Date.now();
       logger.error({ err }, 'Owner bot polling error');
     });
 
@@ -493,4 +505,5 @@ module.exports = {
   registerOwnerCommand,
   registerOwnerTextHandler,
   startOwnerPolling,
+  getOwnerPollingErrorStats,
 };

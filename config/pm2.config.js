@@ -37,6 +37,23 @@ module.exports = {
     },
 
     // ─────────────────────────────
+    // Watchdog: heartbeat-based liveness monitor
+    // ─────────────────────────────
+    {
+      name: 'watchdog',
+      script: 'agents/watchdog/index.js',
+      cwd: '/home/admin/acrogym',
+      autorestart: true,
+      max_restarts: 10,
+      restart_delay: 5000,
+      watch: false,
+      error_file: 'logs/watchdog-error.log',
+      out_file:   'logs/watchdog-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      env: { NODE_ENV: 'production', TZ: 'Asia/Qatar' },
+    },
+
+    // ─────────────────────────────
     // Агент 3: Pre-launch Nurture (следующий)
     // ─────────────────────────────
     // {
