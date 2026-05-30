@@ -10,6 +10,7 @@ const {
   sendToOwner,
   sendPhotoToOwner,
   sendMediaGroupToOwner,
+  sendDocumentToOwner,
 } = require('./telegram');
 
 module.exports = {
@@ -17,4 +18,5 @@ module.exports = {
   sendToOwner,
   sendPhotoToOwner,
   sendMediaGroupToOwner,
+  sendDocumentToOwner,
 };

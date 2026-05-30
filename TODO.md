@@ -6,6 +6,14 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 
 ## Known technical debt
 
+### Logger — duplicate pretty + JSON output
+- **File:** `shared/logger.js`
+- **Issue:** Each log event is written twice to stdout — once pino-pretty (ANSI-coloured) and once raw JSON. Visible in `logs/backup.log` (cron redirect) and in every PM2 agent log.
+- **Impact:** Cosmetic only — logs are noisier and ~2× larger; no functional effect. Grep/parse still works on the JSON lines.
+- **Why deferred:** Pure log hygiene, zero runtime risk; not worth touching the shared logger mid-feature.
+- **Future fix:** Configure pino so exactly one transport targets stdout (pretty in dev / JSON in prod), not both.
+- **Estimated effort:** ~30 min.
+
 ### PDF exporter — i18n decoupling
 - **File:** `agents/owner-bot/exporters/pdf-exporter.js`
 - **Issue:** Contains hardcoded `TX` dictionary (~80 strings × EN + RU) instead of using `shared/i18n`

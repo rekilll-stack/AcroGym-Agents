@@ -438,10 +438,14 @@ async function sendDocumentToOwner(buffer, filename, caption, options = {}) {
         parts.push(Buffer.from(
           `--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${caption}\r\n`
         ));
-        const pm = options.parse_mode || 'MarkdownV2';
-        parts.push(Buffer.from(
-          `--${boundary}\r\nContent-Disposition: form-data; name="parse_mode"\r\n\r\n${pm}\r\n`
-        ));
+        // Default stays MarkdownV2 for existing callers; pass parse_mode:null
+        // (or '') to send the caption as plain text with no parser at all.
+        const pm = 'parse_mode' in options ? options.parse_mode : 'MarkdownV2';
+        if (pm) {
+          parts.push(Buffer.from(
+            `--${boundary}\r\nContent-Disposition: form-data; name="parse_mode"\r\n\r\n${pm}\r\n`
+          ));
+        }
       }
       if (options.reply_markup) {
         parts.push(Buffer.from(

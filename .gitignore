@@ -5,6 +5,10 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/*.db-journal
+
+# Local SQLite backups (snapshots live on disk + off-site Drive, never in git)
+backups/
+
 logs/
 *.log
 .DS_Store
