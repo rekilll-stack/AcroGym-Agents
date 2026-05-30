@@ -50,7 +50,13 @@ module.exports = {
       error_file: 'logs/watchdog-error.log',
       out_file:   'logs/watchdog-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      env: { NODE_ENV: 'production', TZ: 'Asia/Qatar' },
+      // PM2-spawned children don't inherit the user's PATH, so `pm2` isn't
+      // resolvable by name — point the watchdog at the absolute binary.
+      env: {
+        NODE_ENV: 'production',
+        TZ: 'Asia/Qatar',
+        PM2_BIN: '/home/admin/.npm-global/bin/pm2',
+      },
     },
 
     // ─────────────────────────────
