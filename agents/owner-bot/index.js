@@ -15,6 +15,7 @@ const {
 const { sendToOwner }      = require('../../shared/notify');
 const { writeHeartbeat }   = require('../../shared/heartbeat');
 const { gcExpiredStates }  = require('../../shared/state');
+const { getPreferredLanguage } = require('../../shared/preferences');
 
 // Test-only: freeze heartbeat writes to exercise the watchdog "hung" branch.
 const HEARTBEAT_FROZEN = process.env.HEARTBEAT_FREEZE === '1';
@@ -45,6 +46,22 @@ const { setupLangCallbacks }   = require('./callbacks/lang-callbacks');
 
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
+
+// Languages for scheduled owner reports, resolved from each owner's saved
+// preference (user_preferences). 'both' or an unset preference falls back to
+// both languages, so a fresh owner who hasn't chosen yet still gets the report.
+// Union across owner chats: no owner ever misses their language.
+function scheduledLangs() {
+  const ids = (process.env.OWNER_CHAT_IDS || '')
+    .split(',').map(s => Number(s.trim())).filter(Boolean);
+  const langs = new Set();
+  for (const id of ids) {
+    const pref = getPreferredLanguage(id);
+    if (pref === 'en' || pref === 'ru') langs.add(pref);
+    else { langs.add('en'); langs.add('ru'); }
+  }
+  return langs.size ? [...langs] : ['en', 'ru'];
+}
 
 // ─────────────────────────────────────────────────────────────
 // Single-instance lock (daemon mode only)
@@ -178,27 +195,27 @@ async function start() {
     setInterval(ownerProbe, 60 * 1000);
   }
 
-  // ── Cron: daily digest 08:00 Asia/Qatar — send EN then RU ─
+  // ── Cron: daily digest 08:00 Asia/Qatar — owner's chosen language(s) ─
   cron.schedule('0 8 * * *', async () => {
-    for (const lang of ['en', 'ru']) {
+    for (const lang of scheduledLangs()) {
       await sendDailyDigest({ withCharts: true, lang }).catch(err =>
         logger.error({ err, lang }, 'sendDailyDigest cron unhandled error')
       );
     }
   }, { timezone: TIMEZONE });
 
-  // ── Cron: weekly slice 09:00 Monday — send EN then RU ────
+  // ── Cron: weekly slice 09:00 Monday — owner's chosen language(s) ────
   cron.schedule('0 9 * * 1', async () => {
-    for (const lang of ['en', 'ru']) {
+    for (const lang of scheduledLangs()) {
       await sendWeeklySlice({ lang }).catch(err =>
         logger.error({ err, lang }, 'sendWeeklySlice cron unhandled error')
       );
     }
   }, { timezone: TIMEZONE });
 
-  // ── Cron: monthly 10:00 1st of month — send EN then RU ───
+  // ── Cron: monthly 10:00 1st of month — owner's chosen language(s) ───
   cron.schedule('0 10 1 * *', async () => {
-    for (const lang of ['en', 'ru']) {
+    for (const lang of scheduledLangs()) {
       await sendMonthlyReport({ lang }).catch(err =>
         logger.error({ err, lang }, 'sendMonthlyReport cron unhandled error')
       );
