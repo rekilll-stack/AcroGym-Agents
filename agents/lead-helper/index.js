@@ -24,10 +24,16 @@ const {
   getLeadByRow,
   updateLeadStatus,
   updateLeadGreeting,
+  updateLeadChildrenDob,
   getLeadsNeedingReminder,
   findExistingLead,
 } = require('../../shared/db');
 const { markRespondedHandler, copyTextHandler } = require('../../shared/callbacks');
+// Agent 3 nurture. Requiring this also registers the admin-side 'client_sent' /
+// 'copy_text' callbacks (via client-messaging) in THIS process, which polls the
+// Admin bot — so ✅ Sent on a nurture card is handled here. All nurture calls
+// below are wrapped so a nurture failure never touches heartbeat or polling.
+const nurture = require('../../shared/nurture');
 const { writeHeartbeat } = require('../../shared/heartbeat');
 const { buildGreetingPrompt } = require('./prompts');
 
@@ -62,6 +68,16 @@ function parseRow(headers, values, colMap) {
     return l.includes('child') && l.includes('first name') && (values[i] || '').trim();
   });
 
+  // Nurture: capture child DOBs additively. Fully isolated — any failure leaves
+  // children_dob null and the lead is processed exactly as before.
+  let children_dob = null;
+  try {
+    const dobs = nurture.extractChildDobs(headers, values);
+    if (dobs.length) children_dob = JSON.stringify(dobs);
+  } catch (err) {
+    logger.warn({ err }, 'children_dob extraction failed — continuing without it');
+  }
+
   return {
     parent_name:     parentName,
     parent_phone:    get('parent_phone'),
@@ -71,6 +87,7 @@ function parseRow(headers, values, colMap) {
     timestamp:       get('timestamp'),
     client_type:     parseClientType(get('client_type')),
     child_name:      childIdx !== -1 ? (values[childIdx] || '').trim() : '',
+    children_dob,
     ready_date:      get('ready_date'),
     source:          get('source') || null,
   };
@@ -154,6 +171,11 @@ function saveLead(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, status,
   if (result && result.lastInsertRowid && parsed.source) {
     getDb().prepare(`UPDATE leads SET source = ? WHERE id = ?`)
       .run(parsed.source, result.lastInsertRowid);
+  }
+  // Nurture: persist raw child DOBs (isolated — never breaks the lead save).
+  if (result && result.lastInsertRowid && parsed.children_dob) {
+    try { updateLeadChildrenDob(result.lastInsertRowid, parsed.children_dob); }
+    catch (err) { logger.warn({ err }, 'children_dob persist failed — lead saved without it'); }
   }
   return result;
 }
@@ -421,6 +443,17 @@ async function start() {
   cron.schedule('*/10 * * * *', async () => {
     await checkReminders().catch(err => logger.error({ err }, 'checkReminders unhandled'));
   });
+
+  // ── Nurture daily run 08:00 Doha (Agent 3, Phase 1) ──
+  // Off the pollSheets/heartbeat path and double-guarded: a nurture failure is
+  // logged and contained, never propagating into the lead-helper core loop.
+  cron.schedule('0 8 * * *', async () => {
+    try {
+      await nurture.runDaily();
+    } catch (err) {
+      logger.error({ err }, 'nurture.runDaily failed — core loop unaffected');
+    }
+  }, { timezone: process.env.TIMEZONE || 'Asia/Qatar' });
 
   logger.info('Lead-helper running ✅');
 }

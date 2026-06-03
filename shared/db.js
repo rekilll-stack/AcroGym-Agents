@@ -4,7 +4,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = path.join(__dirname, '../data/acrogym.db');
+// Defaults to the production DB; ACROGYM_DB_PATH lets tests target a temp file.
+const DB_PATH = process.env.ACROGYM_DB_PATH || path.join(__dirname, '../data/acrogym.db');
 
 let _db = null;
 
@@ -122,6 +123,31 @@ function _runMigrations(db) {
       alert_state TEXT,
       alerted_at  INTEGER
     )`),
+    // v18: Agent 3 nurture — raw child DOBs captured at parse time (additive,
+    // populated like `source`; null when the form had no/garbled dates).
+    () => db.exec(`ALTER TABLE leads ADD COLUMN children_dob TEXT`),
+    // v19: nurture enrollment — one row per lead in the pre-launch warm-up.
+    //   audience       = effective tone bucket (override ?? auto): cold|warm|enrolled
+    //   audience_auto  = derived from client_type
+    //   audience_override = manual correction (heuristic is fallible) — null until set
+    //   age_segment    = marketing tone segment from youngest child: 3-5|6-9|10-14|unknown
+    //   children_json  = ALL children [{dob,age,segment}] — nothing dropped
+    //   status         = enrollment lifecycle (active|paused), NOT per-message delivery
+    () => db.exec(`CREATE TABLE IF NOT EXISTS nurture_enrollments (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_id           INTEGER UNIQUE REFERENCES leads(id),
+      audience          TEXT,
+      audience_auto     TEXT,
+      audience_override TEXT,
+      age_segment       TEXT,
+      children_count    INTEGER,
+      children_json     TEXT,
+      status            TEXT DEFAULT 'active',
+      created_at        TEXT DEFAULT (datetime('now')),
+      updated_at        TEXT DEFAULT (datetime('now'))
+    )`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_nurture_status   ON nurture_enrollments(status)`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_nurture_audience ON nurture_enrollments(audience)`),
   ];
 
   for (const migrate of migrations) {
@@ -448,9 +474,131 @@ function getQualityStatsInRange(startDate, endDate) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────
+// Agent 3 — nurture
+// ─────────────────────────────────────────────────────────────
+
+/** Persists raw child DOB strings (JSON array) for a lead. Additive, like source. */
+function updateLeadChildrenDob(leadId, childrenDobJson) {
+  return getDb().prepare(
+    `UPDATE leads SET children_dob = ?, updated_at = datetime('now') WHERE id = ?`
+  ).run(childrenDobJson, leadId);
+}
+
+/**
+ * Leads eligible for nurture that aren't enrolled yet.
+ * Rule (Phase 1): status NOT LIKE 'duplicate_%' AND client_type ∈ {new,unknown,returning,existing}
+ * (the IN-set excludes 'legacy'; the status filter excludes every duplicate_* regardless of type).
+ */
+function getNurtureEligibleLeads() {
+  return getDb().prepare(`
+    SELECT l.* FROM leads l
+    WHERE l.status NOT LIKE 'duplicate_%'
+      AND l.client_type IN ('new', 'unknown', 'returning', 'existing')
+      AND NOT EXISTS (SELECT 1 FROM nurture_enrollments n WHERE n.lead_id = l.id)
+    ORDER BY l.id ASC
+  `).all();
+}
+
+/** Inserts an enrollment; no-op if the lead is already enrolled (lead_id UNIQUE). */
+function insertNurtureEnrollment(e) {
+  return getDb().prepare(`
+    INSERT OR IGNORE INTO nurture_enrollments
+      (lead_id, audience, audience_auto, audience_override,
+       age_segment, children_count, children_json, status)
+    VALUES
+      (@lead_id, @audience, @audience_auto, @audience_override,
+       @age_segment, @children_count, @children_json, @status)
+  `).run(e);
+}
+
+function getNurtureEnrollmentByLeadId(leadId) {
+  return getDb().prepare('SELECT * FROM nurture_enrollments WHERE lead_id = ?').get(leadId) || null;
+}
+
+/**
+ * Sets a manual audience override and recomputes the effective audience.
+ * Override wins over the derived value. Pass null to clear it (fall back to auto).
+ */
+function setNurtureOverride(leadId, override) {
+  const row = getNurtureEnrollmentByLeadId(leadId);
+  if (!row) return { changes: 0 };
+  const effective = override || row.audience_auto;
+  return getDb().prepare(`
+    UPDATE nurture_enrollments
+    SET audience_override = ?, audience = ?, updated_at = datetime('now')
+    WHERE lead_id = ?
+  `).run(override, effective, leadId);
+}
+
+/**
+ * Active enrollments still owed their Phase-1 first-touch (no nurture message
+ * queued yet). Joined with lead contact fields so the queue card can be built.
+ */
+function getNurtureQueueCandidates(limit = 100) {
+  return getDb().prepare(`
+    SELECT
+      n.id            AS enrollment_id,
+      n.lead_id       AS lead_id,
+      n.audience      AS audience,
+      n.age_segment   AS age_segment,
+      n.children_count AS children_count,
+      l.parent_name   AS parent_name,
+      l.parent_phone  AS parent_phone,
+      l.parent_whatsapp AS parent_whatsapp,
+      l.parent_email  AS parent_email,
+      l.language      AS language
+    FROM nurture_enrollments n
+    JOIN leads l ON l.id = n.lead_id
+    WHERE n.status = 'active'
+      AND NOT EXISTS (
+        SELECT 1 FROM client_messages m
+        WHERE m.lead_id = n.lead_id AND m.message_type = 'nurture'
+      )
+    ORDER BY n.id ASC
+    LIMIT ?
+  `).all(limit);
+}
+
+/** Enrollment counts by effective audience — visibility for the owner summary. */
+function getNurtureAudienceCounts() {
+  return getDb().prepare(`
+    SELECT audience, COUNT(*) AS cnt
+    FROM nurture_enrollments
+    WHERE status = 'active'
+    GROUP BY audience
+  `).all();
+}
+
+/**
+ * Delivery stats for nurture messages created on a given Qatar-local date.
+ * Returns { total, confirmed, pending } where pending = queued/sent-but-unconfirmed.
+ */
+function getNurtureDeliveryStats(dateStr) {
+  const row = getDb().prepare(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN delivery_status = 'confirmed_sent' THEN 1 ELSE 0 END) AS confirmed
+    FROM client_messages
+    WHERE message_type = 'nurture'
+      AND DATE(datetime(created_at, '+3 hours')) = ?
+  `).get(dateStr);
+  const total     = row.total     || 0;
+  const confirmed = row.confirmed || 0;
+  return { total, confirmed, pending: total - confirmed };
+}
+
 module.exports = {
   getDb,
   insertLead,
+  updateLeadChildrenDob,
+  getNurtureEligibleLeads,
+  insertNurtureEnrollment,
+  getNurtureEnrollmentByLeadId,
+  setNurtureOverride,
+  getNurtureQueueCandidates,
+  getNurtureAudienceCounts,
+  getNurtureDeliveryStats,
   getLeadByRow,
   getLeadById,
   getYesterdayResponded,
