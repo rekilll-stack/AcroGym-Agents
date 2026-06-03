@@ -2,6 +2,8 @@
 
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 
+const fs   = require('fs');
+const path = require('path');
 const cron = require('node-cron');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
@@ -30,6 +32,13 @@ const WATCHED = [
   { name: 'owner-bot',   thresholdMs: 5 * 60 * 1000, kind: 'telegram' },
 ];
 
+// Backup dead-man's-switch: the daily cron drops a .db.gz into backups/daily/
+// at 03:00. By the 09:00 ping today's file must be < 26h old. A missing or
+// stale newest file means the backup silently didn't run — the cron never
+// executed, so backup-db.js's own failure-alert never fired.
+const BACKUP_DIR        = path.join(__dirname, '../../backups/daily');
+const BACKUP_MAX_AGE_MS = 26 * 60 * 60 * 1000;
+
 // ─────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────
@@ -48,6 +57,31 @@ function fmtTime(ts) {
 
 function fmtMins(ms) {
   return Math.round(ms / 60000);
+}
+
+function fmtHours(ms) {
+  return Math.round(ms / 3600000);
+}
+
+/**
+ * Newest .db.gz in backups/daily/ and whether it's fresh enough.
+ * Returns { ok, ageMs, file } on success, or { ok:false, reason } when the
+ * dir is missing/empty/stale — the dead-man's-switch signal.
+ */
+function backupFreshness() {
+  let newest = null;
+  try {
+    for (const name of fs.readdirSync(BACKUP_DIR)) {
+      if (!name.endsWith('.db.gz')) continue;
+      const mtime = fs.statSync(path.join(BACKUP_DIR, name)).mtimeMs;
+      if (!newest || mtime > newest.mtime) newest = { name, mtime };
+    }
+  } catch (err) {
+    return { ok: false, reason: 'no-dir', detail: err.message };
+  }
+  if (!newest) return { ok: false, reason: 'empty' };
+  const ageMs = Date.now() - newest.mtime;
+  return { ok: ageMs <= BACKUP_MAX_AGE_MS, ageMs, file: newest.name, reason: 'stale' };
 }
 
 /**
@@ -177,7 +211,25 @@ async function dailyPing() {
     const age = hb && hb.last_ok_at ? `${fmtMins(Date.now() - hb.last_ok_at)} мин назад` : 'нет данных';
     lines.push(`• ${htmlEscape(agent.name)}: последний ок ${age}`);
   }
+
+  const bk = backupFreshness();
+  if (bk.ok) {
+    lines.push(`• бэкап БД: свежий (${htmlEscape(bk.file)}, ~${fmtHours(bk.ageMs)} ч назад)`);
+  } else {
+    lines.push('• бэкап БД: <b>🔴 устарел</b> (см. отдельную тревогу)');
+  }
   await alert(lines.join('\n'));
+
+  if (!bk.ok) {
+    const why = bk.reason === 'empty'  ? 'в <code>backups/daily/</code> нет ни одного .db.gz'
+              : bk.reason === 'no-dir' ? `папка <code>backups/daily/</code> недоступна (${htmlEscape(bk.detail || '')})`
+              : `последний бэкап — <b>${htmlEscape(bk.file)}</b>, ему уже ~${fmtHours(bk.ageMs)} ч (порог 26 ч)`;
+    await alert(
+      `🔴 <b>Бэкап БД не выполнился</b>\n${why}.\n` +
+      'Ночной крон (03:00) молча не отработал — проверь <code>crontab -l</code> и <code>logs/backup.log</code>.'
+    );
+    logger.warn({ reason: bk.reason, file: bk.file || null, ageMs: bk.ageMs || null }, 'backup dead-mans-switch ALERT');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -196,7 +248,7 @@ function start() {
     dailyPing().catch(err => logger.error({ err }, 'dailyPing unhandled'));
   }, { timezone: TIMEZONE });
 
-  logger.info('Watchdog running ✅ (tick 60s | daily ping 09:00)');
+  logger.info('Watchdog running ✅ (tick 60s | daily ping + backup check 09:00)');
 }
 
 process.on('SIGTERM', () => { logger.info('SIGTERM'); process.exit(0); });
