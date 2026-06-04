@@ -68,12 +68,13 @@ function parseRow(headers, values, colMap) {
     return l.includes('child') && l.includes('first name') && (values[i] || '').trim();
   });
 
-  // Nurture: capture child DOBs additively. Fully isolated — any failure leaves
-  // children_dob null and the lead is processed exactly as before.
+  // Nurture: capture children as LINKED {first_name, last_name, dob} groups,
+  // additively. Fully isolated — any failure leaves children_dob null and the
+  // lead is processed exactly as before.
   let children_dob = null;
   try {
-    const dobs = nurture.extractChildDobs(headers, values);
-    if (dobs.length) children_dob = JSON.stringify(dobs);
+    const cap = nurture.extractChildren(headers, values);
+    if (cap.children.length || cap.needs_review) children_dob = JSON.stringify(cap);
   } catch (err) {
     logger.warn({ err }, 'children_dob extraction failed — continuing without it');
   }

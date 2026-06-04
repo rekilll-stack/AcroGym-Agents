@@ -29,7 +29,7 @@ function check(name, cond) {
 
 // ── Seed leads ────────────────────────────────────────────────
 const conn = db.getDb();
-function seed(lead, childrenDob) {
+function seed(lead, captured) {
   const r = db.insertLead({
     sheet_row_number: lead.row, timestamp: '2026-06-01', parent_name: lead.name,
     parent_phone: lead.phone, parent_whatsapp: lead.phone, parent_email: lead.email,
@@ -38,18 +38,73 @@ function seed(lead, childrenDob) {
     ref_lead_id: null, raw_data: '{}', status: lead.status,
   });
   const id = r.lastInsertRowid;
-  if (childrenDob) db.updateLeadChildrenDob(id, JSON.stringify(childrenDob));
+  if (captured) db.updateLeadChildrenDob(id, JSON.stringify(captured));
   return id;
 }
 
-const L1 = seed({ row: 101, name: 'Cold New',  phone: '+97411', email: 'c1@x.co', client_type: 'new',       status: 'notified' },           ['5/12/2019']);              // age 7 → 6-9, cold
-const L2 = seed({ row: 102, name: 'Warm Ret',  phone: '+97412', email: 'c2@x.co', client_type: 'returning', status: 'returning_notified' },  ['1/1/2014']);               // age 12 → 10-14, warm
-const L3 = seed({ row: 103, name: 'Enrolled',  phone: '+97413', email: 'c3@x.co', client_type: 'existing',  status: 'existing_signed' },     ['1/1/2014', '6/1/2021']);   // multi → youngest 3-5, enrolled
+// captured = { declared_count, children:[{first_name,last_name,dob}], needs_review }
+const cap = (declared, kids) => ({ declared_count: declared, children: kids, needs_review: false });
+
+const L1 = seed({ row: 101, name: 'Cold New',  phone: '+97411', email: 'c1@x.co', client_type: 'new',       status: 'notified' },
+                cap(1, [{ first_name: 'Cold',  last_name: 'Kid', dob: '5/12/2019' }]));                         // age 7 → 6-9, cold
+const L2 = seed({ row: 102, name: 'Warm Ret',  phone: '+97412', email: 'c2@x.co', client_type: 'returning', status: 'returning_notified' },
+                cap(1, [{ first_name: 'Warm',  last_name: 'Kid', dob: '1/1/2014' }]));                          // age 12 → 10-14, warm
+const L3 = seed({ row: 103, name: 'Enrolled',  phone: '+97413', email: 'c3@x.co', client_type: 'existing',  status: 'existing_signed' },
+                cap(2, [{ first_name: 'Olesya', last_name: 'K', dob: '1/1/2014' },                              // age 12 → 10-14
+                        { first_name: 'Mia',    last_name: 'K', dob: '6/1/2021' }]));                           // age 5  → 3-5 (youngest → family 3-5)
 const L4 = seed({ row: 104, name: 'Dup Exist', phone: '+97414', email: 'c4@x.co', client_type: 'existing',  status: 'duplicate_of_existing' }); // duplicate → excluded
 const L5 = seed({ row: 105, name: 'Legacy',    phone: '+97415', email: 'c5@x.co', client_type: 'legacy',    status: 'notified' });             // legacy → excluded
-const L6 = seed({ row: 106, name: 'Garbage',   phone: '+97416', email: 'c6@x.co', client_type: 'unknown',   status: 'notified' },             ['not a date']);             // unknown segment, cold
+const L6 = seed({ row: 106, name: 'Garbage',   phone: '+97416', email: 'c6@x.co', client_type: 'unknown',   status: 'notified' },
+                cap(1, [{ first_name: 'Junk',  last_name: 'Kid', dob: 'not a date' }]));                        // unknown segment, cold
 
 (async () => {
+// ── 0. extractChildren: linked name↔dob groups from raw form headers ──
+console.log('\n0) Capture: linked name↔dob groups (real glued-form headers)');
+// Faithful to the live form: en-dash N=1 block, then hyphen/spacing-drifted N=2 block.
+const HEADERS = [
+  'Timestamp', 'Email', 'First Name (Parent/Guardian)', 'Last Name (Parent/Guardian)', '  Mobile Number',
+  '  How many children are you registering?  ',          // 5
+  'Child 1 – First Name', 'Child 1 – Last Name', 'Child 1 – Date of Birth  ', // 6-8  N=1 (en-dash)
+  '  Acceptance  ', '  Electronic Signature (Type Your Full Name)  ',                         // 9-10
+  'Child 1  - First Name   ', 'Child 1 - Last Name', 'Child 1 -  Date of Birth  ',            // 11-13 N=2
+  'Child 2 - First Name', 'Child 2 - Last Name', 'Child 2 - Date of Birth  ',                 // 14-16
+];
+const mkVals = (set) => { const v = new Array(HEADERS.length).fill(''); for (const [i, x] of Object.entries(set)) v[i] = x; return v; };
+
+// Case A — N=2 block filled, two kids of DIFFERENT ages. Names must stay bound to their own dates.
+const capA = nurture.extractChildren(HEADERS, mkVals({
+  5: '2', 11: 'Amir', 12: 'Khan', 13: '1/1/2014', 14: 'Lily', 15: 'Khan', 16: '6/1/2021',
+}));
+check('A: declared_count=2', capA.declared_count === 2);
+check('A: exactly 2 children captured', capA.children.length === 2);
+check('A: child[0] Amir bound to HIS dob 1/1/2014', capA.children[0].first_name === 'Amir' && capA.children[0].dob === '1/1/2014');
+check('A: child[1] Lily bound to HER dob 6/1/2021', capA.children[1].first_name === 'Lily' && capA.children[1].dob === '6/1/2021');
+check('A: NOT swapped (Amir≠6/1/2021, Lily≠1/1/2014)',
+  capA.children[0].dob !== '6/1/2021' && capA.children[1].dob !== '1/1/2014');
+check('A: needs_review false (clean, N matches)', capA.needs_review === false);
+// per-child segment accurate after enrichment; family = youngest
+const bcA = nurture.buildChildren(capA, new Date('2026-06-03T00:00:00Z'));
+const amir = bcA.children.find(c => c.first_name === 'Amir');
+const lily = bcA.children.find(c => c.first_name === 'Lily');
+check('A: Amir per-child segment 10-14', amir.segment === '10-14');
+check('A: Lily per-child segment 3-5',   lily.segment === '3-5');
+check('A: family age_segment = youngest (3-5)', bcA.ageSegment === '3-5');
+
+// Case B — en-dash N=1 block filled, declared 1 → clean.
+const capB = nurture.extractChildren(HEADERS, mkVals({ 5: '1', 6: 'Sara', 7: 'Q', 8: '5/12/2019' }));
+check('B: en-dash N=1 block detected, 1 child', capB.children.length === 1 && capB.children[0].first_name === 'Sara');
+check('B: needs_review false', capB.needs_review === false);
+
+// Case C — declared 2 but only ONE child filled in the N=2 block → mismatch flag.
+const capC = nurture.extractChildren(HEADERS, mkVals({ 5: '2', 11: 'Solo', 13: '1/1/2014' }));
+check('C: only 1 child materialized', capC.children.length === 1);
+check('C: needs_review TRUE (block count ≠ declared N)', capC.needs_review === true);
+
+// Case D — child present but dob garbage → per-child needs_review.
+const capD = nurture.extractChildren(HEADERS, mkVals({ 5: '1', 6: 'Bad', 7: 'Date', 8: 'not a date' }));
+check('D: child[0] needs_review (unparseable dob)', capD.children[0].needs_review === true);
+check('D: family needs_review TRUE', capD.needs_review === true);
+
 // ── 1. Eligibility + enrollment ───────────────────────────────
 console.log('\n1) Enrollment & eligibility');
 const e1 = nurture.enrollEligibleLeads(new Date('2026-06-03T00:00:00Z'));
@@ -70,7 +125,12 @@ check('L6 audience=cold',     en6.audience === 'cold');
 console.log('\n2) Segmentation');
 const kids3 = JSON.parse(en3.children_json);
 check('L3 children_json keeps ALL children (2)', kids3.length === 2 && en3.children_count === 2);
-check('L3 age_segment = youngest (3-5)', en3.age_segment === '3-5');
+const olesya = kids3.find(c => c.first_name === 'Olesya');
+const mia    = kids3.find(c => c.first_name === 'Mia');
+check('L3 Olesya bound to HER dob 1/1/2014 → 10-14', olesya && olesya.dob === '1/1/2014' && olesya.segment === '10-14');
+check('L3 Mia bound to HER dob 6/1/2021 → 3-5',       mia && mia.dob === '6/1/2021' && mia.segment === '3-5');
+check('L3 first_name kept separate for greeting', typeof olesya.first_name === 'string' && olesya.first_name === 'Olesya');
+check('L3 age_segment = youngest family flag (3-5)', en3.age_segment === '3-5');
 check('L1 age_segment = 6-9 (M/D/YYYY parsed)', en1.age_segment === '6-9');
 check('L2 age_segment = 10-14', en2.age_segment === '10-14');
 check('L6 age_segment = unknown (garbage DOB)', en6.age_segment === 'unknown');

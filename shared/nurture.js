@@ -94,47 +94,166 @@ function ageFromDob(dob, now = new Date()) {
 }
 
 /**
- * Builds the full child set from raw DOB strings — NOTHING is dropped.
- * Returns { childrenCount, children: [{dob, age, segment}], ageSegment } where
- * ageSegment is the YOUNGEST child's segment (a temporary default for the single
- * service field; multi-child tone is a Phase 2 decision and does not limit what
- * we collect here).
+ * Enriches a captured child set (from extractChildren) with age/segment.
+ *
+ * `captured` = { declared_count, children: [{first_name, last_name, dob,
+ * needs_review}], needs_review }. NOTHING is dropped. Each child keeps its OWN
+ * first_name/last_name/dob and gets its OWN, accurate `segment` (per-child).
+ * `ageSegment` is a SEPARATE family-level field = the YOUNGEST child's segment;
+ * "youngest" affects ONLY this family flag, never per-child data. Multi-child
+ * family tone is a Phase 2 decision and does not limit what we collect here.
+ *
+ * Returns { childrenCount, children: [{first_name, last_name, dob, age, segment,
+ * needs_review}], ageSegment, needsReview }.
  */
-function buildChildren(rawDobList, now = new Date()) {
-  const list = Array.isArray(rawDobList) ? rawDobList : [];
-  const children = list.map((raw) => {
-    const dob = parseDob(raw);
+function buildChildren(captured, now = new Date()) {
+  const cap  = normalizeCaptured(captured);
+  const list = cap.children;
+
+  const children = list.map((c) => {
+    const dob = parseDob(c.dob);
     const age = ageFromDob(dob, now);
-    return { dob: raw, age, segment: segmentForAge(age) };
+    const needs_review = !!c.needs_review || !String(c.first_name || '').trim() || !dob;
+    return {
+      first_name: String(c.first_name || '').trim(),
+      last_name:  String(c.last_name  || '').trim(),
+      dob:        c.dob || '',
+      age,
+      segment:    segmentForAge(age),   // per-child, accurate
+      needs_review,
+    };
   });
 
-  // Youngest = greatest age value is OLDEST; youngest = smallest age.
+  // Family flag only: youngest = smallest age value.
   const ages = children.map(c => c.age).filter(a => a != null && Number.isFinite(a));
   const ageSegment = ages.length ? segmentForAge(Math.min(...ages)) : 'unknown';
 
-  return { childrenCount: children.length, children, ageSegment };
+  const needsReview = !!cap.needs_review || children.some(c => c.needs_review);
+
+  return { childrenCount: children.length, children, ageSegment, needsReview };
+}
+
+/** Coerce stored children_dob into the captured shape (tolerant of old/array form). */
+function normalizeCaptured(captured) {
+  if (Array.isArray(captured)) {
+    // Legacy/fallback: a bare array of dob strings (or child objects).
+    const children = captured.map(x =>
+      typeof x === 'string'
+        ? { first_name: '', last_name: '', dob: x }
+        : { first_name: x.first_name || '', last_name: x.last_name || '', dob: x.dob || '', needs_review: x.needs_review }
+    );
+    return { declared_count: null, children, needs_review: false };
+  }
+  if (captured && typeof captured === 'object') {
+    return {
+      declared_count: captured.declared_count ?? null,
+      children:       Array.isArray(captured.children) ? captured.children : [],
+      needs_review:   !!captured.needs_review,
+    };
+  }
+  return { declared_count: null, children: [], needs_review: false };
 }
 
 // ─────────────────────────────────────────────────────────────
-// DOB extraction from a raw form row (used by lead-helper at parse time)
+// Child extraction from a raw form row (used by lead-helper at parse time)
 // ─────────────────────────────────────────────────────────────
 
+/** Normalize a header: lowercase, en/em-dash → '-', collapse whitespace. */
+function normHeader(h) {
+  return String(h || '')
+    .toLowerCase()
+    .replace(/[‐-―]/g, '-')   // hyphen/figure/en/em dashes → '-'
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const CHILD_KIND = { 'first name': 'first', 'last name': 'last', 'date of birth': 'dob' };
+
 /**
- * Pulls every non-empty "Child N – Date of Birth" cell from a form row.
- * The form branches by child count into separate column blocks, but only the
- * chosen branch is filled — so collecting all non-empty DOB columns yields
- * exactly that submission's children. Returns an array of raw strings (maybe []).
+ * Extracts children as LINKED groups from a raw form row.
+ *
+ * The form is glued from several branches — one section per declared child count
+ * — so the headers contain MULTIPLE "Child 1 – First Name" blocks (with en-dash
+ * vs hyphen, double spaces, mixed case). Exactly one branch is filled per
+ * submission. We:
+ *   1. read N from the "how many children" column,
+ *   2. tokenize child columns into {childNum, kind} (drift-tolerant via normHeader),
+ *   3. group tokens into blocks (a new block starts at "Child 1 – First Name"),
+ *   4. pick the FILLED block, and pair {first_name, last_name, dob} by childNum —
+ *      so each child's name stays bound to its OWN date.
+ *
+ * needs_review is raised (never a silent unknown) when a child's name/dob is
+ * missing/unparseable, or the filled block's child count ≠ N from the form.
+ *
+ * Returns { declared_count, children: [{first_name, last_name, dob, needs_review}],
+ * needs_review }.
  */
-function extractChildDobs(headers, values) {
-  const out = [];
-  for (let i = 0; i < headers.length; i++) {
-    const h = String(headers[i] || '').toLowerCase();
-    if (h.includes('child') && h.includes('date of birth')) {
-      const v = (values[i] || '').trim();
-      if (v) out.push(v);
+function extractChildren(headers, values) {
+  const hs = Array.isArray(headers) ? headers : [];
+  const val = (i) => String((values && values[i]) || '').trim();
+
+  // 1) declared count
+  let declared_count = null;
+  for (let i = 0; i < hs.length; i++) {
+    const n = normHeader(hs[i]);
+    if (n.includes('how many') && n.includes('child')) {
+      const m = val(i).match(/\d+/);
+      if (m) declared_count = parseInt(m[0], 10);
+      break;
     }
   }
-  return out;
+
+  // 2)+3) tokenize into blocks
+  const blocks = [];
+  let cur = null;
+  for (let i = 0; i < hs.length; i++) {
+    const n = normHeader(hs[i]);
+    const m = n.match(/^child\s*(\d+)\b.*?(first name|last name|date of birth)/);
+    if (!m) continue;
+    const childNum = parseInt(m[1], 10);
+    const kind = CHILD_KIND[m[2]];
+    if (!kind) continue;
+    if (childNum === 1 && kind === 'first') { cur = new Map(); blocks.push(cur); }
+    if (!cur) { cur = new Map(); blocks.push(cur); }
+    const slot = cur.get(childNum) || {};
+    slot[kind] = i;
+    cur.set(childNum, slot);
+  }
+
+  // 4) materialize each block, keep the filled one(s)
+  const materialize = (block) => {
+    const nums = [...block.keys()].sort((a, b) => a - b);
+    const kids = [];
+    for (const num of nums) {
+      const s = block.get(num);
+      const first = s.first != null ? val(s.first) : '';
+      const last  = s.last  != null ? val(s.last)  : '';
+      const dob   = s.dob   != null ? val(s.dob)   : '';
+      if (first || dob || last) kids.push({ first_name: first, last_name: last, dob });
+    }
+    return kids;
+  };
+
+  const filled = blocks.map(materialize).filter(k => k.length > 0);
+
+  let children = [];
+  let multiBlock = false;
+  if (filled.length === 1) children = filled[0];
+  else if (filled.length > 1) { children = filled[0]; multiBlock = true; }
+
+  // per-child needs_review: missing name or unparseable dob
+  for (const c of children) {
+    c.needs_review = !c.first_name || !parseDob(c.dob);
+  }
+
+  const countMismatch = declared_count != null && declared_count !== children.length;
+  const needs_review =
+    multiBlock ||
+    countMismatch ||
+    children.some(c => c.needs_review) ||
+    (declared_count != null && declared_count > 0 && children.length === 0);
+
+  return { declared_count, children, needs_review };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -162,12 +281,12 @@ function enrollEligibleLeads(now = new Date()) {
   const byAudience = { cold: 0, warm: 0, enrolled: 0 };
 
   for (const lead of leads) {
-    let rawDobs = [];
+    let captured = { declared_count: null, children: [], needs_review: false };
     try {
-      if (lead.children_dob) rawDobs = JSON.parse(lead.children_dob);
-    } catch { rawDobs = []; }
+      if (lead.children_dob) captured = JSON.parse(lead.children_dob);
+    } catch { captured = { declared_count: null, children: [], needs_review: false }; }
 
-    const { childrenCount, children, ageSegment } = buildChildren(rawDobs, now);
+    const { childrenCount, children, ageSegment } = buildChildren(captured, now);
     const audienceAuto = deriveAudience(lead.client_type);
 
     const res = insertNurtureEnrollment({
@@ -300,7 +419,7 @@ module.exports = {
   ageFromDob,
   segmentForAge,
   buildChildren,
-  extractChildDobs,
+  extractChildren,
   deriveAudience,
   // pipe
   enrollEligibleLeads,
