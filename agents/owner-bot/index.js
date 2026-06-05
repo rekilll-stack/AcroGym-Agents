@@ -37,7 +37,6 @@ const handleStatus    = require('./commands/status');
 const handleHelp      = require('./commands/help');
 const handleExport    = require('./commands/export');
 const handleLang      = require('./commands/lang');
-const handleNurture   = require('./commands/nurture');
 
 // Callbacks
 const { setupDigestCallbacks } = require('./callbacks/digest-callbacks');
@@ -167,7 +166,6 @@ async function start() {
   registerOwnerCommand('/status',    handleStatus);
   registerOwnerCommand('/export',    handleExport);
   registerOwnerCommand('/lang',      handleLang);
-  registerOwnerCommand('/nurture',   handleNurture);
   registerOwnerCommand('/help',      handleHelp);
 
   // Start OWNER_BOT polling

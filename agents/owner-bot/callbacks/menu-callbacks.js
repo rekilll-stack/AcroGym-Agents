@@ -130,13 +130,23 @@ async function menuCallbackHandler(query, bot) {
       break;
     }
 
-    // ── Other ─────────────────────────────────────────────────
-    case 'nurture':
-      await bot.sendMessage(chatId, '⏳ Coming with Pre\\-launch Nurture agent\\.', {
-        parse_mode:   'MarkdownV2',
-        reply_markup: BACK_KB,
-      });
+    // ── Nurture: read-only execution summary (Owner = eyes) ───
+    case 'nurture': {
+      const nurture = require('../../../shared/nurture');
+      try {
+        await bot.sendMessage(chatId, nurture.buildOwnerSummaryText(), {
+          parse_mode:   'HTML',
+          reply_markup: BACK_KB,
+        });
+      } catch (err) {
+        logger.error({ err }, 'menu:nurture summary failed');
+        await bot.sendMessage(chatId, `❌ Nurture summary error: <code>${err.message}</code>`, {
+          parse_mode:   'HTML',
+          reply_markup: BACK_KB,
+        }).catch(() => {});
+      }
       break;
+    }
 
     case 'export': {
       const handleExport = require('../commands/export');

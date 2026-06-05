@@ -19,7 +19,7 @@ function buildMainKeyboard(lang = 'en') {
       ],
       [
         { text: t('menu.btn_pending',      lang), callback_data: 'menu:pending' },
-        { text: t('menu.btn_nurture_soon', lang), callback_data: 'menu:nurture' },
+        { text: t('menu.btn_nurture', lang), callback_data: 'menu:nurture' },
       ],
       [{ text: t('menu.btn_export', lang), callback_data: 'menu:export' }],
       [
