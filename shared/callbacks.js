@@ -15,7 +15,7 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const { createLogger }                  = require('./logger');
-const { getLeadById, updateLeadStatus } = require('./db');
+const { getLeadById, updateLeadStatusById } = require('./db');
 const { editMessage, escapeMd }         = require('./telegram');
 const { t }                             = require('./i18n');
 
@@ -45,7 +45,8 @@ function markRespondedHandler(botName) {
       const lead = getLeadById(leadId);
 
       if (lead && lead.status !== 'responded') {
-        updateLeadStatus(lead.sheet_row_number, {
+        // by id, not sheet_row_number — uid leads (Part A canonical sheet) have NULL row
+        updateLeadStatusById(lead.id, {
           status:       'responded',
           responded_at: new Date().toISOString(),
         });

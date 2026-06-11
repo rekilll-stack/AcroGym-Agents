@@ -13,6 +13,11 @@ const MAPPING_RULES = [
     match: h => h.includes('timestamp') || h.includes('отметка времени'),
   },
   {
+    // Канонная таблица (Part A): стабильный ID лида, который пишет n8n
+    field: 'lead_uid',
+    match: h => h.includes('lead uid') || h.includes('lead_uid'),
+  },
+  {
     field: 'client_type',
     match: h => h.includes('client_type') || h.includes('client type'),
   },
@@ -89,6 +94,7 @@ const MAPPING_RULES = [
   {
     field: 'source',
     match: h =>
+      h === 'source' || // канонная таблица (Part A)
       h.includes('where') ||
       h.includes('how did you hear') ||
       h.includes('откуда') ||

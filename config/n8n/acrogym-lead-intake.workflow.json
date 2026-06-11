@@ -1,0 +1,134 @@
+{
+  "name": "AcroGym Lead Intake (website form)",
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Qatar" },
+  "nodes": [
+    {
+      "id": "wh-1",
+      "name": "Webhook (website form)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "acrogym-lead",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "8q0GATQezc6ir4wp", "name": "AcroGym Webhook Token" }
+      }
+    },
+    {
+      "id": "code-1",
+      "name": "Validate token + normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Field normalization for AcroGym website lead form.\n// Token auth enforced by the Webhook node itself (Header Auth credential,\n// header x-webhook-token) — n8n rejects bad/missing tokens with 403 before\n// this node runs. ($env is blocked for Code nodes in n8n 2.x task runners.)\nconst body = $input.first().json.body || {};\n\n// --- normalizePhone: KEEP IN SYNC with acrogym/shared/normalize.js ---\nfunction normalizePhone(raw) {\n  if (!raw) return null;\n  let digits = String(raw).replace(/\\D/g, '');\n  if (!digits) return null;\n  digits = digits.replace(/^0+/, '');\n  if (!digits) return null;\n  if (digits.startsWith('974') && digits.length >= 11) return digits;\n  if (digits.length === 8) return '974' + digits;\n  return digits;\n}\n\nconst name = String(body.name || body.parent_name || '').trim().slice(0, 120);\nconst phone = normalizePhone(body.phone || body.parent_phone);\nconst childAge = String(body.child_age || body.age || '').trim().slice(0, 20);\nconst source = String(body.source || 'website_form').trim().slice(0, 60);\n\nif (!phone) {\n  return [{ json: { ok: false, httpCode: 400, error: 'phone is required' } }];\n}\nif (!name) {\n  return [{ json: { ok: false, httpCode: 400, error: 'name is required' } }];\n}\n\nreturn [{ json: { ok: true, name, phone, child_age: childAge, source } }];"
+      }
+    },
+    {
+      "id": "if-1",
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "uid-1",
+      "name": "Generate UID",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [660, -100],
+      "parameters": {
+        "action": "generate",
+        "dataPropertyName": "lead_uid",
+        "encodingType": "uuid"
+      }
+    },
+    {
+      "id": "sheets-1",
+      "name": "Append to canonical sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [880, -100],
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": { "__rl": true, "value": "1U3SVscd_nzvFUDme33iprcVLLD4_1_cDLxqjFjRR4FM", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Leads", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now.setZone('Asia/Qatar').toFormat('yyyy-MM-dd HH:mm:ss') }}",
+            "Lead UID": "={{ $json.lead_uid }}",
+            "Client Type": "🆕 New client – website form",
+            "Parent First Name": "={{ $json.name }}",
+            "Parent Phone": "={{ $json.phone }}",
+            "Child Age": "={{ $json.child_age }}",
+            "Source": "={{ $json.source }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleApi": { "id": "JK3vNXyPY2CsDZjH", "name": "AcroGym Sheets SA" }
+      }
+    },
+    {
+      "id": "ok-1",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1100, -100],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"lead_uid\": $('Generate UID').first().json.lead_uid } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "err-1",
+      "name": "Respond error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [660, 140],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": false, \"error\": $json.error } }}",
+        "options": { "responseCode": "={{ $json.httpCode }}" }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook (website form)": { "main": [[{ "node": "Validate token + normalize", "type": "main", "index": 0 }]] },
+    "Validate token + normalize": { "main": [[{ "node": "Valid?", "type": "main", "index": 0 }]] },
+    "Valid?": {
+      "main": [
+        [{ "node": "Generate UID", "type": "main", "index": 0 }],
+        [{ "node": "Respond error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate UID": { "main": [[{ "node": "Append to canonical sheet", "type": "main", "index": 0 }]] },
+    "Append to canonical sheet": { "main": [[{ "node": "Respond 200", "type": "main", "index": 0 }]] }
+  }
+}

@@ -148,6 +148,13 @@ function _runMigrations(db) {
     )`),
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_nurture_status   ON nurture_enrollments(status)`),
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_nurture_audience ON nurture_enrollments(audience)`),
+    // v20: Part A lead ingestion — stable lead identity written by n8n into the
+    // canonical sheet. NULL for legacy/Google-Form leads. Partial unique index:
+    // uid leads are idempotent, NULLs never collide (SQLite treats them as
+    // distinct), so the legacy rows are untouched.
+    () => db.exec(`ALTER TABLE leads ADD COLUMN lead_uid TEXT`),
+    () => db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_uid
+                   ON leads(lead_uid) WHERE lead_uid IS NOT NULL`),
   ];
 
   for (const migrate of migrations) {
@@ -167,22 +174,27 @@ function _runMigrations(db) {
 
 function insertLead(lead) {
   const db = getDb();
+  // lead_uid defaulted so older callers (without the field) keep working.
   return db.prepare(`
     INSERT OR IGNORE INTO leads
-      (sheet_row_number, timestamp, parent_name, parent_phone, parent_whatsapp,
+      (sheet_row_number, lead_uid, timestamp, parent_name, parent_phone, parent_whatsapp,
        parent_email, qid, language, client_type,
        phone_normalized, whatsapp_normalized, email_normalized,
        ref_lead_id, raw_data, status)
     VALUES
-      (@sheet_row_number, @timestamp, @parent_name, @parent_phone, @parent_whatsapp,
+      (@sheet_row_number, @lead_uid, @timestamp, @parent_name, @parent_phone, @parent_whatsapp,
        @parent_email, @qid, @language, @client_type,
        @phone_normalized, @whatsapp_normalized, @email_normalized,
        @ref_lead_id, @raw_data, @status)
-  `).run(lead);
+  `).run({ lead_uid: null, ...lead });
 }
 
 function getLeadByRow(sheetRowNumber) {
   return getDb().prepare('SELECT * FROM leads WHERE sheet_row_number = ?').get(sheetRowNumber);
+}
+
+function getLeadByUid(leadUid) {
+  return getDb().prepare('SELECT * FROM leads WHERE lead_uid = ?').get(leadUid);
 }
 
 function updateLeadStatus(sheetRowNumber, updates) {
@@ -192,6 +204,18 @@ function updateLeadStatus(sheetRowNumber, updates) {
     UPDATE leads SET ${fields}, updated_at = datetime('now')
     WHERE sheet_row_number = @sheet_row_number
   `).run({ ...updates, sheet_row_number: sheetRowNumber });
+}
+
+// Preferred over updateLeadStatus: works for uid leads too, whose
+// sheet_row_number is NULL (canonical-sheet rows can shift; rows 2..13 are
+// already taken by legacy leads from the old form).
+function updateLeadStatusById(id, updates) {
+  const db = getDb();
+  const fields = Object.keys(updates).map(k => `${k} = @${k}`).join(', ');
+  return db.prepare(`
+    UPDATE leads SET ${fields}, updated_at = datetime('now')
+    WHERE id = @id
+  `).run({ ...updates, id });
 }
 
 function getLeadsNeedingReminder(reminderHours) {
@@ -600,9 +624,11 @@ module.exports = {
   getNurtureAudienceCounts,
   getNurtureDeliveryStats,
   getLeadByRow,
+  getLeadByUid,
   getLeadById,
   getYesterdayResponded,
   updateLeadStatus,
+  updateLeadStatusById,
   updateLeadGreeting,
   getLeadsNeedingReminder,
   findExistingLead,

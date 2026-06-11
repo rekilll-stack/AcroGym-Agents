@@ -22,7 +22,8 @@ const {
   insertLead,
   getLeadById,
   getLeadByRow,
-  updateLeadStatus,
+  getLeadByUid,
+  updateLeadStatusById,
   updateLeadGreeting,
   updateLeadChildrenDob,
   getLeadsNeedingReminder,
@@ -88,9 +89,12 @@ function parseRow(headers, values, colMap) {
     timestamp:       get('timestamp'),
     client_type:     parseClientType(get('client_type')),
     child_name:      childIdx !== -1 ? (values[childIdx] || '').trim() : '',
+    child_age:       get('child_age') || null,
     children_dob,
     ready_date:      get('ready_date'),
     source:          get('source') || null,
+    // Part A: stable lead identity from the n8n canonical sheet (null on the old form)
+    lead_uid:        get('lead_uid') || null,
   };
 }
 
@@ -120,6 +124,7 @@ function buildCard(lead, rowNumber, opts = {}) {
   if (wa)                lines.push(`💬 WhatsApp: ${wa}`);
   if (lead.parent_email) lines.push(`✉️ Email: ${lead.parent_email}`);
   if (lead.qid)          lines.push(`🆔 QID: ${lead.qid}`);
+  if (lead.child_age)    lines.push(`🎂 Child age: ${lead.child_age}`);
 
   const receivedTs = lead.timestamp || lead.created_at || new Date().toISOString();
   lines.push(`⏰ Received: ${formatTime(receivedTs)}`);
@@ -152,7 +157,12 @@ function contactedKeyboard(leadId) {
 
 function saveLead(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, status, refLeadId = null) {
   const result = insertLead({
-    sheet_row_number:    rowNumber,
+    // uid leads store NO row number: rows 2..13 are already taken by legacy
+    // leads (UNIQUE + OR IGNORE would silently swallow them), and canonical
+    // sheet rows can shift. lead_uid is the identity; rowNumber stays
+    // display-only for uid leads.
+    sheet_row_number:    parsed.lead_uid ? null : rowNumber,
+    lead_uid:            parsed.lead_uid,
     timestamp:           parsed.timestamp,
     parent_name:         parsed.parent_name,
     parent_phone:        parsed.parent_phone,
@@ -213,7 +223,7 @@ async function handleNew(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, 
   const card = buildCard(parsed, rowNumber, { header: headerLine }) + draft;
 
   await sendToAdmin(card, { reply_markup: respondedKeyboard(leadId) });
-  updateLeadStatus(rowNumber, { status: 'notified', notified_at: new Date().toISOString() });
+  updateLeadStatusById(leadId, { status: 'notified', notified_at: new Date().toISOString() });
   logger.info({ rowNumber, leadId, client_type: parsed.client_type }, 'New lead — admin notified');
 }
 
@@ -227,7 +237,7 @@ async function handleReturning(rowNumber, parsed, phoneNorm, whatsappNorm, email
   const card   = buildCard(parsed, rowNumber, { header, note });
 
   await sendToAdmin(card, { reply_markup: contactedKeyboard(leadId) });
-  updateLeadStatus(rowNumber, { status: 'returning_notified', notified_at: new Date().toISOString() });
+  updateLeadStatusById(leadId, { status: 'returning_notified', notified_at: new Date().toISOString() });
   logger.info({ rowNumber, leadId }, 'Returning client — admin notified');
 }
 
@@ -266,7 +276,7 @@ async function processNewRow(rowNumber, headers, values, colMap) {
       await sendToAdmin(
         `⚠️ <b>Duplicate form submission</b>\n` +
         `👤 ${parsed.parent_name || '(no name)'} submitted the form again.\n` +
-        `Previous lead: #${dup.sheet_row_number}, ${daysSince} day(s) ago.\n` +
+        `Previous lead: #${dup.sheet_row_number ?? dup.id}, ${daysSince} day(s) ago.\n` +
         `Previous status: ${dup.status}`
       );
       logger.info({ rowNumber, dupId: dup.id, daysSince }, 'Duplicate recent lead — short alert sent');
@@ -341,7 +351,12 @@ async function pollSheets() {
     });
     if (!hasData) continue;
 
-    if (getLeadByRow(rowNumber)) continue;
+    // Dedup: uid leads (canonical sheet) by stable lead_uid — immune to row
+    // shifts and to the legacy row-number collision (rows 2..13). Old-form
+    // rows (no uid column) keep the row-number dedup — instant rollback path.
+    const uidIdx = _colMap.lead_uid;
+    const uid = uidIdx !== undefined ? (values[uidIdx] || '').trim() : '';
+    if (uid ? getLeadByUid(uid) : getLeadByRow(rowNumber)) continue;
 
     try {
       await processNewRow(rowNumber, headers, values, _colMap);
@@ -369,11 +384,12 @@ async function checkReminders() {
 
   for (const lead of leads) {
     try {
-      const header = `⏰ <b>Reminder: Lead #${lead.sheet_row_number} still waiting (${REMINDER_HOURS}h)</b>`;
-      const card   = buildCard(lead, lead.sheet_row_number, { header });
+      const label  = lead.sheet_row_number ?? lead.id; // uid leads have no row number
+      const header = `⏰ <b>Reminder: Lead #${label} still waiting (${REMINDER_HOURS}h)</b>`;
+      const card   = buildCard(lead, label, { header });
       await sendToAdmin(card, { reply_markup: respondedKeyboard(lead.id) });
-      updateLeadStatus(lead.sheet_row_number, { reminder_sent_at: new Date().toISOString() });
-      logger.info({ rowNumber: lead.sheet_row_number }, 'Reminder sent');
+      updateLeadStatusById(lead.id, { reminder_sent_at: new Date().toISOString() });
+      logger.info({ leadId: lead.id, rowNumber: lead.sheet_row_number }, 'Reminder sent');
     } catch (err) {
       logger.error({ err, leadId: lead.id }, 'Error sending reminder');
     }
