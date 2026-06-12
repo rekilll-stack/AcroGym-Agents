@@ -80,7 +80,7 @@
     .acro-lead-form.is-open .acro-lead-form__card {
       transform: translateY(0) scale(1);
     }
-    /* premium orange glow accent / премиальный оранжевый блик */
+    /* premium glow accents, slow drift / премиальные блики, медленный дрейф */
     .acro-lead-form__card::before {
       content: "";
       position: absolute;
@@ -91,6 +91,22 @@
       border-radius: 50%;
       background: radial-gradient(circle, rgba(243, 112, 33, 0.35) 0%, rgba(243, 112, 33, 0) 70%);
       pointer-events: none;
+      animation: acro-lead-drift 10s ease-in-out infinite alternate;
+    }
+    .acro-lead-form__card::after {
+      content: "";
+      position: absolute;
+      bottom: -140px;
+      left: -140px;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(90, 107, 196, 0.28) 0%, rgba(90, 107, 196, 0) 70%);
+      pointer-events: none;
+    }
+    @keyframes acro-lead-drift {
+      from { transform: translate(0, 0) scale(1); }
+      to { transform: translate(-22px, 16px) scale(1.07); }
     }
     .acro-lead-form__close {
       position: absolute;
@@ -131,11 +147,70 @@
       letter-spacing: 0.01em;
     }
     .acro-lead-form__subtitle {
-      margin: 0 0 28px;
+      margin: 0 0 18px;
       font-size: 15px;
       font-weight: 400;
       line-height: 1.5;
       color: rgba(255, 255, 255, 0.75);
+    }
+    .acro-lead-form__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 14px;
+      padding: 7px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(243, 112, 33, 0.4);
+      background: rgba(243, 112, 33, 0.14);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #FFC59E;
+    }
+    .acro-lead-form__badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #F37021;
+      animation: acro-lead-pulse 2s ease-out infinite;
+    }
+    @keyframes acro-lead-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(243, 112, 33, 0.6); }
+      70% { box-shadow: 0 0 0 8px rgba(243, 112, 33, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(243, 112, 33, 0); }
+    }
+    .acro-lead-form__title-accent {
+      color: #F37021;
+    }
+    .acro-lead-form__benefits {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      margin: 0 0 24px;
+      padding: 0;
+      list-style: none;
+    }
+    .acro-lead-form__benefit {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .acro-lead-form__benefit-check {
+      color: #F37021;
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .acro-lead-form__note {
+      margin: 10px 0 0;
+      font-size: 12.5px;
+      font-weight: 400;
+      line-height: 1.45;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.55);
     }
     .acro-lead-form__field {
       margin: 0 0 16px;
@@ -185,11 +260,13 @@
       color: #FFFFFF;
       cursor: pointer;
       transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+      animation: acro-lead-cta 3s ease-in-out infinite; /* gentle pull / мягко зовёт */
     }
     .acro-lead-form__button:hover:not(:disabled) {
       background: #FF7E2E;
       transform: translateY(-1px);
       box-shadow: 0 10px 24px rgba(243, 112, 33, 0.4);
+      animation: none;
     }
     .acro-lead-form__button:active:not(:disabled) {
       transform: translateY(0);
@@ -197,6 +274,11 @@
     .acro-lead-form__button:disabled {
       opacity: 0.65;
       cursor: default;
+      animation: none;
+    }
+    @keyframes acro-lead-cta {
+      0%, 100% { box-shadow: 0 6px 18px rgba(243, 112, 33, 0.22); }
+      50% { box-shadow: 0 10px 30px rgba(243, 112, 33, 0.5); }
     }
     .acro-lead-form__status {
       min-height: 20px;
@@ -229,6 +311,13 @@
       line-height: 1.35;
       color: #FFFFFF;
     }
+    @media (prefers-reduced-motion: reduce) {
+      .acro-lead-form__card::before,
+      .acro-lead-form__badge-dot,
+      .acro-lead-form__button {
+        animation: none;
+      }
+    }
     @media (max-width: 480px) {
       .acro-lead-form { padding: 14px; }
       .acro-lead-form__card { padding: 34px 22px 28px; border-radius: 20px; }
@@ -242,8 +331,19 @@
     <!-- logo is already hosted on the site / лого уже лежит на сайте -->
     <img class="acro-lead-form__logo" src="https://www.acrogym.org/img/acro-logo-simple-light.png" alt="AcroGym">
 
-    <h3 class="acro-lead-form__title">Book Your First Trial Class</h3>
-    <p class="acro-lead-form__subtitle">Leave your number and we&rsquo;ll get back to you soon.</p>
+    <div class="acro-lead-form__badge">
+      <span class="acro-lead-form__badge-dot"></span>
+      Opening September 2026 &middot; The Pearl, Doha
+    </div>
+
+    <h3 class="acro-lead-form__title">Book Your First <span class="acro-lead-form__title-accent">Trial Class</span></h3>
+    <p class="acro-lead-form__subtitle">Flips, cartwheels and confidence &mdash; leave your number and we&rsquo;ll find the perfect time for your child&rsquo;s first visit.</p>
+
+    <ul class="acro-lead-form__benefits">
+      <li class="acro-lead-form__benefit"><span class="acro-lead-form__benefit-check">&#10003;</span>Ages 3&ndash;14</li>
+      <li class="acro-lead-form__benefit"><span class="acro-lead-form__benefit-check">&#10003;</span>Pro coaches</li>
+      <li class="acro-lead-form__benefit"><span class="acro-lead-form__benefit-check">&#10003;</span>Safety first</li>
+    </ul>
 
     <form class="acro-lead-form__form">
       <div class="acro-lead-form__field">
@@ -262,8 +362,9 @@
                maxlength="20" inputmode="numeric" placeholder="e.g. 6">
       </div>
 
-      <button class="acro-lead-form__button" type="submit">Send request</button>
+      <button class="acro-lead-form__button" type="submit">Book My Spot</button>
       <p class="acro-lead-form__status" aria-live="polite"></p>
+      <p class="acro-lead-form__note">Takes 10 seconds &mdash; we&rsquo;ll call you back to arrange a time.</p>
     </form>
 
     <div class="acro-lead-form__success" hidden>
