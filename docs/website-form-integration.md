@@ -17,6 +17,9 @@ A static site has no backend of its own, so the form will post directly from
 the browser — that's exactly the "conscious decision" case from the
 Authentication warning below. Agree on it with the owner (the token is rotatable).
 
+A ready-made block ships in this repo: **`docs/website-form-embed.html`** —
+paste it into the page and replace `PASTE_TOKEN_HERE` with the real token.
+
 ### Endpoint
 
 ```
@@ -143,6 +146,9 @@ Contact the owner directly.
 У статического сайта нет своего бэкенда, поэтому форма будет слать запрос
 прямо из браузера — это тот самый «осознанный» случай из предупреждения в
 разделе «Аутентификация»; согласуй с владельцем (токен ротируемый).
+
+Готовый блок лежит в этом репо: **`docs/website-form-embed.html`** —
+вставь его в страницу и замени `PASTE_TOKEN_HERE` на реальный токен.
 
 ### Endpoint
 

@@ -1,0 +1,280 @@
+<!-- ================================================================
+  AcroGym — Lead form embed block / Готовый блок формы заявки
+  ----------------------------------------------------------------
+  EN: Paste this whole block into the HTML of the target page/section
+      (the site is static — no builder embeds, no iframes). Then
+      replace PASTE_TOKEN_HERE in the script below with the real
+      webhook token (the owner hands it over personally).
+  RU: Вставить блок целиком в HTML нужной страницы/секции (сайт
+      статический — без Embed-обёрток конструкторов и iframe).
+      Затем заменить PASTE_TOKEN_HERE в скрипте ниже на реальный
+      токен вебхука — владелец передаст его лично.
+
+  Contract / Контракт: docs/website-form-integration.md
+  Endpoint: POST https://hook.acrogym.org/webhook/acrogym-lead
+  Payload:  JSON { name*, phone*, child_age? }  + header x-webhook-token
+================================================================= -->
+
+<!-- Montserrat — remove this line if the page already loads the font
+     / убери эту строку, если страница уже подключает Montserrat -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap">
+
+<div class="acro-lead-form">
+  <style>
+    .acro-lead-form {
+      font-family: "Montserrat", system-ui, -apple-system, sans-serif;
+      display: flex;
+      justify-content: center;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .acro-lead-form *, .acro-lead-form *::before, .acro-lead-form *::after {
+      box-sizing: border-box;
+    }
+    .acro-lead-form__card {
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      max-width: 460px;
+      padding: 40px 36px 36px;
+      border-radius: 24px;
+      background: linear-gradient(160deg, #28347F 0%, #1A2356 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 24px 60px rgba(26, 35, 86, 0.35);
+    }
+    /* premium orange glow accent / премиальный оранжевый блик */
+    .acro-lead-form__card::before {
+      content: "";
+      position: absolute;
+      top: -120px;
+      right: -120px;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(243, 112, 33, 0.35) 0%, rgba(243, 112, 33, 0) 70%);
+      pointer-events: none;
+    }
+    .acro-lead-form__logo {
+      display: block;
+      height: 44px;
+      width: auto;
+      margin: 0 0 24px;
+    }
+    .acro-lead-form__title {
+      margin: 0 0 8px;
+      font-size: 27px;
+      font-weight: 800;
+      line-height: 1.15;
+      color: #FFFFFF;
+      letter-spacing: 0.01em;
+    }
+    .acro-lead-form__subtitle {
+      margin: 0 0 28px;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.75);
+    }
+    .acro-lead-form__field {
+      margin: 0 0 16px;
+    }
+    .acro-lead-form__label {
+      display: block;
+      margin: 0 0 7px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .acro-lead-form__input {
+      display: block;
+      width: 100%;
+      padding: 13px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.07);
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 400;
+      color: #FFFFFF;
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .acro-lead-form__input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
+    .acro-lead-form__input:focus {
+      border-color: #F37021;
+      box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.25);
+    }
+    .acro-lead-form__button {
+      display: block;
+      width: 100%;
+      margin: 24px 0 0;
+      padding: 15px 16px;
+      border: none;
+      border-radius: 12px;
+      background: #F37021;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: #FFFFFF;
+      cursor: pointer;
+      transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .acro-lead-form__button:hover:not(:disabled) {
+      background: #FF7E2E;
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(243, 112, 33, 0.4);
+    }
+    .acro-lead-form__button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .acro-lead-form__button:disabled {
+      opacity: 0.65;
+      cursor: default;
+    }
+    .acro-lead-form__status {
+      min-height: 20px;
+      margin: 12px 0 0;
+      font-size: 13.5px;
+      font-weight: 400;
+      line-height: 1.45;
+      color: #FFB199; /* error tone on dark / тон ошибки на тёмном */
+    }
+    .acro-lead-form__success {
+      text-align: center;
+      padding: 28px 0 12px;
+    }
+    .acro-lead-form__success-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      background: #F37021;
+      color: #FFFFFF;
+      font-size: 30px;
+      font-weight: 800;
+      line-height: 64px;
+      box-shadow: 0 10px 28px rgba(243, 112, 33, 0.45);
+    }
+    .acro-lead-form__success-title {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1.35;
+      color: #FFFFFF;
+    }
+    @media (max-width: 480px) {
+      .acro-lead-form__card { padding: 32px 22px 28px; border-radius: 20px; }
+      .acro-lead-form__title { font-size: 23px; }
+    }
+  </style>
+
+  <div class="acro-lead-form__card">
+    <!-- logo is already hosted on the site / лого уже лежит на сайте -->
+    <img class="acro-lead-form__logo" src="https://www.acrogym.org/img/acro-logo-simple-light.png" alt="AcroGym">
+
+    <h3 class="acro-lead-form__title">Get in Touch</h3>
+    <p class="acro-lead-form__subtitle">Leave your number and we&rsquo;ll get back to you soon.</p>
+
+    <form class="acro-lead-form__form">
+      <div class="acro-lead-form__field">
+        <label class="acro-lead-form__label" for="acro-lead-name">Parent&rsquo;s name *</label>
+        <input class="acro-lead-form__input" id="acro-lead-name" name="name" type="text"
+               required maxlength="120" autocomplete="name" placeholder="Your name">
+      </div>
+      <div class="acro-lead-form__field">
+        <label class="acro-lead-form__label" for="acro-lead-phone">Phone *</label>
+        <input class="acro-lead-form__input" id="acro-lead-phone" name="phone" type="tel"
+               required autocomplete="tel" inputmode="tel" placeholder="+974 5000 9999">
+      </div>
+      <div class="acro-lead-form__field">
+        <label class="acro-lead-form__label" for="acro-lead-age">Child&rsquo;s age</label>
+        <input class="acro-lead-form__input" id="acro-lead-age" name="child_age" type="text"
+               maxlength="20" inputmode="numeric" placeholder="e.g. 6">
+      </div>
+
+      <button class="acro-lead-form__button" type="submit">Send request</button>
+      <p class="acro-lead-form__status" aria-live="polite"></p>
+    </form>
+
+    <div class="acro-lead-form__success" hidden>
+      <div class="acro-lead-form__success-icon">&#10003;</div>
+      <p class="acro-lead-form__success-title">Thank you, we&rsquo;ll be in touch soon!</p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      /* ----------------------------------------------------------
+        RU: Вставь сюда токен вебхука — владелец передаст его лично.
+            Не публикуй страницу с "PASTE_TOKEN_HERE" — форма будет
+            получать 403. Токен виден в исходнике страницы: для
+            статического сайта это согласованное с владельцем
+            решение (токен ротируемый, см. памятку).
+        EN: Paste the webhook token here — the owner hands it over
+            personally. Don't publish the page with "PASTE_TOKEN_HERE"
+            or the form will get 403. The token is visible in the page
+            source: for a static site this is agreed with the owner
+            (the token is rotatable, see the integration doc).
+      ---------------------------------------------------------- */
+      const WEBHOOK_TOKEN = "PASTE_TOKEN_HERE";
+
+      const ENDPOINT = "https://hook.acrogym.org/webhook/acrogym-lead";
+
+      const root = document.currentScript.closest(".acro-lead-form");
+      const form = root.querySelector(".acro-lead-form__form");
+      const button = root.querySelector(".acro-lead-form__button");
+      const status = root.querySelector(".acro-lead-form__status");
+      const success = root.querySelector(".acro-lead-form__success");
+
+      form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const name = form.elements.name.value.trim();
+        const phone = form.elements.phone.value.trim();
+        const childAge = form.elements.child_age.value.trim();
+
+        if (!name || !phone) {
+          status.textContent = "Please fill in your name and phone.";
+          return;
+        }
+
+        const payload = { name: name, phone: phone };
+        if (childAge) payload.child_age = childAge;
+
+        button.disabled = true; /* no double-submits / без дублей */
+        const idleLabel = button.textContent;
+        button.textContent = "Sending…";
+        status.textContent = "";
+
+        try {
+          const response = await fetch(ENDPOINT, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-webhook-token": WEBHOOK_TOKEN
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (response.ok) {
+            form.hidden = true;
+            success.hidden = false;
+          } else {
+            status.textContent = "Something went wrong, please try again.";
+          }
+        } catch (networkError) {
+          status.textContent = "Something went wrong, please try again.";
+        } finally {
+          button.disabled = false;
+          button.textContent = idleLabel;
+        }
+      });
+    })();
+  </script>
+</div>
+<!-- ============== end of AcroGym lead form block ============== -->
