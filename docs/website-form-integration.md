@@ -6,6 +6,17 @@
 
 ## EN
 
+### Integration method
+
+The site is static: its code lives in a GitHub repo and is edited directly —
+there is no site builder (no Tilda/Wix). So no builder "Embed" widgets and no
+iframe wrappers: **paste the form block straight into the HTML of the target
+page/section**, as native markup styled like the rest of the page.
+
+A static site has no backend of its own, so the form will post directly from
+the browser — that's exactly the "conscious decision" case from the
+Authentication warning below. Agree on it with the owner (the token is rotatable).
+
 ### Endpoint
 
 ```
@@ -121,6 +132,17 @@ Contact the owner directly.
 ---
 
 ## RU
+
+### Способ встраивания
+
+Сайт статический: его код лежит в GitHub-репозитории и правится напрямую —
+никакого конструктора (Tilda/Wix) нет. Поэтому никаких Embed-обёрток
+конструкторов и iframe: **вставить блок в HTML нужной страницы/секции** —
+как родную разметку, оформленную в стиле страницы.
+
+У статического сайта нет своего бэкенда, поэтому форма будет слать запрос
+прямо из браузера — это тот самый «осознанный» случай из предупреждения в
+разделе «Аутентификация»; согласуй с владельцем (токен ротируемый).
 
 ### Endpoint
 
