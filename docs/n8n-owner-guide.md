@@ -13,8 +13,10 @@
    (nginx basic-auth)**: логин `acrogym`, пароль — тот, что ты сам задавал
    при настройке nginx.
 3. Откроется страница входа n8n — это **вторая дверь**: email
-   `rekilll@gmail.com`, пароль — в файле `/home/admin/n8n/n8n-owner-login.txt`
-   на сервере. **Забери пароль оттуда и удали файл** (`rm /home/admin/n8n/n8n-owner-login.txt`).
+   `rekilll@gmail.com`, пароль — тот, что ты сам задал 2026-06-11 при настройке
+   owner-аккаунта. Он есть только у тебя, в файлах на сервере его нет.
+   Потеряешь — восстановление: `cd /home/admin/n8n && sudo docker compose exec n8n n8n user-management:reset`,
+   затем заново задать пароль через браузер (воркфлоу и доступы сброс не трогает).
 
 ## Как посмотреть, что лиды проходят (Executions)
 
@@ -57,7 +59,7 @@ docker-compose.yml    — как запускается n8n (НЕ редакти
 .env                  — СЕКРЕТЫ: ключ шифрования + webhook-токен. НЕ ТРОГАТЬ.
 nginx/                — копии конфигов nginx (рабочие — в /etc/nginx)
 workflows/            — JSON-копия воркфлоу (бэкап; рабочая версия внутри n8n)
-n8n-owner-login.txt   — твой пароль от n8n: ЗАБРАТЬ И УДАЛИТЬ
+website-dev-handoff.txt — webhook-токен для сайтщика (передавать лично)
 ```
 
 ## 🔴 ВАЖНО — N8N_ENCRYPTION_KEY

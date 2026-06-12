@@ -32,6 +32,10 @@ const Database = require('better-sqlite3');
 const _pre = new Database(process.env.ACROGYM_DB_PATH, { readonly: true });
 const preCount = _pre.prepare('SELECT COUNT(*) AS c FROM leads').get().c;
 const preHasUid = _pre.prepare(`SELECT COUNT(*) AS c FROM pragma_table_info('leads') WHERE name='lead_uid'`).get().c;
+// Prod is on v20 since 2026-06-11, so copies may already carry uid leads
+const preUidLeads = preHasUid
+  ? _pre.prepare('SELECT COUNT(*) AS c FROM leads WHERE lead_uid IS NOT NULL').get().c
+  : 0;
 _pre.close();
 
 const {
@@ -56,7 +60,10 @@ console.log('═'.repeat(55) + '\n');
 
 // ── 1. Migration v20 ─────────────────────────────────────────
 console.log('Migration v20 (on a copy of the real DB)');
-test('lead_uid column did not exist before', () => assert(preHasUid === 0, `pre-migration column count: ${preHasUid}`));
+// Pre-2026-06-11 prod copies have no lead_uid column; post-switch copies do.
+// Both are valid inputs — what matters is that migrations are idempotent.
+test('migration idempotent on this source DB (column count 0→1 or 1→1)', () =>
+  assert(preHasUid === 0 || preHasUid === 1, `pre-migration column count: ${preHasUid}`));
 test('lead_uid column added', () => {
   const c = db.prepare(`SELECT COUNT(*) AS c FROM pragma_table_info('leads') WHERE name='lead_uid'`).get().c;
   assert(c === 1, `column count: ${c}`);
@@ -69,9 +76,9 @@ test('no leads lost or gained by migration', () => {
   const c = db.prepare('SELECT COUNT(*) AS c FROM leads').get().c;
   assert(c === preCount, `before=${preCount} after=${c}`);
 });
-test('all existing leads have lead_uid NULL', () => {
+test('migration did not invent or drop uid values', () => {
   const c = db.prepare('SELECT COUNT(*) AS c FROM leads WHERE lead_uid IS NOT NULL').get().c;
-  assert(c === 0, `non-null uids: ${c}`);
+  assert(c === preUidLeads, `non-null uids before=${preUidLeads} after=${c}`);
 });
 
 // ── 2. Column mapping for the canonical sheet ────────────────
