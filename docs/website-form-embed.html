@@ -1,14 +1,29 @@
 <!-- ================================================================
-  AcroGym — Lead form embed block / Готовый блок формы заявки
+  AcroGym — Lead form popup embed / Готовый попап формы заявки
   ----------------------------------------------------------------
-  EN: Paste this whole block into the HTML of the target page/section
+  EN: Paste this whole block into the HTML of the target page
       (the site is static — no builder embeds, no iframes). Then
       replace PASTE_TOKEN_HERE in the script below with the real
       webhook token (the owner hands it over personally).
-  RU: Вставить блок целиком в HTML нужной страницы/секции (сайт
-      статический — без Embed-обёрток конструкторов и iframe).
-      Затем заменить PASTE_TOKEN_HERE в скрипте ниже на реальный
-      токен вебхука — владелец передаст его лично.
+  RU: Вставить блок целиком в HTML нужной страницы (сайт статический —
+      без Embed-обёрток конструкторов и iframe). Затем заменить
+      PASTE_TOKEN_HERE в скрипте ниже на реальный токен вебхука —
+      владелец передаст его лично.
+
+  Behaviour / Поведение:
+  EN: Shows as a popup over the page ~1.5s after the FIRST visit only.
+      The visit is remembered in localStorage ("acro_lead_form_seen"),
+      so it never reappears — refreshes included. Closes via the X,
+      the backdrop, or Esc.
+      QA: add ?acroform=show to the URL to force the popup, or run
+      localStorage.removeItem("acro_lead_form_seen") in the console.
+  RU: Выскакивает поверх страницы ~через 1.5с ТОЛЬКО при первом визите.
+      Визит запоминается в localStorage ("acro_lead_form_seen"), больше
+      попап не показывается — даже после обновления страницы. Закрытие:
+      крестик, клик по фону или Esc.
+      Проверка: добавь ?acroform=show к адресу, чтобы показать попап
+      принудительно, или выполни в консоли
+      localStorage.removeItem("acro_lead_form_seen").
 
   Contract / Контракт: docs/website-form-integration.md
   Endpoint: POST https://hook.acrogym.org/webhook/acrogym-lead
@@ -22,11 +37,27 @@
 <div class="acro-lead-form">
   <style>
     .acro-lead-form {
-      font-family: "Montserrat", system-ui, -apple-system, sans-serif;
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
       display: flex;
+      align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 20px;
       box-sizing: border-box;
+      font-family: "Montserrat", system-ui, -apple-system, sans-serif;
+      background: rgba(13, 18, 48, 0.66);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .acro-lead-form.is-open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
     }
     .acro-lead-form *, .acro-lead-form *::before, .acro-lead-form *::after {
       box-sizing: border-box;
@@ -36,11 +67,18 @@
       overflow: hidden;
       width: 100%;
       max-width: 460px;
+      max-height: 92vh;
+      overflow-y: auto;
       padding: 40px 36px 36px;
       border-radius: 24px;
       background: linear-gradient(160deg, #28347F 0%, #1A2356 100%);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 24px 60px rgba(26, 35, 86, 0.35);
+      box-shadow: 0 24px 60px rgba(26, 35, 86, 0.55);
+      transform: translateY(16px) scale(0.97);
+      transition: transform 0.35s cubic-bezier(0.22, 0.9, 0.3, 1);
+    }
+    .acro-lead-form.is-open .acro-lead-form__card {
+      transform: translateY(0) scale(1);
     }
     /* premium orange glow accent / премиальный оранжевый блик */
     .acro-lead-form__card::before {
@@ -53,6 +91,30 @@
       border-radius: 50%;
       background: radial-gradient(circle, rgba(243, 112, 33, 0.35) 0%, rgba(243, 112, 33, 0) 70%);
       pointer-events: none;
+    }
+    .acro-lead-form__close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      z-index: 1;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 20px;
+      font-weight: 400;
+      line-height: 36px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+    }
+    .acro-lead-form__close:hover {
+      background: #F37021;
+      color: #FFFFFF;
+      transform: rotate(90deg);
     }
     .acro-lead-form__logo {
       display: block;
@@ -168,12 +230,15 @@
       color: #FFFFFF;
     }
     @media (max-width: 480px) {
-      .acro-lead-form__card { padding: 32px 22px 28px; border-radius: 20px; }
+      .acro-lead-form { padding: 14px; }
+      .acro-lead-form__card { padding: 34px 22px 28px; border-radius: 20px; }
       .acro-lead-form__title { font-size: 23px; }
     }
   </style>
 
-  <div class="acro-lead-form__card">
+  <div class="acro-lead-form__card" role="dialog" aria-modal="true" aria-label="AcroGym contact form" tabindex="-1">
+    <button class="acro-lead-form__close" type="button" aria-label="Close">&times;</button>
+
     <!-- logo is already hosted on the site / лого уже лежит на сайте -->
     <img class="acro-lead-form__logo" src="https://www.acrogym.org/img/acro-logo-simple-light.png" alt="AcroGym">
 
@@ -224,12 +289,62 @@
       const WEBHOOK_TOKEN = "PASTE_TOKEN_HERE";
 
       const ENDPOINT = "https://hook.acrogym.org/webhook/acrogym-lead";
+      const STORAGE_KEY = "acro_lead_form_seen";
+      const SHOW_DELAY_MS = 1500;
 
       const root = document.currentScript.closest(".acro-lead-form");
+      const card = root.querySelector(".acro-lead-form__card");
+      const closeButton = root.querySelector(".acro-lead-form__close");
       const form = root.querySelector(".acro-lead-form__form");
       const button = root.querySelector(".acro-lead-form__button");
       const status = root.querySelector(".acro-lead-form__status");
       const success = root.querySelector(".acro-lead-form__success");
+
+      /* localStorage can be unavailable (private mode) — then the
+         popup simply shows on every visit / localStorage может быть
+         недоступен (приватный режим) — тогда попап будет показываться
+         при каждом визите */
+      function alreadySeen() {
+        try { return localStorage.getItem(STORAGE_KEY) === "1"; }
+        catch (e) { return false; }
+      }
+      function rememberSeen() {
+        try { localStorage.setItem(STORAGE_KEY, "1"); } catch (e) {}
+      }
+
+      /* QA override: ?acroform=show forces the popup and does not
+         touch the first-visit flag / принудительный показ для
+         проверки, флаг первого визита не трогает */
+      const forceShow = /[?&]acroform=show/.test(window.location.search);
+
+      let savedBodyOverflow = "";
+
+      function openPopup() {
+        savedBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        root.classList.add("is-open");
+        card.focus({ preventScroll: true });
+        if (!forceShow) rememberSeen();
+      }
+
+      function closePopup() {
+        root.classList.remove("is-open");
+        document.body.style.overflow = savedBodyOverflow;
+      }
+
+      if (forceShow) {
+        setTimeout(openPopup, 300);
+      } else if (!alreadySeen()) {
+        setTimeout(openPopup, SHOW_DELAY_MS);
+      }
+
+      closeButton.addEventListener("click", closePopup);
+      root.addEventListener("click", function (event) {
+        if (event.target === root) closePopup(); /* backdrop / клик по фону */
+      });
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && root.classList.contains("is-open")) closePopup();
+      });
 
       form.addEventListener("submit", async function (event) {
         event.preventDefault();
@@ -264,6 +379,7 @@
           if (response.ok) {
             form.hidden = true;
             success.hidden = false;
+            setTimeout(closePopup, 2500); /* auto-close after thanks / автозакрытие */
           } else {
             status.textContent = "Something went wrong, please try again.";
           }
@@ -277,4 +393,4 @@
     })();
   </script>
 </div>
-<!-- ============== end of AcroGym lead form block ============== -->
+<!-- ============== end of AcroGym lead form popup ============== -->
