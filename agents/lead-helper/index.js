@@ -113,6 +113,15 @@ function formatTime(iso) {
   } catch { return iso; }
 }
 
+// Human-readable labels for known lead sources; unknown values shown as-is.
+const SOURCE_LABELS = {
+  website_form: '🌐 Website form',
+  instagram:    '📸 Instagram',
+};
+function formatSource(src) {
+  return SOURCE_LABELS[src] || src;
+}
+
 function buildCard(lead, rowNumber, opts = {}) {
   const { header, note } = opts;
   const lines = [header, ''];
@@ -125,6 +134,7 @@ function buildCard(lead, rowNumber, opts = {}) {
   if (lead.parent_email) lines.push(`✉️ Email: ${lead.parent_email}`);
   if (lead.qid)          lines.push(`🆔 QID: ${lead.qid}`);
   if (lead.child_age)    lines.push(`🎂 Child age: ${lead.child_age}`);
+  if (lead.source)       lines.push(`📍 Source: ${formatSource(lead.source)}`);
 
   const receivedTs = lead.timestamp || lead.created_at || new Date().toISOString();
   lines.push(`⏰ Received: ${formatTime(receivedTs)}`);
