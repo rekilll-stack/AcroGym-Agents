@@ -50,7 +50,20 @@ Missing or wrong token → **403** (rejected before any processing).
 | `name`      | ✅ yes   | Parent's first name. Max 120 chars. Alias accepted: `parent_name` |
 | `phone`     | ✅ yes   | Any human format — we normalize server-side. Alias: `parent_phone` |
 | `child_age` | optional | Free text/number, max 20 chars. Alias: `age`                      |
-| `source`    | optional | Defaults to `website_form`. Leave it out unless told otherwise    |
+| `source`    | optional | Lead attribution — see below. Defaults to `website_form`          |
+
+**`source` — lead attribution (exact lowercase strings):**
+
+We split reporting by this exact value, so use these and only these:
+
+| Where the form lives                    | Send `source`   |
+|------------------------------------------|-----------------|
+| The website itself                       | omit it (defaults to `website_form`) |
+| The link posted in the **Instagram** bio / stories | `source=instagram` |
+
+⚠️ Must match exactly: `instagram` (all lowercase). `Instagram`, `IG`, `insta`
+would each show up as a *separate* line in the owner's reports. If you need a
+new attribution label, ask the owner first so it's consistent.
 
 **Phone formats that all work** (everything normalizes to `97450009999`):
 
@@ -179,7 +192,19 @@ x-webhook-token: <TOKEN_PROVIDED_SEPARATELY>
 | `name`      | ✅ да       | Имя родителя, до 120 символов. Алиас: `parent_name`         |
 | `phone`     | ✅ да       | Любой человеческий формат — нормализуем сами. Алиас: `parent_phone` |
 | `child_age` | нет         | Текст/число до 20 символов. Алиас: `age`                    |
-| `source`    | нет         | По умолчанию `website_form` — не передавай без надобности   |
+| `source`    | нет         | Атрибуция лида — см. ниже. По умолчанию `website_form`       |
+
+**`source` — атрибуция (точные строки в нижнем регистре):**
+
+Отчёты владельца разбиваются по этому значению, поэтому только так:
+
+| Где форма                                | Что слать в `source` |
+|------------------------------------------|----------------------|
+| Сам сайт                                 | не слать (будет `website_form`) |
+| Ссылка в **Instagram** (био/сторис)      | `source=instagram`   |
+
+⚠️ Строго `instagram` (нижний регистр). `Instagram`, `IG`, `insta` дадут
+отдельные строки в отчёте. Нужна новая метка — сперва согласуй с владельцем.
 
 **Форматы телефона — всё это прокатит** (нормализуется в `97450009999`):
 
