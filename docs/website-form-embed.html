@@ -27,7 +27,7 @@
 
   Contract / Контракт: docs/website-form-integration.md
   Endpoint: POST https://hook.acrogym.org/webhook/acrogym-lead
-  Payload:  JSON { name*, phone*, child_age? }  + header x-webhook-token
+  Payload:  JSON { name*, phone*, child_age?, source? }  + header x-webhook-token
 ================================================================= -->
 
 <!-- Montserrat — remove this line if the page already loads the font
@@ -389,6 +389,18 @@
       ---------------------------------------------------------- */
       const WEBHOOK_TOKEN = "PASTE_TOKEN_HERE";
 
+      /* Lead attribution / Атрибуция лида.
+         EN: Leave "" for the form on the website itself (counts as
+             website_form). For the copy of this block behind the
+             Instagram bio/stories link, set "instagram" (exact lowercase) —
+             the owner's reports split leads by this value. See the
+             integration doc before inventing other labels.
+         RU: Оставь "" для формы на самом сайте (засчитается как
+             website_form). Для копии блока под инста-ссылкой поставь
+             "instagram" (строго нижний регистр) — отчёты владельца
+             делятся по этому значению. Другие метки — сперва в памятку. */
+      const LEAD_SOURCE = "";
+
       const ENDPOINT = "https://hook.acrogym.org/webhook/acrogym-lead";
       const STORAGE_KEY = "acro_lead_form_seen";
       const SHOW_DELAY_MS = 1500;
@@ -461,6 +473,7 @@
 
         const payload = { name: name, phone: phone };
         if (childAge) payload.child_age = childAge;
+        if (LEAD_SOURCE) payload.source = LEAD_SOURCE;
 
         button.disabled = true; /* no double-submits / без дублей */
         const idleLabel = button.textContent;
