@@ -115,26 +115,34 @@ function formatTime(iso) {
 
 // Human-readable labels for known lead sources; unknown values shown as-is.
 const SOURCE_LABELS = {
-  website_form: '🌐 Website form',
-  instagram:    '📸 Instagram',
+  website_form:       '🌐 Website form',
+  instagram:          '📸 Instagram',
+  instagram_lead_ads: '📸 Instagram ad',
 };
 function formatSource(src) {
   return SOURCE_LABELS[src] || src;
+}
+
+// Card is sent with parse_mode HTML — escape lead-controlled values so a
+// "<", ">" or "&" in the data can't break Telegram's HTML parser (a real
+// lead rarely has these, but a test lead's "<dummy>" data does).
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function buildCard(lead, rowNumber, opts = {}) {
   const { header, note } = opts;
   const lines = [header, ''];
 
-  if (lead.parent_name)  lines.push(`👤 Name: ${lead.parent_name}`);
-  if (lead.parent_phone) lines.push(`📱 Phone: ${lead.parent_phone}`);
+  if (lead.parent_name)  lines.push(`👤 Name: ${escHtml(lead.parent_name)}`);
+  if (lead.parent_phone) lines.push(`📱 Phone: ${escHtml(lead.parent_phone)}`);
 
   const wa = lead.parent_whatsapp || lead.parent_phone;
-  if (wa)                lines.push(`💬 WhatsApp: ${wa}`);
-  if (lead.parent_email) lines.push(`✉️ Email: ${lead.parent_email}`);
-  if (lead.qid)          lines.push(`🆔 QID: ${lead.qid}`);
-  if (lead.child_age)    lines.push(`🎂 Child age: ${lead.child_age}`);
-  if (lead.source)       lines.push(`📍 Source: ${formatSource(lead.source)}`);
+  if (wa)                lines.push(`💬 WhatsApp: ${escHtml(wa)}`);
+  if (lead.parent_email) lines.push(`✉️ Email: ${escHtml(lead.parent_email)}`);
+  if (lead.qid)          lines.push(`🆔 QID: ${escHtml(lead.qid)}`);
+  if (lead.child_age)    lines.push(`🎂 Child age: ${escHtml(lead.child_age)}`);
+  if (lead.source)       lines.push(`📍 Source: ${escHtml(formatSource(lead.source))}`);
 
   const receivedTs = lead.timestamp || lead.created_at || new Date().toISOString();
   lines.push(`⏰ Received: ${formatTime(receivedTs)}`);
