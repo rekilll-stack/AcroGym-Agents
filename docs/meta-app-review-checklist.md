@@ -1,55 +1,102 @@
-# Meta App Review — чтобы боевые лиды доставлялись (Часть B / Б2)
+# Meta: публикация приложения для боевых лидов (Часть B / Б2)
 
-## Почему это нужно (коротко)
+Чтобы реальные Instagram/FB лиды доставлялись, приложение нужно **опубликовать**.
+Facebook не доставляет production-события leadgen, пока приложение Unpublished
+(дословно из App→Webhooks: "No production data ... will be delivered unless the
+app has been published"). В dev-режиме доходит только кнопка «Test».
 
-Facebook **по своему правилу не доставляет реальные события leadgen, пока приложение
-не опубликовано (Live)**. Дословно из App → Webhooks:
+Два РАЗНЫХ этапа → потом Publish. Идти по порядку.
 
-> "Apps will only be able to receive test webhooks sent from the dashboard while the
-> app is unpublished. No production data, including from app admins, developers or
-> testers, will be delivered unless the app has been published."
+---
 
-Поэтому в Development-режиме доходит **только** кнопка «Test» на дашборде, а
-«Create lead» в Testing Tool и реальные лиды из рекламы — **нет**. Чтобы они пошли,
-приложение надо **опубликовать**, а для публикации с доступом к лидам нужен
-**App Review на `leads_retrieval`**.
-
-## Наша сторона (готово, ничего делать не надо)
+## Наша сторона — ГОТОВО (ничего делать не надо)
 
 - ✅ n8n-воркфлоу «AcroGym Meta Lead Ads Intake v2» активен
 - ✅ Callback `https://hook.acrogym.org/webhook/meta-lead` верифицирован, поле `leadgen` Subscribed
-- ✅ Страница AcroGym Qatar подписана на приложение (`subscribed_apps` = leadgen)
-- ✅ Дотяжка лида (page-токен), маппинг, запись в канонную таблицу, карточка в Assistant — проверены
-- Как только приложение опубликуют — реальные лиды пойдут автоматически, без правок
+- ✅ Страница AcroGym Qatar подписана на приложение (subscribed_apps = leadgen)
+- ✅ Дотяжка (page-токен) → маппинг → канонная таблица → карточка в Assistant — проверено
+- После публикации боевые лиды пойдут автоматически, без правок
 
-## Что сделать владельцу (в developers.facebook.com, приложение AcroGym Leads)
+---
 
-1. **Business Verification** (если ещё не пройдена): App → Settings / Business
-   portfolio → Security Center → пройти верификацию бизнеса (паспорт/документы
-   компании). Часто требуется для advanced-доступа. Может занять дни.
+## ЭТАП 1 — Business Verification (документы, без видео)
 
-2. **App Review → Permissions and Features**: запросить **Advanced Access** для:
-   - `leads_retrieval` (главное)
-   - `pages_show_list`, `pages_read_engagement` (если попросят advanced)
-   На каждое — короткое описание use case: «Мы получаем лиды из Instagram/Facebook
-   Lead Ads нашего детского гимнастического центра и отправляем их в наш внутренний
-   CRM (n8n → Telegram), чтобы администратор связался с родителем».
+**Где:** business.facebook.com → Business Settings → **Security Center** →
+Business Verification (Start verification).
 
-3. **Demo-видео (screencast)** — Meta почти всегда требует. Записать экран:
-   создать лид в Lead Ads Testing Tool → показать, что он приходит в нашу систему
-   (карточка в Telegram). Ассистент поможет снять/подготовить, когда понадобится.
+**Что подготовить (название/адрес/телефон должны СОВПАДАТЬ во всех документах):**
+- Юридическое название бизнеса AcroGym, адрес (The Pearl, Qatar), телефон
+- **Официальный документ существования бизнеса** — для Катара обычно:
+  - Commercial Registration (CR) / Trade License / Establishment card
+- Иногда дополнительно: счёт за коммуналку / банковская выписка с названием+адресом бизнеса
+- Подтверждение телефона/почты бизнеса (Meta пришлёт код)
 
-4. **Privacy Policy URL** — уже указан в Basic Settings (страница политики acrogym.org).
+**Срок:** ~1–3 рабочих дня (дольше, если попросят переслать документ).
 
-5. После одобрения — **Publish** приложения (переключить в Live на странице Publish).
+---
 
-6. Сообщить ассистенту «опубликовано» — он сразу прогонит проверку: реальный лид
-   (Create lead или тест-реклама) → витрина → карточка.
+## ЭТАП 2 — App Review на `leads_retrieval` (описание + видео)
+
+**Где:** App Dashboard (AcroGym Leads) → **App Review → Permissions and Features**
+→ у `leads_retrieval` нажать **Request / Get Advanced Access** → заполнить форму.
+
+### 2a. Текст use case (готов, вставить как есть, EN)
+
+```
+AcroGym is a children's gymnastics center in The Pearl, Qatar. We run
+Instagram and Facebook Lead Ads with an Instant Form so parents can request
+a trial class for their child.
+
+Our app uses leads_retrieval to receive the "leadgen" webhook for our own
+Page's lead forms and to fetch the submitted lead's fields (parent name,
+phone number, child's age). The lead is forwarded to our internal CRM — an
+n8n workflow that records it in our private Google Sheet and notifies our
+staff via a private Telegram bot — so our team can call the parent back to
+schedule the class.
+
+We only access leads from our own Page's ad forms. The data is used solely
+to contact the parent who submitted the form. We do not share or sell it.
+```
+
+### 2b. Сценарий демо-видео (скринкаст, 1–2 минуты)
+
+> Записать экран (любой «запись экрана»). В dev-режиме реальный лид не придёт,
+> поэтому демонстрируем через кнопку **Test** у поля `leadgen` — она доходит до
+> карточки и показывает весь поток.
+
+Шаги для записи:
+1. Покажи приложение и Страницу: App Dashboard → видно «AcroGym Leads», затем
+   страница AcroGym Qatar и Instant Form «AcroGym Trial Lead».
+2. App → Webhooks → объект Page → у поля **`leadgen`** нажми **Test**.
+3. Переключись на Telegram (Assistant bot) — покажи, как появилась **карточка лида**
+   (имя, телефон, возраст, Source: Instagram ad).
+4. (Опционально) покажи строку в Google-таблице.
+5. Голос/подпись: «When a parent submits our Instagram lead form, our app
+   retrieves the lead via leads_retrieval and notifies our staff to call them
+   back to book a class.»
+
+Ассистент поможет: перед записью подготовит чистую витрину и подскажет тайминг.
+
+### 2c. Privacy Policy
+
+Уже указан в Basic Settings (страница политики acrogym.org). Проверь, что ссылка живая.
+
+**Срок App Review:** обычно 1–5 рабочих дней; каждый отказ-с-правками = +дни,
+поэтому видео и описание делаем аккуратно с первого раза.
+
+---
+
+## ЭТАП 3 — Publish
+
+После одобрения: App Dashboard → **Publish** → переключить приложение в **Live**.
+
+Затем сообщить ассистенту «опубликовано» — он сразу прогонит проверку
+(реальный лид / Create lead → витрина → карточка).
+
+---
 
 ## Важно
-
-- Это **трек владельца** (его аккаунт/бизнес в Meta) — ассистент в консоль Facebook
-  доступа не имеет и App Review за него подать не может.
-- Срок — на стороне Meta (обычно несколько дней, иногда дольше при верификации бизнеса).
-- До публикации труба полностью готова и ждёт; проверять её можно кнопкой «Test»
-  (она доходит до карточки).
+- Это трек владельца (аккаунт/бизнес в Meta). Ассистент в консоль Facebook доступа
+  не имеет и подать ревью за владельца не может — но готовит все материалы и
+  помогает с демо.
+- До публикации труба готова и ждёт; тест — только кнопкой «Test».
