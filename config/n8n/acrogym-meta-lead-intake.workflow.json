@@ -1,0 +1,237 @@
+{
+  "name": "AcroGym Meta Lead Ads Intake v2 (Instagram)",
+  "nodes": [
+    {
+      "id": "wh-get",
+      "name": "Webhook Verify (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -140
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "meta-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "acrogym-meta-lead"
+    },
+    {
+      "id": "resp-ch",
+      "name": "Respond challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        -140
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "wh-post",
+      "name": "Webhook Lead (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        120
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meta-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "acrogym-meta-lead"
+    },
+    {
+      "id": "resp-ok",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        120
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {}
+      }
+    },
+    {
+      "id": "code-x",
+      "name": "Extract leadgen_id",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Extract leadgen_id from the Facebook leadgen webhook POST.\nconst body = ($input.first().json.body) || {};\nconst entry = (body.entry || [])[0] || {};\nconst change = (entry.changes || [])[0] || {};\nconst v = change.value || {};\nreturn [{ json: { leadgen_id: v.leadgen_id || '', page_id: v.page_id || '', form_id: v.form_id || '' } }];"
+      }
+    },
+    {
+      "id": "http",
+      "name": "Fetch lead from Graph API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        120
+      ],
+      "parameters": {
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.leadgen_id }}?fields=field_data,created_time",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookLeadAdsOAuth2Api",
+        "options": {}
+      },
+      "credentials": {
+        "facebookLeadAdsOAuth2Api": {
+          "id": "wUz8XiENEUh4slFD",
+          "name": "Facebook Lead Ads account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "code-map",
+      "name": "Map lead -> canonical",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Map fetched Meta lead -> canonical columns.\n// lead_uid deterministic (\"meta_\"+leadgen_id) -> Meta retries don't duplicate.\n// normalizePhone KEEP IN SYNC with acrogym/shared/normalize.js.\nfunction normalizePhone(raw) {\n  if (!raw) return null;\n  let digits = String(raw).replace(/\\D/g, '');\n  if (!digits) return null;\n  digits = digits.replace(/^0+/, '');\n  if (!digits) return null;\n  if (digits.startsWith('974') && digits.length >= 11) return digits;\n  if (digits.length === 8) return '974' + digits;\n  return digits;\n}\nconst lead = $input.first().json;\n// Skip non-retrievable test-tool leads (placeholder id -> no field_data).\nif (!lead || !Array.isArray(lead.field_data) || !lead.field_data.length) { return []; }\nconst leadgenId = lead.id || '';\nconst f = {};\nfor (const fd of (lead.field_data || [])) {\n  f[String(fd.name || '').toLowerCase()] = (fd.values && fd.values[0]) || '';\n}\nconst name = (f['full_name'] || [f['first_name'], f['last_name']].filter(Boolean).join(' ') || '').trim().slice(0, 120);\nconst phone = normalizePhone(f['phone_number'] || f['phone']) || '';\nlet childAge = '';\nfor (const k of Object.keys(f)) {\n  if (/age|child/i.test(k)) { childAge = String(f[k]).trim().slice(0, 20); break; }\n}\nreturn [{ json: { lead_uid: 'meta_' + leadgenId, name, phone, child_age: childAge, source: 'instagram_lead_ads' } }];"
+      }
+    },
+    {
+      "id": "sheets",
+      "name": "Append to canonical sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1200,
+        120
+      ],
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1U3SVscd_nzvFUDme33iprcVLLD4_1_cDLxqjFjRR4FM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now.setZone('Asia/Qatar').toFormat('yyyy-MM-dd HH:mm:ss') }}",
+            "Lead UID": "={{ $json.lead_uid }}",
+            "Client Type": "🆕 New client – Instagram ad",
+            "Parent First Name": "={{ $json.name }}",
+            "Parent Phone": "={{ $json.phone }}",
+            "Child Age": "={{ $json.child_age }}",
+            "Source": "={{ $json.source }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleApi": {
+          "id": "JK3vNXyPY2CsDZjH",
+          "name": "AcroGym Sheets SA"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "Respond challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Lead (POST)": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200": {
+      "main": [
+        [
+          {
+            "node": "Extract leadgen_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract leadgen_id": {
+      "main": [
+        [
+          {
+            "node": "Fetch lead from Graph API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch lead from Graph API": {
+      "main": [
+        [
+          {
+            "node": "Map lead -> canonical",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map lead -> canonical": {
+      "main": [
+        [
+          {
+            "node": "Append to canonical sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Qatar"
+  }
+}
