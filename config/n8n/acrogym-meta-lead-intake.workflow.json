@@ -8,7 +8,7 @@
       "typeVersion": 2,
       "position": [
         0,
-        -140
+        -160
       ],
       "parameters": {
         "httpMethod": "GET",
@@ -25,7 +25,7 @@
       "typeVersion": 1.1,
       "position": [
         240,
-        -140
+        -160
       ],
       "parameters": {
         "respondWith": "text",
@@ -66,30 +66,30 @@
       }
     },
     {
-      "id": "code-x",
+      "id": "x",
       "name": "Extract leadgen_id",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
+        460,
         120
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Extract leadgen_id from the Facebook leadgen webhook POST.\nconst body = ($input.first().json.body) || {};\nconst entry = (body.entry || [])[0] || {};\nconst change = (entry.changes || [])[0] || {};\nconst v = change.value || {};\nreturn [{ json: { leadgen_id: v.leadgen_id || '', page_id: v.page_id || '', form_id: v.form_id || '' } }];"
+        "jsCode": "const body = ($input.first().json.body)||{};\nconst v = (((body.entry||[])[0]||{}).changes||[])[0]?.value || {};\nreturn [{ json: { leadgen_id: v.leadgen_id||'', page_id: v.page_id||'', form_id: v.form_id||'' } }];"
       }
     },
     {
-      "id": "http",
-      "name": "Fetch lead from Graph API",
+      "id": "tok",
+      "name": "PageToken",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
+        680,
         120
       ],
       "parameters": {
-        "url": "=https://graph.facebook.com/v21.0/{{ $json.leadgen_id }}?fields=field_data,created_time",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.page_id }}?fields=access_token",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "facebookLeadAdsOAuth2Api",
         "options": {}
@@ -99,21 +99,49 @@
           "id": "wUz8XiENEUh4slFD",
           "name": "Facebook Lead Ads account"
         }
-      },
-      "onError": "continueRegularOutput"
+      }
     },
     {
-      "id": "code-map",
+      "id": "byid",
+      "name": "Fetch by leadgen_id",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        120
+      ],
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Extract leadgen_id').item.json.leadgen_id }}?fields=field_data,created_time&access_token={{ $json.access_token }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "byform",
+      "name": "Fetch latest form lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        260
+      ],
+      "parameters": {
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Extract leadgen_id').item.json.form_id }}/leads?limit=1&access_token={{ $('PageToken').item.json.access_token }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "map",
       "name": "Map lead -> canonical",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
+        1340,
         120
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Map fetched Meta lead -> canonical columns.\n// lead_uid deterministic (\"meta_\"+leadgen_id) -> Meta retries don't duplicate.\n// normalizePhone KEEP IN SYNC with acrogym/shared/normalize.js.\nfunction normalizePhone(raw) {\n  if (!raw) return null;\n  let digits = String(raw).replace(/\\D/g, '');\n  if (!digits) return null;\n  digits = digits.replace(/^0+/, '');\n  if (!digits) return null;\n  if (digits.startsWith('974') && digits.length >= 11) return digits;\n  if (digits.length === 8) return '974' + digits;\n  return digits;\n}\nconst lead = $input.first().json;\n// Skip non-retrievable test-tool leads (placeholder id -> no field_data).\nif (!lead || !Array.isArray(lead.field_data) || !lead.field_data.length) { return []; }\nconst leadgenId = lead.id || '';\nconst f = {};\nfor (const fd of (lead.field_data || [])) {\n  f[String(fd.name || '').toLowerCase()] = (fd.values && fd.values[0]) || '';\n}\nconst name = (f['full_name'] || [f['first_name'], f['last_name']].filter(Boolean).join(' ') || '').trim().slice(0, 120);\nconst phone = normalizePhone(f['phone_number'] || f['phone']) || '';\nlet childAge = '';\nfor (const k of Object.keys(f)) {\n  if (/age|child/i.test(k)) { childAge = String(f[k]).trim().slice(0, 20); break; }\n}\nreturn [{ json: { lead_uid: 'meta_' + leadgenId, name, phone, child_age: childAge, source: 'instagram_lead_ads' } }];"
+        "jsCode": "let lead = $input.first().json;\nif (lead && lead.data && Array.isArray(lead.data)) lead = lead.data[0] || {};\nif (!lead || !Array.isArray(lead.field_data) || !lead.field_data.length) return [];\nconst realId = lead.id || '';\nfunction normalizePhone(raw){ if(!raw) return null; let d=String(raw).replace(/\\D/g,''); if(!d) return null; d=d.replace(/^0+/,''); if(!d) return null; if(d.startsWith('974')&&d.length>=11) return d; if(d.length===8) return '974'+d; return d; }\nconst f={};\nfor (const fd of lead.field_data) f[String(fd.name||'').toLowerCase()] = (fd.values && fd.values[0]) || '';\nconst name = (f['full_name'] || [f['first_name'],f['last_name']].filter(Boolean).join(' ') || '').trim().slice(0,120);\nconst phone = normalizePhone(f['phone_number'] || f['phone']) || '';\nlet childAge=''; for (const k of Object.keys(f)) { if(/age|child/i.test(k)){ childAge=String(f[k]).trim().slice(0,20); break; } }\nreturn [{ json: { lead_uid:'meta_'+realId, name, phone, child_age:childAge, source:'instagram_lead_ads' } }];"
       }
     },
     {
@@ -122,7 +150,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        1200,
+        1560,
         120
       ],
       "parameters": {
@@ -200,14 +228,43 @@
       "main": [
         [
           {
-            "node": "Fetch lead from Graph API",
+            "node": "PageToken",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fetch lead from Graph API": {
+    "PageToken": {
+      "main": [
+        [
+          {
+            "node": "Fetch by leadgen_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch by leadgen_id": {
+      "main": [
+        [
+          {
+            "node": "Map lead -> canonical",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch latest form lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch latest form lead": {
       "main": [
         [
           {
