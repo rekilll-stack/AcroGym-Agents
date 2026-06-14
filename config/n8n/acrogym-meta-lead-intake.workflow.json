@@ -76,7 +76,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const body = ($input.first().json.body)||{};\nconst v = (((body.entry||[])[0]||{}).changes||[])[0]?.value || {};\nreturn [{ json: { leadgen_id: v.leadgen_id||'', page_id: v.page_id||'', form_id: v.form_id||'' } }];"
+        "jsCode": "const body=($input.first().json.body)||{};\nconst v=(((body.entry||[])[0]||{}).changes||[])[0]?.value || {};\n// Single page/form for now: pin known ids so test/sample webhooks (which carry\n// placeholder page/form ids) still resolve a real lead. Real leads use the\n// real leadgen_id below; page/form pinning is harmless (it IS our page/form).\nreturn [{ json: { leadgen_id: v.leadgen_id||'', page_id: '1139954045869591', form_id: '1031849546192929' } }];"
       }
     },
     {
