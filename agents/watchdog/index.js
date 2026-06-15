@@ -24,6 +24,13 @@ const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
 const TICK_MS = 60 * 1000; // check every minute
 const PM2_BIN = process.env.PM2_BIN || 'pm2'; // override if pm2 isn't on PATH
 
+// Auto-recovery: when an agent is "online but hung" (process alive, poll loop
+// frozen — pm2 can't detect this), restart it automatically. Cooldown stops a
+// restart loop if something is persistently broken: after one auto-restart we
+// wait before trying again and keep alerting so a human can step in.
+const RESTART_COOLDOWN_MS = Number(process.env.WATCHDOG_RESTART_COOLDOWN_MS) || 15 * 60 * 1000;
+const lastAutoRestart = new Map(); // agent name → timestamp (in-memory; resets if watchdog restarts)
+
 // Agents under watch. thresholdMs derived from real cycle intervals:
 // both run a ~60s cycle → 3×60 + buffer ≈ 5 min. Better a 2-min-late alert
 // than night-time false alarms that train us to ignore the channel.
@@ -164,6 +171,20 @@ async function alert(text) {
   }
 }
 
+/**
+ * Restart a hung agent via pm2. Returns true on success.
+ */
+async function restartAgent(name) {
+  try {
+    await execFileP(PM2_BIN, ['restart', name, '--update-env'], { timeout: 30000 });
+    logger.warn({ agent: name }, 'auto-restart issued');
+    return true;
+  } catch (err) {
+    logger.error({ err: err.message, agent: name }, 'auto-restart FAILED');
+    return false;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Main tick
 // ─────────────────────────────────────────────────────────────
@@ -178,14 +199,29 @@ async function tick() {
     catch (err) { logger.error({ err, agent: agent.name }, 'readHeartbeat failed'); continue; }
 
     const proc = snap ? (snap.get(agent.name) || { status: 'not-found', pmUptime: null, restarts: 0 }) : null;
-    const { problem, detailHtml } = evaluate(agent, hb, proc, now);
+    const { problem, reason, detailHtml } = evaluate(agent, hb, proc, now);
 
     const prev = (getAlertState(agent.name) || {}).alert_state || 'ok';
 
     if (problem && prev === 'ok') {
-      await alert(`🔴 <b>${htmlEscape(agent.name)}</b> не отвечает\n${detailHtml}`);
+      // Auto-recover a hung agent (process online but poll loop frozen — pm2
+      // won't restart it on its own). Crashes ('down') are left to pm2.
+      let restartNote = '';
+      if (reason === 'hung') {
+        const last = lastAutoRestart.get(agent.name) || 0;
+        if (now - last >= RESTART_COOLDOWN_MS) {
+          lastAutoRestart.set(agent.name, now);
+          const ok = await restartAgent(agent.name);
+          restartNote = ok
+            ? '\n\n♻️ Авто-перезапуск выполнен — жду восстановления.'
+            : '\n\n⚠️ Авто-перезапуск НЕ удался — нужен ручной рестарт.';
+        } else {
+          restartNote = '\n\n⚠️ Уже перезапускал недавно — авто-перезапуск пропущен, нужен ручной разбор.';
+        }
+      }
+      await alert(`🔴 <b>${htmlEscape(agent.name)}</b> не отвечает\n${detailHtml}${restartNote}`);
       setAlertState(agent.name, 'alerting', now);
-      logger.warn({ agent: agent.name }, 'ALERT sent');
+      logger.warn({ agent: agent.name, reason }, 'ALERT sent');
     } else if (!problem && prev === 'alerting') {
       const since = (getAlertState(agent.name) || {}).alerted_at || now;
       await alert(`✅ <b>${htmlEscape(agent.name)}</b> восстановлен (простой ~${fmtMins(now - since)} мин).`);

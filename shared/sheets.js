@@ -8,6 +8,13 @@ const { createLogger } = require('./logger');
 
 const logger = createLogger('sheets');
 
+// Hard timeout on every Google Sheets API call. Without it a slow/erroring
+// Google backend makes the request hang indefinitely — the poll never
+// completes, the heartbeat freezes, and the watchdog reports the agent as
+// "hung". With a timeout the call aborts, the cycle fails fast, and the next
+// poll recovers automatically once Google is healthy again.
+const SHEETS_TIMEOUT_MS = Number(process.env.SHEETS_TIMEOUT_MS) || 30000;
+
 let _authClient = null;
 let _sheetsClient = null;
 
@@ -48,7 +55,7 @@ async function fetchAllResponses() {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
     range: tabName,
-  });
+  }, { timeout: SHEETS_TIMEOUT_MS });
 
   const rows = res.data.values || [];
   if (rows.length === 0) return [];
@@ -92,7 +99,7 @@ async function updateCell(row, column, value) {
     range,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [[value]] },
-  });
+  }, { timeout: SHEETS_TIMEOUT_MS });
 
   logger.debug({ range, value }, 'Ячейка обновлена');
 }
