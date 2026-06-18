@@ -1,0 +1,5994 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "In2 Public API",
+    "description": "Tenant-facing REST API for integrating with the In2 platform.\n\n> [!WARNING]\n> **Plan requirement:** This API is available on the **Advanced**, **Pro**, and **Enterprise** plans only. Businesses on the **Starter** plan do not have access to the Public API.\n\nAll endpoints require a Bearer token. Use `POST /api/v1/token` to exchange your API key for a short-lived JWT, then pass the returned `accessToken` as the Bearer token on every request. Using the raw API key directly on these endpoints is not recommended.",
+    "contact": {
+      "name": "In2 Support",
+      "email": "support@joinin2.com"
+    },
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "https://app.joinin2.com",
+      "description": "Generated server url"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Exchange an API key for a short-lived access token and rotate it via refresh token."
+    },
+    {
+      "name": "Leads",
+      "description": "Read lead reference data: statuses, capture-form configuration and capture-form links."
+    },
+    {
+      "name": "Leads",
+      "description": "Create, read, update, search, convert and annotate sales leads, and read lead statuses and capture-form configuration."
+    },
+    {
+      "name": "Customers",
+      "description": "Create, read, search and merge customer records, and manage their notes and memberships."
+    },
+    {
+      "name": "Customers",
+      "description": "Create, search, retrieve and annotate customer profiles."
+    },
+    {
+      "name": "Customer Memberships",
+      "description": "Sell packages to customers and manage their lifecycle: renew, freeze, adjust passes and discontinue."
+    },
+    {
+      "name": "Payments",
+      "description": "Initiate online payments, confirm or refund checkouts, record received payments and invoice memberships."
+    },
+    {
+      "name": "Bookings",
+      "description": "Book customers into classes and events, cancel bookings, and list a customer's upcoming and past bookings."
+    },
+    {
+      "name": "Classes & Schedule",
+      "description": "Manage class definitions, occurrences, trainers and cancellations."
+    },
+    {
+      "name": "Classes & Schedule",
+      "description": "List, read, create, update and cancel scheduled classes and sessions, and list the trainers who lead them."
+    },
+    {
+      "name": "Attendance",
+      "description": "Mark attendees as no-show and list a customer's attendance history."
+    },
+    {
+      "name": "Attendance",
+      "description": "Record attendance outcomes for booked sessions and review a customer's attendance history."
+    },
+    {
+      "name": "Field Rentals",
+      "description": "Prepare and confirm field rental reservations, list rental categories, and manage a customer's rental history."
+    },
+    {
+      "name": "Field Rentals",
+      "description": "Browse, prepare, confirm, and cancel field rental bookings. Also list a customer's field rental history."
+    },
+    {
+      "name": "Branches",
+      "description": "List the tenant's branches."
+    },
+    {
+      "name": "Reports",
+      "description": "Pull cash and sales summary reports for a given date range."
+    },
+    {
+      "name": "Reports",
+      "description": "Financial and sales reporting endpoints for the public API."
+    }
+  ],
+  "paths": {
+    "/api/v1/token/refresh": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Refresh an access token",
+        "description": "Exchanges a refresh token for a new access token and refresh token (rotation). Call this before the access token expires to stay authenticated without re-using the API key.",
+        "operationId": "refreshToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/token": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Exchange an API key for tokens",
+        "description": "Exchanges a static API key for a short-lived access token and a refresh token. Use the returned accessToken as the Bearer token on all other endpoints.",
+        "operationId": "exchangeToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenExchangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/leads/{id}": {
+      "get": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "Get a lead by id",
+        "description": "Returns the full detail of a single lead by its numeric id. Use this to look up a lead's contact details, status, assignment and conversion information.",
+        "operationId": "getLead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Lead id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "Update a lead",
+        "description": "Updates an existing lead identified by id. Only the fields supplied in the body are changed. Use this to reassign, re-stage or correct a lead's details.",
+        "operationId": "updateLead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Lead id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLeadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "Delete a lead",
+        "description": "Soft-deletes a lead by id so it no longer appears in the pipeline. Use this to remove leads that are invalid, duplicate or no longer relevant.",
+        "operationId": "deleteLead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Lead id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/leads/{id}/convert": {
+      "post": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "Convert a lead to a client",
+        "description": "Converts a lead into a customer/student, either creating a new client or linking to an existing one. Use this when a prospect signs up. The response status indicates SUCCESS, LINKED, DUPLICATE_FOUND, ALREADY_CONVERTED or ERROR.",
+        "operationId": "convertLead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Lead id to convert.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConvertLeadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConvertLeadResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/leads/{id}/activities": {
+      "get": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "List a lead's activities",
+        "description": "Returns the timeline of notes and tasks recorded against a lead. Optionally filter by type (ALL, NOTE or TASK). Use this to review interactions and follow-ups for a lead.",
+        "operationId": "listLeadActivities",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Lead id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Activity type filter: ALL (default), NOTE or TASK.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "ALL"
+            },
+            "example": "ALL"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeadActivityResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "Add an activity to a lead",
+        "description": "Adds a note or task to a lead's timeline. Use this to record an interaction (NOTE) or schedule a follow-up (TASK, which expects a dueDate). Requires type and content.",
+        "operationId": "addLeadActivity",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Lead id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLeadActivityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadActivityResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/leads": {
+      "get": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "List leads",
+        "description": "Returns the tenant's leads, optionally filtered by name, email, phone, lead source, status, assigned staff, conversion state and a created-date range. Use this to browse or search the lead pipeline.",
+        "operationId": "listLeads",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Filter by name (partial match).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "description": "Filter by email address.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "phoneNumber",
+            "in": "query",
+            "description": "Filter by phone number.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "leadSource",
+            "in": "query",
+            "description": "Filter by lead source.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idLeadStatus",
+            "in": "query",
+            "description": "Filter by lead status id.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "idAssignedStaff",
+            "in": "query",
+            "description": "Filter by assigned staff id.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "isConverted",
+            "in": "query",
+            "description": "Filter by conversion state.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "dateFrom",
+            "in": "query",
+            "description": "Created-date range start (yyyy-MM-dd).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2025-06-01"
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "description": "Created-date range end (yyyy-MM-dd).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2025-06-30"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeadResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "Create a lead",
+        "description": "Creates a new sales lead in the tenant's pipeline. Use this when capturing a prospective customer from any channel. Requires name, leadSource and idLeadStatus.",
+        "operationId": "createLead",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLeadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/lead-statuses": {
+      "get": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "List lead statuses",
+        "description": "Returns all lead statuses (pipeline stages) available to the tenant, including system and custom statuses. Use this to discover valid idLeadStatus values before creating or updating a lead.",
+        "operationId": "listLeadStatuses",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeadStatusResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/lead-form-links": {
+      "get": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "List lead capture form links",
+        "description": "Returns the shareable lead capture form links configured for the tenant. Use this to retrieve the public URLs/tokens prospects use to submit themselves as leads.",
+        "operationId": "listLeadFormLinks",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeadFormLinkResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/lead-form-config": {
+      "get": {
+        "tags": [
+          "Leads"
+        ],
+        "summary": "Get the lead capture form configuration",
+        "description": "Returns the tenant's public lead capture form configuration, including which fields are shown/required and branding. Use this to understand what data the public lead form collects.",
+        "operationId": "getLeadFormConfig",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadFormConfigResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers/{srcId}/merge/{tgtId}": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Merge two customers",
+        "description": "Merges the source customer into the target customer, consolidating their history under the target. Use this to de-duplicate when the same person has two records.",
+        "operationId": "mergeCustomers",
+        "parameters": [
+          {
+            "name": "srcId",
+            "in": "path",
+            "description": "Id of the source customer to merge from (will be absorbed).",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "tgtId",
+            "in": "path",
+            "description": "Id of the target customer to merge into.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers/{id}/notes": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Add a note to a customer",
+        "description": "Attaches a free-text note to a customer record. Use this to record interactions, follow-ups or internal remarks about a customer.",
+        "operationId": "addCustomerNote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer id to attach the note to.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomerNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers/search": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Search customers",
+        "description": "Searches the tenant's customers by name, code, email or phone number and returns the matches. Use this to find a customer when you do not know their id.",
+        "operationId": "searchCustomers",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchCustomersRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomerResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers/list": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "List customers",
+        "description": "Returns a list of customers for the tenant, with optional filters. All filter fields are optional — omit them to return all customers. Set includeAllFields=true to populate extended profile fields such as company, sponsor, school, parent contacts and waiver details. Set includeNotes=true to include each customer's notes text.",
+        "operationId": "listCustomers",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListCustomersRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomerResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Create or update a customer",
+        "description": "Creates a customer record in the tenant's database, or updates an existing one when id is supplied. Use this when a new student or member is enrolling. Requires name and either email or phone.",
+        "operationId": "saveCustomer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers/{id}/customer-memberships": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "List a customer's memberships",
+        "description": "Returns the customer memberships (purchased package instances) held by a customer. Use onlyActive=true to return only non-expired memberships. Use date (yyyy-MM-dd) to filter memberships valid on a specific date. Use idService to filter by service. Use type to filter by package type: CLASSES, PT, CONTRACT, REGISTRATION, DAY_PASS.",
+        "operationId": "listCustomerMemberships",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "onlyActive",
+            "in": "query",
+            "description": "Return only non-expired memberships.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "isPrivate",
+            "in": "query",
+            "description": "Include private memberships.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "idService",
+            "in": "query",
+            "description": "Filter by service id.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "description": "Return memberships valid on this date (yyyy-MM-dd).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2025-06-10"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter by type: CLASSES, PT, CONTRACT, REGISTRATION, DAY_PASS.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomerMembershipResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers/{id}": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Get a customer by id",
+        "description": "Returns the full profile of a single customer in the tenant. Use this to look up a customer's contact details, category and membership status by their numeric id.",
+        "operationId": "getCustomer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers/{id}/memberships": {
+      "post": {
+        "tags": [
+          "Customer Memberships"
+        ],
+        "summary": "Sell a membership to a customer",
+        "description": "Assigns a membership product to the given customer, creating the purchase and (unless suppressed) its invoice. Use this when a customer buys or is granted a new membership.",
+        "operationId": "addCustomerMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer id to sell the membership to.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCustomerPackageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerMembershipResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer-memberships/{id}/renew": {
+      "post": {
+        "tags": [
+          "Customer Memberships"
+        ],
+        "summary": "Renew a customer membership",
+        "description": "Renews an expired customer membership, creating its next cycle. Use this to extend a customer's membership once the current term has ended.",
+        "operationId": "renewCustomerMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer membership id to renew.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer-memberships/{id}/freeze": {
+      "post": {
+        "tags": [
+          "Customer Memberships"
+        ],
+        "summary": "Freeze a customer membership",
+        "description": "Pauses a customer membership for a number of days starting on the given date, optionally charging a freeze fee. Use this when a customer wants to temporarily suspend their membership.",
+        "operationId": "freezeCustomerMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer membership id to freeze.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezePackageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer-memberships/{id}/discontinue": {
+      "post": {
+        "tags": [
+          "Customer Memberships"
+        ],
+        "summary": "Discontinue a customer membership",
+        "description": "Ends a customer membership early, stopping further access and recalculating its expiry. Use this to cancel an active membership before its natural expiry date.",
+        "operationId": "discontinueCustomerMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer membership id to discontinue.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer-memberships/{id}/adjust": {
+      "post": {
+        "tags": [
+          "Customer Memberships"
+        ],
+        "summary": "Adjust a customer membership's passes",
+        "description": "Adds or removes passes/sessions on a customer membership. Use a positive quantity to grant extra passes or a negative quantity to deduct them.",
+        "operationId": "adjustCustomerMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer membership id to adjust.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustPackageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer-memberships/{id}": {
+      "get": {
+        "tags": [
+          "Customer Memberships"
+        ],
+        "summary": "Get a customer membership by id",
+        "description": "Returns the full detail of a single customer membership, including its passes, status, dates and pricing. Use this to inspect one customer membership by its id.",
+        "operationId": "getCustomerMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer membership id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerMembershipResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/{sessionId}/refund": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Refund a payment",
+        "description": "Refunds the transaction of an online checkout identified by its session id. Optionally deletes the customer memberships that were created by the original purchase. Use this to reverse a paid checkout.",
+        "operationId": "refundPayment",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "description": "Checkout session id to refund.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deleteCustomerMemberships",
+            "in": "query",
+            "description": "Also delete the customer memberships created by this purchase.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResultResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/receive": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Record a received payment",
+        "description": "Records a payment received from a customer against their account or a specific transaction, optionally emailing a receipt. Returns the created receipt id and the customer's resulting balance.",
+        "operationId": "receivePayment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceivePaymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentReceiptResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/initiate": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Initiate an online payment",
+        "description": "Starts an online checkout for a package/membership using the chosen payment method, returning the result of preparing the gateway checkout. Use this to begin collecting an online payment from a customer.",
+        "operationId": "initiatePayment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitiatePaymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResultResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customer-memberships/{id}/invoice": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Invoice a customer membership",
+        "description": "Converts the proforma invoice of a customer membership into a final invoice, creating the invoice transaction. Use this to bill a customer for a membership they hold.",
+        "operationId": "invoiceCustomerMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer membership id to invoice.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payments/{sessionId}/success": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Confirm a successful payment",
+        "description": "Finalizes a previously initiated online checkout once the payment gateway has approved it, using the checkout session id. Use this on the success callback to complete the booking/purchase.",
+        "operationId": "getPaymentSuccess",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "description": "Checkout session id returned by the payment gateway.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResultResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/bookings/{idUserEvent}/cancel": {
+      "post": {
+        "tags": [
+          "Bookings"
+        ],
+        "summary": "Cancel a customer's booking",
+        "description": "Cancels a customer's booking identified by idUserEvent (returned by createBooking). Set isReservation=true for field reservations. Set applyCancellation=true to enforce the tenant's cancellation policy, deducting a pass or charging a cancellation fee.",
+        "operationId": "cancelBooking",
+        "parameters": [
+          {
+            "name": "idUserEvent",
+            "in": "path",
+            "description": "Attendee booking id to cancel.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelBookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/bookings/confirm": {
+      "post": {
+        "tags": [
+          "Bookings"
+        ],
+        "summary": "Confirm a booking for a customer",
+        "description": "Confirms a booking with package, credit card, or pay-later. Supports waiting list and front desk payment flows. Use this after preparing a booking to complete the reservation.",
+        "operationId": "confirmBooking",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmBookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmBookingResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/bookings": {
+      "post": {
+        "tags": [
+          "Bookings"
+        ],
+        "summary": "Book a customer into a class",
+        "description": "Books an existing customer into a class/event, paying with one of the customer's packages (memberships). Use this when a staff member enrolls a member into a session. Set asWaitingList to add them to the waiting list when the class is full.",
+        "operationId": "createBooking",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers/{id}/bookings": {
+      "get": {
+        "tags": [
+          "Bookings"
+        ],
+        "summary": "List a customer's bookings",
+        "description": "Returns a customer's class and field bookings. Use the 'when' selector to choose upcoming (default) or past bookings. Use dateFrom and dateTo (yyyy-MM-dd) for explicit range filtering instead of the coarse upcoming/past toggle. Use this to review what a customer is scheduled for or has previously attended.",
+        "operationId": "listCustomerBookings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "when",
+            "in": "query",
+            "description": "Filter: 'upcoming' (default) or 'past'.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "upcoming"
+            },
+            "example": "upcoming"
+          },
+          {
+            "name": "dateFrom",
+            "in": "query",
+            "description": "Date range start (yyyy-MM-dd). Overrides the when filter.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2025-06-01"
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "description": "Date range end (yyyy-MM-dd). Overrides the when filter.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2025-06-30"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BookingReservationResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/bookings/prepare/{classOccurrenceId}": {
+      "get": {
+        "tags": [
+          "Bookings"
+        ],
+        "summary": "Prepare a class booking for a customer",
+        "description": "Prepares booking details including pricing, availability, membership options, and payment methods for a class occurrence. Use this before confirming a booking to show the customer what options are available. Supply idService to get service-specific pricing. Supply dateTime (yyyy-MM-dd HH:mm:ss) for open/recurring events where the specific slot matters.",
+        "operationId": "prepareClassBooking",
+        "parameters": [
+          {
+            "name": "classOccurrenceId",
+            "in": "path",
+            "description": "Class occurrence event id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "idClient",
+            "in": "query",
+            "description": "Customer id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "idService",
+            "in": "query",
+            "description": "Service id for service-specific pricing.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "dateTime",
+            "in": "query",
+            "description": "Slot datetime (yyyy-MM-dd HH:mm:ss). Required for open/recurring events.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2025-06-10 09:00:00"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareClassBookingResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classes/occurrences/{id}": {
+      "get": {
+        "tags": [
+          "Classes & Schedule"
+        ],
+        "summary": "Get a class occurrence by id",
+        "description": "Returns the full details of a single class occurrence, including capacity, attendees, trainer and location. Use this to inspect one occurrence identified by its event id.",
+        "operationId": "getClassOccurrence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Class occurrence event id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassDetailsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Classes & Schedule"
+        ],
+        "summary": "Update a class occurrence",
+        "description": "Updates an existing class occurrence identified by its event id. Set applyToAll to propagate the change to every occurrence in the same series (a trainer is then required).",
+        "operationId": "updateClassOccurrence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateClassRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classes/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Classes & Schedule"
+        ],
+        "summary": "Cancel a class",
+        "description": "Cancels a scheduled class identified by its schedule id. Use this to remove a class from the timetable; attendees are handled per the tenant's cancellation policy. Use hideFromOnlineSchedule=true to hide the class from the public schedule without fully cancelling it. Use cancelWithAttendeesApproved=true to skip the attendee confirmation step.",
+        "operationId": "cancelClass",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Schedule id to cancel.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "hideFromOnlineSchedule",
+            "in": "query",
+            "description": "Hide from the online schedule without fully cancelling.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "cancelWithAttendeesApproved",
+            "in": "query",
+            "description": "Skip attendee confirmation step.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classes/occurrences/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Classes & Schedule"
+        ],
+        "summary": "Cancel a single class occurrence",
+        "description": "Cancels one specific scheduled occurrence of a class, identified by its event id. Unlike cancelClass (which targets a schedule and cancels by schedule id), this targets a single event occurrence. Set applyToAll=true to cancel this occurrence and all future occurrences in the same series. Use hideFromOnlineSchedule=true to hide without fully cancelling. Use cancelWithAttendeesApproved=true to skip the attendee confirmation step.",
+        "operationId": "cancelClassOccurrence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Class occurrence event id to cancel.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "applyToAll",
+            "in": "query",
+            "description": "True to cancel this occurrence and all future ones in the series.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "hideFromOnlineSchedule",
+            "in": "query",
+            "description": "Hide from the online schedule without fully cancelling.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "cancelWithAttendeesApproved",
+            "in": "query",
+            "description": "Skip attendee confirmation step.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classes": {
+      "get": {
+        "tags": [
+          "Classes & Schedule"
+        ],
+        "summary": "List scheduled classes",
+        "description": "Returns the tenant's scheduled classes and sessions, optionally filtered to a single branch. Use this to browse the timetable, see recurrence patterns and find a class id.",
+        "operationId": "listClasses",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "query",
+            "description": "Restrict results to this branch id.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClassResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Classes & Schedule"
+        ],
+        "summary": "Create a class",
+        "description": "Creates one or more scheduled class occurrences from a title, category, trainer and one or more times. Supports recurring schedules via sessionType plus repeatUntil or occurences. Returns the details of the first created occurrence, including its id.",
+        "operationId": "createClass",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClassRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassDetailsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/trainers": {
+      "get": {
+        "tags": [
+          "Classes & Schedule"
+        ],
+        "summary": "List trainers",
+        "description": "Returns the tenant's trainers/teachers, optionally limited to those who deliver a given service. Use this to find a trainer id when creating or updating a class.",
+        "operationId": "listTrainers",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "in": "query",
+            "description": "Restrict to trainers who deliver this service id.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrainerResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/classes/events": {
+      "get": {
+        "tags": [
+          "Classes & Schedule"
+        ],
+        "summary": "Get class events",
+        "description": "Returns scheduled class events for a day or week, optionally filtered by branch and categories. Use showWeekly=true to get a week's worth of events from the selectedDate. Dates must be in yyyy-MM-dd format. Use endDate to fetch an explicit range instead of a day/week toggle. Use onlyCancelled=true to return only cancelled events, or showCancelled=true to include cancelled events in normal results.",
+        "operationId": "getClassEvents",
+        "parameters": [
+          {
+            "name": "selectedDate",
+            "in": "query",
+            "description": "Reference date (yyyy-MM-dd).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2025-06-10"
+          },
+          {
+            "name": "showWeekly",
+            "in": "query",
+            "description": "True to return a full week from selectedDate; false for a single day.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "branchId",
+            "in": "query",
+            "description": "Restrict to this branch id.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "categoryIds",
+            "in": "query",
+            "description": "Filter by these category ids.",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "description": "End of an explicit date range (yyyy-MM-dd). Overrides showWeekly.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2025-06-17"
+          },
+          {
+            "name": "onlyCancelled",
+            "in": "query",
+            "description": "True to return only cancelled events.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "showCancelled",
+            "in": "query",
+            "description": "True to include cancelled events alongside normal results.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClassResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/attendance/{idUserEvent}/no-show": {
+      "post": {
+        "tags": [
+          "Attendance"
+        ],
+        "summary": "Mark an attendee as a no-show",
+        "description": "Marks the attendee booking identified by idUserEvent as a no-show, applying the tenant's no-show policy. Use this when a customer did not turn up for a session they had booked.",
+        "operationId": "markNoShow",
+        "parameters": [
+          {
+            "name": "idUserEvent",
+            "in": "path",
+            "description": "Attendee booking id to mark as no-show.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkNoShowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/attendance/check-in": {
+      "post": {
+        "tags": [
+          "Attendance"
+        ],
+        "summary": "Check in an attendee",
+        "description": "Marks the given attendee booking as present, recording that the customer showed up and consumed their session. Use this when a customer arrives for a class or appointment they had booked.",
+        "operationId": "checkInAttendance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckInAttendanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers/{id}/attendance": {
+      "get": {
+        "tags": [
+          "Attendance"
+        ],
+        "summary": "List a customer's attendance history",
+        "description": "Returns the reservations and sessions booked by the given customer along with each one's attendance outcome. Use this to review whether a customer attended, was a no-show, or cancelled their past bookings.",
+        "operationId": "listCustomerAttendance",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AttendanceResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/field-rentals/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Field Rentals"
+        ],
+        "summary": "Cancel a field rental",
+        "description": "Cancels the field rental reservation identified by the path id. Set cancelWithCancellationFee to true to apply the tenant's cancellation fee policy.",
+        "operationId": "cancelFieldRental",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Field rental reservation id to cancel.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelFieldRentalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/field-rentals/confirm": {
+      "post": {
+        "tags": [
+          "Field Rentals"
+        ],
+        "summary": "Confirm a field rental booking",
+        "description": "Confirms a field rental reservation using the price list item id obtained from prepareFieldRental. Pay immediately with a stored credit card, or defer payment to the front desk by setting payLater=true.",
+        "operationId": "confirmFieldRental",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmFieldRentalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmBookingResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/field-rentals/prepare": {
+      "get": {
+        "tags": [
+          "Field Rentals"
+        ],
+        "summary": "Prepare a field rental booking",
+        "description": "Returns available field game configurations, time slots, pricing options, and payment methods for the given date and category. Use this before confirming a booking to present available options. Supply idClient to apply loyalty discounts and session-owed checks for that customer.",
+        "operationId": "prepareFieldRental",
+        "parameters": [
+          {
+            "name": "idCategory",
+            "in": "query",
+            "description": "Field category id to filter available fields.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "description": "Date to check availability for (yyyy-MM-dd).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2025-06-10"
+          },
+          {
+            "name": "fromTime",
+            "in": "query",
+            "description": "Start time filter (HH:mm).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "09:00"
+          },
+          {
+            "name": "toTime",
+            "in": "query",
+            "description": "End time filter (HH:mm).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "11:00"
+          },
+          {
+            "name": "idBranch",
+            "in": "query",
+            "description": "Restrict availability to this branch id.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "idClient",
+            "in": "query",
+            "description": "Customer id. Supply to apply loyalty discounts.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareFieldRentalResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/field-rentals/categories": {
+      "get": {
+        "tags": [
+          "Field Rentals"
+        ],
+        "summary": "List available field rental categories",
+        "description": "Returns the field categories (e.g. Football, Tennis, Padel) that have at least one bookable field game with online pricing configured.",
+        "operationId": "listFieldRentalCategories",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FieldRentalCategoryResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/customers/{id}/field-rentals": {
+      "get": {
+        "tags": [
+          "Field Rentals"
+        ],
+        "summary": "List a customer's field rentals",
+        "description": "Returns the field rental reservations for the given customer. Use the 'when' selector to choose upcoming (default) or past rentals.",
+        "operationId": "listCustomerFieldRentals",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Customer id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "when",
+            "in": "query",
+            "description": "Filter: 'upcoming' (default) or 'past'.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "upcoming"
+            },
+            "example": "upcoming"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BookingReservationResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/branches": {
+      "get": {
+        "tags": [
+          "Branches"
+        ],
+        "summary": "List branches",
+        "description": "Returns all branches configured for the tenant.",
+        "operationId": "listBranches",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BranchResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/reports/sales": {
+      "post": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Get sales report",
+        "description": "Returns a list of sales transactions including packages, products and reservations for the tenant within the specified date range. fromDate and toDate are mandatory. Use this to review revenue and itemized sales.",
+        "operationId": "getSalesReport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalesReportResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/reports/cash": {
+      "post": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Get cash report",
+        "description": "Returns a list of cash transactions for the tenant within the specified date range. fromDate and toDate are mandatory. Use this to review payments, refunds and other cash movements.",
+        "operationId": "getCashReport",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashReportResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payment-methods": {
+      "post": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Get payment methods",
+        "description": "Returns all available offline and online payment methods for the tenant, optionally filtered by branch. Use the returned ids to filter cash and sales reports by payment method.",
+        "operationId": "getPaymentMethods",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentMethodsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json;charset=UTF-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentMethodsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UpdateLeadRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Full name of the lead."
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address of the lead."
+          },
+          "phoneNumber": {
+            "type": "string",
+            "description": "Phone number of the lead."
+          },
+          "leadSource": {
+            "type": "string",
+            "description": "Where the lead originated from.",
+            "enum": [
+              "MANUAL",
+              "ONLINE"
+            ]
+          },
+          "leadSourceName": {
+            "type": "string",
+            "description": "Free-text name describing the lead source."
+          },
+          "idLeadStatus": {
+            "type": "integer",
+            "description": "Id of the lead status to assign.",
+            "format": "int32"
+          },
+          "lastContactDate": {
+            "type": "string",
+            "description": "Date the lead was last contacted.",
+            "format": "date-time"
+          },
+          "nextFollowupDate": {
+            "type": "string",
+            "description": "Next planned follow-up date.",
+            "format": "date-time"
+          },
+          "idAssignedStaff": {
+            "type": "integer",
+            "description": "Id of the staff member assigned to this lead.",
+            "format": "int32"
+          },
+          "howDidYouHear": {
+            "type": "string",
+            "description": "How the lead heard about the business.",
+            "enum": [
+              "GOOGLE",
+              "FRIEND",
+              "AD",
+              "SOCIAL_MEDIA",
+              "WEBSITE",
+              "REFERRAL",
+              "OTHERS"
+            ]
+          },
+          "howDidYouHearOther": {
+            "type": "string",
+            "description": "Free text used when howDidYouHear is OTHER."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional note, appended as a new NOTE activity."
+          }
+        },
+        "description": "Update an existing lead. All fields are optional, only supplied fields are changed."
+      },
+      "LeadResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "leadSource": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "ONLINE"
+            ]
+          },
+          "leadSourceName": {
+            "type": "string"
+          },
+          "idLeadStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "leadStatusName": {
+            "type": "string"
+          },
+          "lastContactDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nextFollowupDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idAssignedStaff": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "assignedStaffName": {
+            "type": "string"
+          },
+          "howDidYouHear": {
+            "type": "string",
+            "enum": [
+              "GOOGLE",
+              "FRIEND",
+              "AD",
+              "SOCIAL_MEDIA",
+              "WEBSITE",
+              "REFERRAL",
+              "OTHERS"
+            ]
+          },
+          "howDidYouHearOther": {
+            "type": "string"
+          },
+          "isConverted": {
+            "type": "boolean"
+          },
+          "convertedDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idConvertedClient": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "convertedClientName": {
+            "type": "string"
+          },
+          "conversionType": {
+            "type": "string"
+          },
+          "conversionSource": {
+            "type": "string"
+          },
+          "leadTime": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdByName": {
+            "type": "string"
+          },
+          "leadFormLinkName": {
+            "type": "string"
+          },
+          "isDeleted": {
+            "type": "boolean"
+          }
+        },
+        "description": "A lead record."
+      },
+      "UpdateClassRequest": {
+        "required": [
+          "description",
+          "duration",
+          "eventDate",
+          "idCategory",
+          "idTrainer",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "applyToAll": {
+            "type": "boolean",
+            "description": "Apply the change to all occurrences in the same series. Requires a trainer."
+          },
+          "title": {
+            "type": "string",
+            "description": "Class title."
+          },
+          "description": {
+            "type": "string",
+            "description": "Class description."
+          },
+          "idCategory": {
+            "type": "integer",
+            "description": "Category (activity) id.",
+            "format": "int32"
+          },
+          "idTrainer": {
+            "type": "integer",
+            "description": "Trainer (PortalUser) id.",
+            "format": "int32"
+          },
+          "idFieldGame": {
+            "type": "integer",
+            "description": "Room/field-game id, or omit for an online or physical-address class.",
+            "format": "int32"
+          },
+          "eventDate": {
+            "type": "string",
+            "description": "New start date and time, formatted yyyy-MM-dd HH:mm:ss."
+          },
+          "duration": {
+            "type": "integer",
+            "description": "Duration in minutes.",
+            "format": "int32"
+          },
+          "isOnline": {
+            "type": "boolean",
+            "description": "Whether the class is held online."
+          },
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "idLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fromAge": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "toAge": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "picUrl": {
+            "type": "string"
+          },
+          "isPublic": {
+            "type": "boolean",
+            "description": "Whether the class is publicly visible."
+          },
+          "attendeesVisibility": {
+            "type": "boolean"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "countryCode": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          }
+        },
+        "description": "Update an existing class occurrence. The event id is taken from the path."
+      },
+      "OperationResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "description": "Generic result of a state-changing operation."
+      },
+      "TokenRefreshRequest": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        }
+      },
+      "TokenResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "TokenExchangeRequest": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          }
+        }
+      },
+      "ReportRequest": {
+        "required": [
+          "fromDate",
+          "toDate"
+        ],
+        "type": "object",
+        "properties": {
+          "idBranch": {
+            "type": "integer",
+            "description": "Limit results to a specific branch id.",
+            "format": "int32"
+          },
+          "fromDate": {
+            "type": "string",
+            "description": "Report start date, formatted yyyy-MM-dd.",
+            "example": "2025-01-01"
+          },
+          "toDate": {
+            "type": "string",
+            "description": "Report end date (inclusive), formatted yyyy-MM-dd.",
+            "example": "2025-01-31"
+          },
+          "idPaymentMethod": {
+            "type": "integer",
+            "description": "Limit results to a specific payment method id.",
+            "format": "int32"
+          },
+          "idTrainer": {
+            "type": "integer",
+            "description": "Limit results to a specific trainer id.",
+            "format": "int32"
+          },
+          "idClient": {
+            "type": "integer",
+            "description": "Limit results to a specific customer id.",
+            "format": "int32"
+          }
+        },
+        "description": "Date range and optional filters for financial reports. fromDate and toDate are mandatory."
+      },
+      "SalesReportItemBean": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "membershipName": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "transactionNumber": {
+            "type": "string"
+          },
+          "in2TransactionReference": {
+            "type": "string"
+          },
+          "transactionType": {
+            "type": "string",
+            "enum": [
+              "INVOICE",
+              "RECEIPT",
+              "CREDIT",
+              "PAYMENT",
+              "OPENING_BALANCE",
+              "SETTLEMENT",
+              "PROFORMA",
+              "VARIATION",
+              "TRANSFER_OUT",
+              "TRANSFER_IN",
+              "EXPENSE"
+            ]
+          },
+          "branch": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "clientEmail": {
+            "type": "string"
+          },
+          "clientNumber": {
+            "type": "string"
+          },
+          "supplierId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "supplierName": {
+            "type": "string"
+          },
+          "idPayment": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idPaymentMethod": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paymentMethod": {
+            "type": "string"
+          },
+          "idUser": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idPackage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "packageType": {
+            "type": "string",
+            "enum": [
+              "REGULAR",
+              "PRIVATE",
+              "EVENT",
+              "BOTH"
+            ]
+          },
+          "idProduct": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idBranch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "date": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currencyAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "amountNoCommission": {
+            "type": "number",
+            "format": "double"
+          },
+          "currencyAmountNoCommission": {
+            "type": "number",
+            "format": "double"
+          },
+          "outstandingAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "taxAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "isDebit": {
+            "type": "boolean"
+          },
+          "reconciled": {
+            "type": "boolean"
+          },
+          "sessionType": {
+            "type": "string",
+            "enum": [
+              "REGULAR",
+              "PRIVATE",
+              "EVENT",
+              "BOTH"
+            ]
+          },
+          "refNumber": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "idTenant": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isSynced": {
+            "type": "boolean"
+          },
+          "transactionDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "itemType": {
+            "type": "string"
+          },
+          "itemName": {
+            "type": "string"
+          },
+          "itemCode": {
+            "type": "string"
+          },
+          "itemPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "itemDiscountedPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "itemQty": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "itemId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "itemColor": {
+            "type": "string"
+          },
+          "itemSize": {
+            "type": "string"
+          },
+          "paymentNumber": {
+            "type": "string"
+          },
+          "paymentCurrencyCode": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "expiryDate": {
+            "type": "string"
+          },
+          "paymentAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "schedules": {
+            "type": "string"
+          },
+          "trainersName": {
+            "type": "string"
+          },
+          "days": {
+            "type": "string"
+          },
+          "originalAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "discountedAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "discount": {
+            "type": "number",
+            "format": "double"
+          },
+          "paymentNote": {
+            "type": "string"
+          },
+          "idCategory": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "categoryName": {
+            "type": "string"
+          }
+        },
+        "description": "List of sales transactions including packages, products and reservations."
+      },
+      "SalesReportResponse": {
+        "type": "object",
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "description": "List of sales transactions including packages, products and reservations.",
+            "items": {
+              "$ref": "#/components/schemas/SalesReportItemBean"
+            }
+          },
+          "totalProductsAmount": {
+            "type": "number",
+            "description": "Total amount from product sales.",
+            "format": "double"
+          },
+          "totalPackagesAmount": {
+            "type": "number",
+            "description": "Total amount from package sales.",
+            "format": "double"
+          },
+          "totalOthersAmount": {
+            "type": "number",
+            "description": "Total amount from other transaction types.",
+            "format": "double"
+          },
+          "totalReservationsAmount": {
+            "type": "number",
+            "description": "Total amount from reservation sales.",
+            "format": "double"
+          }
+        },
+        "description": "Sales report response containing itemized sales transactions and totals."
+      },
+      "CashReportItemBean": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "membershipName": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "transactionNumber": {
+            "type": "string"
+          },
+          "in2TransactionReference": {
+            "type": "string"
+          },
+          "transactionType": {
+            "type": "string",
+            "enum": [
+              "INVOICE",
+              "RECEIPT",
+              "CREDIT",
+              "PAYMENT",
+              "OPENING_BALANCE",
+              "SETTLEMENT",
+              "PROFORMA",
+              "VARIATION",
+              "TRANSFER_OUT",
+              "TRANSFER_IN",
+              "EXPENSE"
+            ]
+          },
+          "branch": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "clientEmail": {
+            "type": "string"
+          },
+          "clientNumber": {
+            "type": "string"
+          },
+          "supplierId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "supplierName": {
+            "type": "string"
+          },
+          "idPayment": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idPaymentMethod": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paymentMethod": {
+            "type": "string"
+          },
+          "idUser": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idPackage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "packageType": {
+            "type": "string",
+            "enum": [
+              "REGULAR",
+              "PRIVATE",
+              "EVENT",
+              "BOTH"
+            ]
+          },
+          "idProduct": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idBranch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "date": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currencyAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "amountNoCommission": {
+            "type": "number",
+            "format": "double"
+          },
+          "currencyAmountNoCommission": {
+            "type": "number",
+            "format": "double"
+          },
+          "outstandingAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "taxAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "isDebit": {
+            "type": "boolean"
+          },
+          "reconciled": {
+            "type": "boolean"
+          },
+          "sessionType": {
+            "type": "string",
+            "enum": [
+              "REGULAR",
+              "PRIVATE",
+              "EVENT",
+              "BOTH"
+            ]
+          },
+          "refNumber": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "idTenant": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isSynced": {
+            "type": "boolean"
+          },
+          "transactionDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "allocatedTransactionId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "allocatedTransactionNumber": {
+            "type": "string"
+          },
+          "allocatedTransactionType": {
+            "type": "string",
+            "enum": [
+              "INVOICE",
+              "RECEIPT",
+              "CREDIT",
+              "PAYMENT",
+              "OPENING_BALANCE",
+              "SETTLEMENT",
+              "PROFORMA",
+              "VARIATION",
+              "TRANSFER_OUT",
+              "TRANSFER_IN",
+              "EXPENSE"
+            ]
+          },
+          "allocatedTransactionCurrencyCode": {
+            "type": "string"
+          },
+          "allocatedTransactionDescription": {
+            "type": "string"
+          },
+          "allocatedTransactionDiscountedAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "allocatedAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "allocatedTransactionNote": {
+            "type": "string"
+          }
+        },
+        "description": "List of cash transactions."
+      },
+      "CashReportResponse": {
+        "type": "object",
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "description": "List of cash transactions.",
+            "items": {
+              "$ref": "#/components/schemas/CashReportItemBean"
+            }
+          }
+        },
+        "description": "Cash report response containing a list of cash transactions."
+      },
+      "PaymentResultResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the operation succeeded."
+          },
+          "message": {
+            "type": "string",
+            "description": "Result message from the payment flow."
+          }
+        },
+        "description": "Result of a payment lifecycle operation (initiate, success, refund)."
+      },
+      "ReceivePaymentRequest": {
+        "required": [
+          "amount",
+          "idClient",
+          "idPaymentMethod"
+        ],
+        "type": "object",
+        "properties": {
+          "idClient": {
+            "type": "integer",
+            "description": "Id of the customer making the payment.",
+            "format": "int32"
+          },
+          "idPaymentMethod": {
+            "type": "integer",
+            "description": "Id of the payment method used to receive the payment.",
+            "format": "int32"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Amount received.",
+            "format": "double"
+          },
+          "idTransaction": {
+            "type": "integer",
+            "description": "Id of an existing receipt transaction to edit. Omit to create a new receipt.",
+            "format": "int32"
+          },
+          "idTenantBranch": {
+            "type": "integer",
+            "description": "Id of the tenant branch the payment belongs to. Optional.",
+            "format": "int32"
+          },
+          "refNumber": {
+            "type": "string",
+            "description": "Optional reference number for the receipt."
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional free-text note for the receipt."
+          },
+          "transactionDate": {
+            "type": "string",
+            "description": "Transaction date formatted yyyy-MM-dd. Defaults to today when omitted."
+          },
+          "idPaymentReminder": {
+            "type": "integer",
+            "description": "Id of a payment reminder to mark complete with this payment. Optional.",
+            "format": "int32"
+          },
+          "sendReceipt": {
+            "type": "boolean",
+            "description": "Whether to email a receipt to the customer."
+          },
+          "allocations": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "description": "Optional allocation of the amount across invoice/transaction ids.",
+              "format": "double"
+            },
+            "description": "Optional allocation of the amount across invoice/transaction ids."
+          }
+        },
+        "description": "Record a payment received from a customer against their account or a specific transaction."
+      },
+      "PaymentReceiptResponse": {
+        "type": "object",
+        "properties": {
+          "receiptId": {
+            "type": "integer",
+            "description": "Id of the created/edited receipt transaction.",
+            "format": "int32"
+          },
+          "balance": {
+            "type": "number",
+            "description": "Customer balance after the payment.",
+            "format": "double"
+          }
+        },
+        "description": "Result of recording a received payment, including the new receipt id and the customer's balance."
+      },
+      "InitiatePaymentRequest": {
+        "required": [
+          "idPaymentMethod",
+          "packageId"
+        ],
+        "type": "object",
+        "properties": {
+          "packageId": {
+            "type": "integer",
+            "description": "Id of the package/membership the customer is purchasing.",
+            "format": "int32"
+          },
+          "idPaymentMethod": {
+            "type": "integer",
+            "description": "Id of the payment method (gateway) to use for the checkout.",
+            "format": "int32"
+          },
+          "scheduleIds": {
+            "type": "array",
+            "description": "Optional schedule ids to book together with the package.",
+            "items": {
+              "type": "integer",
+              "description": "Optional schedule ids to book together with the package.",
+              "format": "int32"
+            }
+          }
+        },
+        "description": "Initiate an online payment checkout for a package/membership and a payment method."
+      },
+      "PaymentMethodsRequest": {
+        "type": "object",
+        "properties": {
+          "idBranch": {
+            "type": "integer",
+            "description": "Limit results to a specific branch id.",
+            "format": "int32"
+          }
+        },
+        "description": "Optional filters for payment methods lookup."
+      },
+      "PaymentMethodResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Payment method id.",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string",
+            "description": "Payment method display name."
+          },
+          "idCurrency": {
+            "type": "integer",
+            "description": "Currency id.",
+            "format": "int32"
+          },
+          "currencyName": {
+            "type": "string",
+            "description": "Currency display name."
+          },
+          "currencyIso": {
+            "type": "string",
+            "description": "Currency ISO code (e.g. USD, LBP)."
+          }
+        },
+        "description": "A payment method with its currency details."
+      },
+      "PaymentMethodsResponse": {
+        "type": "object",
+        "properties": {
+          "offline": {
+            "type": "array",
+            "description": "Offline (cash and manual) payment methods.",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethodResponse"
+            }
+          },
+          "online": {
+            "type": "array",
+            "description": "Online (gateway-linked) payment methods.",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethodResponse"
+            }
+          }
+        },
+        "description": "All available payment methods grouped by type."
+      },
+      "ConvertLeadRequest": {
+        "type": "object",
+        "properties": {
+          "linkToExistingClient": {
+            "type": "boolean",
+            "description": "When true, link the lead to an existing client instead of creating a new one."
+          },
+          "existingClientId": {
+            "type": "integer",
+            "description": "Id of the existing client to link to (required when linkToExistingClient is true).",
+            "format": "int32"
+          },
+          "forceCreateNew": {
+            "type": "boolean",
+            "description": "When true, create a new client even if a duplicate is detected."
+          }
+        },
+        "description": "Options controlling how a lead is converted into a client."
+      },
+      "ConvertLeadResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Conversion outcome: SUCCESS, LINKED, DUPLICATE_FOUND, ALREADY_CONVERTED or ERROR."
+          },
+          "clientId": {
+            "type": "integer",
+            "description": "Id of the created or linked client (when status is SUCCESS or LINKED).",
+            "format": "int32"
+          },
+          "clientName": {
+            "type": "string",
+            "description": "Name of the created or linked client."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable message describing the outcome."
+          },
+          "duplicateClients": {
+            "type": "array",
+            "description": "Potential duplicate clients found (when status is DUPLICATE_FOUND).",
+            "items": {
+              "$ref": "#/components/schemas/DuplicateClient"
+            }
+          }
+        },
+        "description": "Result of converting a lead into a client."
+      },
+      "DuplicateClient": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        },
+        "description": "A potential duplicate client."
+      },
+      "CreateLeadActivityRequest": {
+        "required": [
+          "content",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Activity type: NOTE or TASK.",
+            "enum": [
+              "NOTE",
+              "TASK"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "description": "The text content of the note or task."
+          },
+          "dueDate": {
+            "type": "string",
+            "description": "Due date for the activity. Required for TASK, optional for NOTE."
+          }
+        },
+        "description": "Add a note or task activity to a lead's timeline."
+      },
+      "LeadActivityResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idLead": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idStaff": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "NOTE",
+              "TASK"
+            ]
+          },
+          "content": {
+            "type": "string"
+          },
+          "dueDate": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "isOverdue": {
+            "type": "boolean"
+          }
+        },
+        "description": "A note or task on a lead's timeline."
+      },
+      "CreateLeadRequest": {
+        "required": [
+          "idLeadStatus",
+          "leadSource",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Full name of the lead.",
+            "example": "Jane Doe"
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address of the lead."
+          },
+          "phoneNumber": {
+            "type": "string",
+            "description": "Phone number of the lead."
+          },
+          "leadSource": {
+            "type": "string",
+            "description": "Where the lead originated from.",
+            "enum": [
+              "MANUAL",
+              "ONLINE"
+            ]
+          },
+          "leadSourceName": {
+            "type": "string",
+            "description": "Free-text name describing the lead source."
+          },
+          "idLeadStatus": {
+            "type": "integer",
+            "description": "Id of the lead status to assign.",
+            "format": "int32"
+          },
+          "idAssignedStaff": {
+            "type": "integer",
+            "description": "Id of the staff member assigned to this lead.",
+            "format": "int32"
+          },
+          "howDidYouHear": {
+            "type": "string",
+            "description": "How the lead heard about the business.",
+            "enum": [
+              "GOOGLE",
+              "FRIEND",
+              "AD",
+              "SOCIAL_MEDIA",
+              "WEBSITE",
+              "REFERRAL",
+              "OTHERS"
+            ]
+          },
+          "howDidYouHearOther": {
+            "type": "string",
+            "description": "Free text used when howDidYouHear is OTHER."
+          },
+          "nextFollowupDate": {
+            "type": "string",
+            "description": "Next planned follow-up date.",
+            "format": "date-time"
+          },
+          "lastContactDate": {
+            "type": "string",
+            "description": "Date the lead was last contacted.",
+            "format": "date-time"
+          },
+          "forceCreate": {
+            "type": "boolean",
+            "description": "Force creation even when an existing client matches the email/phone."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional initial note, persisted as a NOTE activity."
+          }
+        },
+        "description": "Create a new lead. Name, lead source and lead status are required."
+      },
+      "CancelFieldRentalRequest": {
+        "required": [
+          "idClient"
+        ],
+        "type": "object",
+        "properties": {
+          "idClient": {
+            "type": "integer",
+            "description": "Customer id who owns the reservation.",
+            "format": "int32"
+          },
+          "cancelWithCancellationFee": {
+            "type": "boolean",
+            "description": "Set to true to apply the tenant's cancellation fee when within the no-refund window."
+          }
+        },
+        "description": "Parameters for cancelling a field rental booking."
+      },
+      "ConfirmFieldRentalRequest": {
+        "required": [
+          "dateTime",
+          "idClient",
+          "idFieldGamePriceListItem"
+        ],
+        "type": "object",
+        "properties": {
+          "idClient": {
+            "type": "integer",
+            "description": "Customer id.",
+            "format": "int32"
+          },
+          "idFieldGamePriceListItem": {
+            "type": "integer",
+            "description": "Price list item id obtained from prepareFieldRental.",
+            "format": "int32"
+          },
+          "dateTime": {
+            "type": "string",
+            "description": "Start date and time of the rental, formatted as yyyy-MM-dd HH:mm:ss."
+          },
+          "idCreditCard": {
+            "type": "integer",
+            "description": "Customer credit card id for card payment. Null to pay later or pay at front desk.",
+            "format": "int32"
+          },
+          "payLater": {
+            "type": "boolean",
+            "description": "Set to true to defer payment to the front desk."
+          }
+        },
+        "description": "Parameters for confirming a field rental booking."
+      },
+      "ConfirmBookingResponse": {
+        "type": "object",
+        "properties": {
+          "idBooking": {
+            "type": "integer",
+            "description": "Unique identifier for the booking.",
+            "format": "int32"
+          },
+          "idUserEvent": {
+            "type": "integer",
+            "description": "Id of the user event (attendance record).",
+            "format": "int32"
+          },
+          "idClient": {
+            "type": "integer",
+            "description": "Id of the client/customer.",
+            "format": "int32"
+          },
+          "clientName": {
+            "type": "string",
+            "description": "Name of the client."
+          },
+          "classOccurrenceId": {
+            "type": "integer",
+            "description": "Id of the class occurrence.",
+            "format": "int32"
+          },
+          "eventName": {
+            "type": "string",
+            "description": "Name of the event/class."
+          },
+          "idCustomerMembership": {
+            "type": "integer",
+            "description": "Id of the customer membership used.",
+            "format": "int32"
+          },
+          "membershipName": {
+            "type": "string",
+            "description": "Name of the membership/package."
+          },
+          "idInvoice": {
+            "type": "integer",
+            "description": "Id of the invoice generated.",
+            "format": "int32"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Amount charged."
+          },
+          "balance": {
+            "type": "number",
+            "description": "Remaining balance on the membership.",
+            "format": "double"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "description": "Whether the booking is confirmed."
+          },
+          "asWaitingList": {
+            "type": "boolean",
+            "description": "Whether the booking is on the waiting list."
+          },
+          "message": {
+            "type": "string",
+            "description": "Status message."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the operation was successful."
+          }
+        },
+        "description": "Response for a confirmed booking."
+      },
+      "CreateCustomerNoteRequest": {
+        "required": [
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "Note text."
+          },
+          "isAction": {
+            "type": "boolean",
+            "description": "Whether the note represents an actionable follow-up."
+          }
+        },
+        "description": "Add a note to a customer record."
+      },
+      "AddCustomerPackageRequest": {
+        "required": [
+          "packageId"
+        ],
+        "type": "object",
+        "properties": {
+          "idBranch": {
+            "type": "integer",
+            "description": "Branch id where the purchase is recorded.",
+            "format": "int32"
+          },
+          "packageId": {
+            "type": "integer",
+            "description": "Id of the package/membership product to assign to the customer.",
+            "format": "int32"
+          },
+          "idCurrency": {
+            "type": "integer",
+            "description": "Currency id for the purchase.",
+            "format": "int32"
+          },
+          "purchaseDate": {
+            "type": "string",
+            "description": "Purchase date, formatted yyyy-MM-dd. Defaults to today when omitted."
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Package start date, formatted yyyy-MM-dd."
+          },
+          "expiryDate": {
+            "type": "string",
+            "description": "Package expiry date, formatted yyyy-MM-dd. Defaults to the product's configured duration."
+          },
+          "originalAmount": {
+            "type": "number",
+            "description": "Original (pre-discount) price. Defaults to the product's configured price.",
+            "format": "double"
+          },
+          "discountedAmount": {
+            "type": "number",
+            "description": "Discounted price actually charged to the customer.",
+            "format": "double"
+          },
+          "passes": {
+            "type": "integer",
+            "description": "Number of passes/sessions granted. Defaults to the product's configured passes.",
+            "format": "int32"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Free-text notes recorded against the purchase."
+          },
+          "withoutInvoice": {
+            "type": "boolean",
+            "description": "Create the package without generating an invoice."
+          },
+          "promotionId": {
+            "type": "integer",
+            "description": "Id of a promotion to apply to the purchase.",
+            "format": "int32"
+          },
+          "promoCode": {
+            "type": "string",
+            "description": "Promo code to apply to the purchase."
+          },
+          "refNumber": {
+            "type": "string",
+            "description": "External reference number recorded against the purchase."
+          },
+          "idTrainer": {
+            "type": "integer",
+            "description": "Id of the trainer to link to the package (required for PT packages).",
+            "format": "int32"
+          },
+          "payments": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "description": "Payment distribution across payment method ids. Key is idPaymentMethod, value is amount.",
+              "format": "double"
+            },
+            "description": "Payment distribution across payment method ids. Key is idPaymentMethod, value is amount."
+          }
+        },
+        "description": "Sell/assign a package (membership) to a customer. The customer id is taken from the URL path."
+      },
+      "CustomerMembershipResponse": {
+        "type": "object",
+        "properties": {
+          "idCustomerMembership": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idClient": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "membershipName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "purchaseDate": {
+            "type": "string"
+          },
+          "startingDate": {
+            "type": "string"
+          },
+          "expiryDate": {
+            "type": "string"
+          },
+          "passes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "passesUsed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "netPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "invoiceNumber": {
+            "type": "string"
+          },
+          "isExpired": {
+            "type": "boolean"
+          }
+        },
+        "description": "A package/membership held by a customer."
+      },
+      "SearchCustomersRequest": {
+        "required": [
+          "searchText"
+        ],
+        "type": "object",
+        "properties": {
+          "searchText": {
+            "type": "string",
+            "description": "Free-text search term matched against name, code, email and phone."
+          }
+        },
+        "description": "Search customers by name, code, email or phone number."
+      },
+      "CustomerResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "secondaryName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "clientNumber": {
+            "type": "string"
+          },
+          "registrationNumber": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "REGULAR",
+              "BUSINESS"
+            ]
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female",
+              "other"
+            ]
+          },
+          "dateOfBirth": {
+            "type": "string"
+          },
+          "age": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "address": {
+            "type": "string"
+          },
+          "occupation": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "idCategory": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "categoryName": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "memberSince": {
+            "type": "string"
+          },
+          "branchId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "branchName": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "isChild": {
+            "type": "boolean"
+          },
+          "parentId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "trusted": {
+            "type": "boolean"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "companyName": {
+            "type": "string"
+          },
+          "sponsorName": {
+            "type": "string"
+          },
+          "schoolName": {
+            "type": "string"
+          },
+          "waiverSignedDate": {
+            "type": "string"
+          },
+          "waiverSigned": {
+            "type": "boolean"
+          },
+          "fatherName": {
+            "type": "string"
+          },
+          "fatherPhone": {
+            "type": "string"
+          },
+          "fatherEmail": {
+            "type": "string"
+          },
+          "motherName": {
+            "type": "string"
+          },
+          "motherPhone": {
+            "type": "string"
+          },
+          "motherEmail": {
+            "type": "string"
+          },
+          "tenantActivityLevelName": {
+            "type": "string"
+          }
+        },
+        "description": "A customer record."
+      },
+      "ListCustomersRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Filter by name (partial match)."
+          },
+          "cardCode": {
+            "type": "string",
+            "description": "Filter by card / ID code (partial match)."
+          },
+          "level": {
+            "type": "string",
+            "description": "Filter by level (partial match)."
+          },
+          "categoryId": {
+            "type": "integer",
+            "description": "Filter by category id.",
+            "format": "int32"
+          },
+          "membershipBranchId": {
+            "type": "integer",
+            "description": "Return only customers who hold a membership at this branch id.",
+            "format": "int32"
+          },
+          "branchId": {
+            "type": "integer",
+            "description": "Filter by the customer's assigned home branch id.",
+            "format": "int32"
+          },
+          "scheduleId": {
+            "type": "integer",
+            "description": "Return customers enrolled in this schedule id.",
+            "format": "int32"
+          },
+          "scheduleGroupId": {
+            "type": "integer",
+            "description": "Return customers enrolled in this schedule group id.",
+            "format": "int32"
+          },
+          "packageIds": {
+            "type": "array",
+            "description": "Return customers holding any of these package (membership) ids.",
+            "items": {
+              "type": "integer",
+              "description": "Return customers holding any of these package (membership) ids.",
+              "format": "int32"
+            }
+          },
+          "companyId": {
+            "type": "integer",
+            "description": "Filter by company id.",
+            "format": "int32"
+          },
+          "instructorId": {
+            "type": "integer",
+            "description": "Return customers enrolled with this instructor id.",
+            "format": "int32"
+          },
+          "sponsorId": {
+            "type": "integer",
+            "description": "Filter by sponsor id.",
+            "format": "int32"
+          },
+          "gender": {
+            "type": "string",
+            "description": "Filter by gender. Accepted values: MALE, FEMALE."
+          },
+          "hasActiveMembership": {
+            "type": "boolean",
+            "description": "When true, return only customers who have a currently active membership."
+          },
+          "hasCardIdCode": {
+            "type": "boolean",
+            "description": "When true, return only customers who have a card / ID code assigned."
+          },
+          "waiverSigned": {
+            "type": "boolean",
+            "description": "Filter by waiver signed status."
+          },
+          "memberAfter": {
+            "type": "string",
+            "description": "Return customers who became members on or after this date (yyyy-MM-dd).",
+            "example": "2024-01-01"
+          },
+          "memberBefore": {
+            "type": "string",
+            "description": "Return customers who became members on or before this date (yyyy-MM-dd).",
+            "example": "2024-12-31"
+          },
+          "minAge": {
+            "type": "integer",
+            "description": "Minimum age filter (inclusive).",
+            "format": "int32"
+          },
+          "maxAge": {
+            "type": "integer",
+            "description": "Maximum age filter (inclusive).",
+            "format": "int32"
+          },
+          "includeAllFields": {
+            "type": "boolean",
+            "description": "When true, populate all available profile fields (company, sponsor, school, parent contacts, waiver date, etc.). When false or omitted, only core fields are returned."
+          },
+          "includeNotes": {
+            "type": "boolean",
+            "description": "When true, include the customer's notes text in the response."
+          }
+        },
+        "description": "Filters for listing customers. All fields are optional — omit to return all customers."
+      },
+      "CreateCustomerRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Customer id. Omit to create, provide to update.",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string",
+            "description": "Full name of the customer.",
+            "example": "Jane Doe"
+          },
+          "secondaryName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address. Required if phoneNumber is absent (for adult customers)."
+          },
+          "phoneNumber": {
+            "type": "string",
+            "description": "Phone number. Required if email is absent (for adult customers)."
+          },
+          "code": {
+            "type": "string"
+          },
+          "clientNumber": {
+            "type": "string"
+          },
+          "registrationNumber": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "description": "Date of birth, formatted yyyy-MM-dd."
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female",
+              "other"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "REGULAR",
+              "BUSINESS"
+            ]
+          },
+          "address": {
+            "type": "string"
+          },
+          "occupation": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "idCategory": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "Create or update a customer. Provide id to update an existing customer, omit it to create a new one."
+      },
+      "InvoiceResponse": {
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "integer",
+            "description": "Id of the created invoice transaction.",
+            "format": "int32"
+          }
+        },
+        "description": "Result of invoicing an item, containing the created invoice id."
+      },
+      "FreezePackageRequest": {
+        "required": [
+          "duration",
+          "idClient",
+          "idFreezeType",
+          "startDate",
+          "totalPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "idClient": {
+            "type": "integer",
+            "description": "Id of the customer that owns the package.",
+            "format": "int32"
+          },
+          "idFreezeType": {
+            "type": "integer",
+            "description": "Id of the configured freeze type to apply.",
+            "format": "int32"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "First day of the freeze, formatted yyyy-MM-dd."
+          },
+          "duration": {
+            "type": "integer",
+            "description": "Freeze duration in days.",
+            "format": "int32"
+          },
+          "totalPrice": {
+            "type": "number",
+            "description": "Total price charged for the freeze.",
+            "format": "double"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional free-text notes for the freeze."
+          },
+          "changeAttendanceToSessionOwed": {
+            "type": "boolean",
+            "description": "When true, existing bookings during the freeze window are moved to session-owed status."
+          }
+        },
+        "description": "Freeze (pause) a customer's package for a period. The package id is taken from the URL path."
+      },
+      "AdjustPackageRequest": {
+        "required": [
+          "quantity"
+        ],
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "integer",
+            "description": "Number of passes to add (positive) or remove (negative).",
+            "format": "int32"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional free-text reason for the adjustment."
+          }
+        },
+        "description": "Adjust the number of passes/sessions on a customer's package. The package id is taken from the URL path."
+      },
+      "CreateClassRequest": {
+        "required": [
+          "description",
+          "idCategory",
+          "idTrainer",
+          "times",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Class title.",
+            "example": "Morning Yoga"
+          },
+          "description": {
+            "type": "string",
+            "description": "Class description."
+          },
+          "idCategory": {
+            "type": "integer",
+            "description": "Category (activity) id this class belongs to.",
+            "format": "int32"
+          },
+          "idTrainer": {
+            "type": "integer",
+            "description": "Trainer (PortalUser) id leading the class.",
+            "format": "int32"
+          },
+          "idTenantBranch": {
+            "type": "integer",
+            "description": "Branch id where the class is held.",
+            "format": "int32"
+          },
+          "idFieldGame": {
+            "type": "integer",
+            "description": "Room/field-game id, or omit for an online or physical-address class.",
+            "format": "int32"
+          },
+          "isOnline": {
+            "type": "boolean",
+            "description": "Whether the class is held online."
+          },
+          "slots": {
+            "type": "integer",
+            "description": "Maximum number of attendees.",
+            "format": "int32"
+          },
+          "price": {
+            "type": "number",
+            "description": "Price per booking.",
+            "format": "double"
+          },
+          "idLevel": {
+            "type": "integer",
+            "description": "Skill level id.",
+            "format": "int32"
+          },
+          "fromAge": {
+            "type": "integer",
+            "description": "Minimum participant age for this class.",
+            "format": "int32"
+          },
+          "toAge": {
+            "type": "integer",
+            "description": "Maximum participant age for this class.",
+            "format": "int32"
+          },
+          "picUrl": {
+            "type": "string",
+            "description": "Picture URL for the class."
+          },
+          "times": {
+            "type": "array",
+            "description": "One or more occurrence times. Each requires a startDate (yyyy-MM-dd HH:mm:ss) and a duration in minutes.",
+            "items": {
+              "$ref": "#/components/schemas/TimeSlot"
+            }
+          },
+          "sessionType": {
+            "type": "string",
+            "description": "Recurrence type. Omit for a one-off class.",
+            "enum": [
+              "DAILY",
+              "WEEKLY",
+              "BIWEEKLY",
+              "MONTHLY",
+              "TERM"
+            ]
+          },
+          "repeatUntil": {
+            "type": "string",
+            "description": "Repeat the schedule until this date (yyyy-MM-dd). Required if sessionType is set and occurences is absent."
+          },
+          "occurences": {
+            "type": "integer",
+            "description": "Number of occurrences. Required if sessionType is set and repeatUntil is absent.",
+            "format": "int32"
+          },
+          "isPublic": {
+            "type": "boolean",
+            "description": "Whether the class is publicly visible. Defaults to true."
+          },
+          "attendeesVisibility": {
+            "type": "boolean",
+            "description": "Whether everyone can see who is attending."
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Longitude coordinate. Used when idFieldGame is absent and the class is not online.",
+            "format": "double"
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Latitude coordinate.",
+            "format": "double"
+          },
+          "locationName": {
+            "type": "string",
+            "description": "Human-readable location name."
+          },
+          "countryCode": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2 country code."
+          },
+          "city": {
+            "type": "string",
+            "description": "City name."
+          }
+        },
+        "description": "Create one or more scheduled class occurrences. Provide at least one entry in times."
+      },
+      "TimeSlot": {
+        "required": [
+          "duration",
+          "startDate"
+        ],
+        "type": "object",
+        "properties": {
+          "startDate": {
+            "type": "string",
+            "description": "Start date and time, formatted yyyy-MM-dd HH:mm:ss."
+          },
+          "duration": {
+            "type": "integer",
+            "description": "Duration in minutes.",
+            "format": "int32"
+          },
+          "mandatory": {
+            "type": "boolean",
+            "description": "Whether attendance is mandatory."
+          }
+        },
+        "description": "A single class occurrence time."
+      },
+      "ClassDetailsResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "idCategory": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Start date, formatted yyyy-MM-dd."
+          },
+          "endDate": {
+            "type": "string",
+            "description": "End date, formatted yyyy-MM-dd."
+          },
+          "startTime": {
+            "type": "string",
+            "description": "Start time, formatted HH:mm."
+          },
+          "duration": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maximumCapacity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "attendees": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pendingCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "trainer": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "branchName": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "idSchedule": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sessionType": {
+            "type": "string",
+            "enum": [
+              "REGULAR",
+              "PRIVATE",
+              "EVENT",
+              "BOTH"
+            ]
+          },
+          "isOnline": {
+            "type": "boolean"
+          },
+          "isCancelled": {
+            "type": "boolean"
+          },
+          "fromAge": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "toAge": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "levels": {
+            "type": "string"
+          },
+          "cancellationPolicyEnabled": {
+            "type": "boolean"
+          },
+          "cancellationWindow": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cancellationFee": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "Full details of a single class/event occurrence."
+      },
+      "CancelBookingRequest": {
+        "required": [
+          "idClient"
+        ],
+        "type": "object",
+        "properties": {
+          "idClient": {
+            "type": "integer",
+            "description": "Id of the customer (client) whose booking is being cancelled.",
+            "format": "int32",
+            "example": 1234
+          },
+          "isReservation": {
+            "type": "boolean",
+            "description": "Set to true when cancelling a field/court reservation rather than a class booking."
+          },
+          "applyCancellation": {
+            "type": "boolean",
+            "description": "Set to true to apply the tenant's cancellation policy (deduct a pass or charge a fee)."
+          }
+        },
+        "description": "Cancel a customer's booking. Identifies the customer whose booking is being cancelled and whether a cancellation fee/policy should be applied."
+      },
+      "ConfirmBookingRequest": {
+        "required": [
+          "classOccurrenceId",
+          "idClient"
+        ],
+        "type": "object",
+        "properties": {
+          "idClient": {
+            "type": "integer",
+            "description": "Id of the customer (client) to book.",
+            "format": "int32",
+            "example": 1234
+          },
+          "classOccurrenceId": {
+            "type": "integer",
+            "description": "Id of the class occurrence to book the customer into.",
+            "format": "int32",
+            "example": 5678
+          },
+          "idCustomerMembership": {
+            "type": "integer",
+            "description": "Id of the customer's purchased package to use for payment.",
+            "format": "int32",
+            "example": 910
+          },
+          "idCreditCard": {
+            "type": "integer",
+            "description": "Id of the credit card to use for payment. If provided, payment will be processed via card.",
+            "format": "int32"
+          },
+          "payLater": {
+            "type": "boolean",
+            "description": "Set to true to use pay-later flow (customer will pay at a later date)."
+          },
+          "asWaitingList": {
+            "type": "boolean",
+            "description": "Set to true to add the customer to the waiting list."
+          },
+          "payOnFrontDesk": {
+            "type": "boolean",
+            "description": "Set to true for front-desk payment flow."
+          },
+          "waiverSigned": {
+            "type": "boolean",
+            "description": "Set to true when the customer has signed the waiver."
+          },
+          "termsSigned": {
+            "type": "boolean",
+            "description": "Set to true when the customer has signed the terms and conditions."
+          },
+          "scheduleIds": {
+            "type": "array",
+            "description": "Package ids covering multiple bookings in a single confirm call.",
+            "items": {
+              "type": "integer",
+              "description": "Package ids covering multiple bookings in a single confirm call.",
+              "format": "int32"
+            }
+          },
+          "mandatoryMembershipIds": {
+            "type": "array",
+            "description": "Ids of mandatory companion packages that must be purchased alongside this booking.",
+            "items": {
+              "type": "integer",
+              "description": "Ids of mandatory companion packages that must be purchased alongside this booking.",
+              "format": "int32"
+            }
+          }
+        },
+        "description": "Request to confirm a booking for a customer. Supports payment with packages, credit cards, or pay-later flow."
+      },
+      "CreateBookingRequest": {
+        "required": [
+          "classOccurrenceId",
+          "idClient",
+          "idCustomerMembership"
+        ],
+        "type": "object",
+        "properties": {
+          "idClient": {
+            "type": "integer",
+            "description": "Id of the customer (client) to book into the event.",
+            "format": "int32",
+            "example": 1234
+          },
+          "classOccurrenceId": {
+            "type": "integer",
+            "description": "Id of the class occurrence to book the customer into.",
+            "format": "int32",
+            "example": 5678
+          },
+          "idCustomerMembership": {
+            "type": "integer",
+            "description": "Id of the customer's purchased package to use as payment for this booking.",
+            "format": "int32",
+            "example": 910
+          },
+          "asWaitingList": {
+            "type": "boolean",
+            "description": "Set to true to add the customer to the event's waiting list instead of a confirmed spot."
+          }
+        },
+        "description": "Book a customer into a class/event using one of the customer's packages (memberships). The staff member performing the booking is identified by the API key."
+      },
+      "BookingResponse": {
+        "type": "object",
+        "properties": {
+          "idUserEvent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idClient": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "clientEmail": {
+            "type": "string"
+          },
+          "clientPhoneNumber": {
+            "type": "string"
+          },
+          "idInvoice": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "membershipName": {
+            "type": "string"
+          },
+          "idCustomerMembership": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "confirmed": {
+            "type": "boolean"
+          },
+          "bookedOnline": {
+            "type": "boolean"
+          },
+          "requestedJoin": {
+            "type": "boolean"
+          },
+          "waitingListPriority": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "attendance": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "description": "The result of booking a customer into an event."
+      },
+      "MarkNoShowRequest": {
+        "type": "object",
+        "properties": {
+          "asSessionOwed": {
+            "type": "boolean",
+            "description": "When true, the forfeited pass is recorded as a session owed rather than consumed."
+          },
+          "keepMembership": {
+            "type": "boolean",
+            "description": "When true, the membership/pass is not deducted on this action. Useful for comped sessions or correcting mistakes."
+          }
+        },
+        "description": "Mark a booked attendee as a no-show. The attendee id is supplied in the path."
+      },
+      "CheckInAttendanceRequest": {
+        "required": [
+          "idUserEvent"
+        ],
+        "type": "object",
+        "properties": {
+          "idUserEvent": {
+            "type": "integer",
+            "description": "Id of the attendee's booking (the user-has-event id) to check in.",
+            "format": "int32"
+          },
+          "asSessionOwed": {
+            "type": "boolean",
+            "description": "When true, the consumed pass is recorded as a session owed rather than deducted immediately."
+          },
+          "keepMembership": {
+            "type": "boolean",
+            "description": "When true, the membership/pass is not deducted on this action. Useful for comped sessions or correcting mistakes."
+          }
+        },
+        "description": "Mark a booked attendee as present (checked in) for their session."
+      },
+      "TrainerResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "description": "A trainer/teacher who can be assigned to classes."
+      },
+      "LeadStatusResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isSystemStatus": {
+            "type": "boolean"
+          },
+          "isEditable": {
+            "type": "boolean"
+          },
+          "isDeletable": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A lead status (pipeline stage)."
+      },
+      "LeadFormLinkResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "linkToken": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "A shareable lead capture form link."
+      },
+      "FieldConfigDto": {
+        "type": "object",
+        "properties": {
+          "visible": {
+            "type": "boolean"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "showOtherTextField": {
+            "type": "boolean"
+          },
+          "fieldType": {
+            "type": "string"
+          }
+        },
+        "description": "Per-field visibility, requirement and rendering configuration keyed by field name."
+      },
+      "LeadFormConfigResponse": {
+        "type": "object",
+        "properties": {
+          "onlineBookingId": {
+            "type": "string",
+            "description": "Online booking identifier the public form is bound to."
+          },
+          "linkToken": {
+            "type": "string",
+            "description": "Opaque token used in shareable form links."
+          },
+          "isEnabled": {
+            "type": "boolean",
+            "description": "Whether the public lead form is enabled."
+          },
+          "primaryColor": {
+            "type": "string",
+            "description": "Primary brand colour applied to the form."
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FieldConfigDto"
+            },
+            "description": "Per-field visibility, requirement and rendering configuration keyed by field name."
+          }
+        },
+        "description": "The lead capture form configuration for the tenant."
+      },
+      "CapacityOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "description": "A capacity option (number of players)."
+      },
+      "FieldGameSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idField": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "picture": {
+            "type": "string"
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "capacityInfo": {
+            "type": "string"
+          },
+          "idBranch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "branchName": {
+            "type": "string"
+          },
+          "idCategory": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "categoryName": {
+            "type": "string"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "availableSlots": {
+            "type": "array",
+            "description": "Available time windows for this field game on the requested date.",
+            "items": {
+              "$ref": "#/components/schemas/TimeSlot"
+            }
+          }
+        },
+        "description": "A bookable field game configuration with its available time slots."
+      },
+      "PaymentMethod": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "Payment gateway type, e.g. STRIPE, CHECKOUT, CASH."
+          }
+        },
+        "description": "An online payment method accepted by the tenant."
+      },
+      "PrepareFieldRentalResponse": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "currentDate": {
+            "type": "string",
+            "description": "Tenant's current date, formatted as yyyy-MM-dd."
+          },
+          "currentTime": {
+            "type": "string",
+            "description": "Tenant's current time, formatted as HH:mm:ss."
+          },
+          "waiver": {
+            "type": "string",
+            "description": "Waiver text to display to the customer before booking. Null if already signed or not configured."
+          },
+          "cancellationPolicy": {
+            "type": "string",
+            "description": "Cancellation policy text. Null if already signed or not configured."
+          },
+          "waiverSigned": {
+            "type": "boolean"
+          },
+          "cancellationSigned": {
+            "type": "boolean"
+          },
+          "sessionsOverdue": {
+            "type": "boolean",
+            "description": "True when the customer has unpaid sessions that exceed the tenant's maximum allowed owed count."
+          },
+          "maximumSessionsOwed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fieldGamesDetails": {
+            "type": "array",
+            "description": "Available field game configurations for the requested date and filters.",
+            "items": {
+              "$ref": "#/components/schemas/FieldGameSummary"
+            }
+          },
+          "priceOptions": {
+            "type": "array",
+            "description": "Pricing options. Each entry maps a duration to a price for a specific field game.",
+            "items": {
+              "$ref": "#/components/schemas/PriceOption"
+            }
+          },
+          "durations": {
+            "type": "array",
+            "description": "Set of available booking durations in minutes.",
+            "items": {
+              "type": "integer",
+              "description": "Set of available booking durations in minutes.",
+              "format": "int32"
+            }
+          },
+          "capacities": {
+            "type": "array",
+            "description": "Capacity options available for booking.",
+            "items": {
+              "$ref": "#/components/schemas/CapacityOption"
+            }
+          },
+          "onlinePaymentMethods": {
+            "type": "array",
+            "description": "Online payment methods accepted by the tenant.",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethod"
+            }
+          }
+        },
+        "description": "Field rental booking preparation data including available time slots, pricing, and payment options."
+      },
+      "PriceOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Price list item id. Pass this as idFieldGamePriceListItem when confirming.",
+            "format": "int32"
+          },
+          "idFieldGame": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "Duration in minutes.",
+            "format": "int32"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "A pricing option for a specific field game and duration."
+      },
+      "FieldRentalCategoryResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Category id.",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string",
+            "description": "Category display name."
+          },
+          "pictureUrl": {
+            "type": "string",
+            "description": "Category cover image URL. Null when no image is configured."
+          }
+        },
+        "description": "A field rental category (e.g. Football, Tennis, Padel)."
+      },
+      "BookingReservationResponse": {
+        "type": "object",
+        "properties": {
+          "idReservation": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idClient": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Start date and time, formatted yyyy-MM-dd HH:mm:ss."
+          },
+          "endDate": {
+            "type": "string",
+            "description": "End date and time, formatted yyyy-MM-dd HH:mm:ss."
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "classOccurrenceId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idService": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "idCategory": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "categoryName": {
+            "type": "string"
+          },
+          "fieldId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fieldName": {
+            "type": "string"
+          },
+          "idCustomerMembership": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "membershipName": {
+            "type": "string"
+          },
+          "idInvoice": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "discountedPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "isCancelled": {
+            "type": "boolean"
+          },
+          "isOnline": {
+            "type": "boolean"
+          },
+          "isActivity": {
+            "type": "boolean"
+          },
+          "isPast": {
+            "type": "boolean"
+          },
+          "attendance": {
+            "type": "string"
+          },
+          "trainerName": {
+            "type": "string",
+            "description": "Name of the trainer assigned to the class. Null for field rentals."
+          }
+        },
+        "description": "A single booking/reservation in a customer's schedule."
+      },
+      "AttendanceResponse": {
+        "type": "object",
+        "properties": {
+          "idReservation": {
+            "type": "integer",
+            "description": "Reservation id, when this entry is a field reservation.",
+            "format": "int32"
+          },
+          "idUserEvent": {
+            "type": "integer",
+            "description": "Attendee booking id (user-has-event id) used to change attendance.",
+            "format": "int32"
+          },
+          "idClient": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "idService": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "categoryName": {
+            "type": "string"
+          },
+          "idCategory": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fieldName": {
+            "type": "string"
+          },
+          "fieldId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Session start, formatted yyyy-MM-dd HH:mm:ss."
+          },
+          "endDate": {
+            "type": "string",
+            "description": "Session end, formatted yyyy-MM-dd HH:mm:ss."
+          },
+          "attendance": {
+            "type": "string",
+            "description": "Attendance outcome, one of PRESENT, NO_SHOW, LATE_CANCELLATION, LATE_ARRIVAL or EMPTY. Null when not yet recorded."
+          },
+          "isCancelled": {
+            "type": "boolean"
+          },
+          "isPast": {
+            "type": "boolean"
+          },
+          "idCustomerMembership": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "membershipName": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "A single past or upcoming reservation/session for a customer, including its attendance outcome."
+      },
+      "ClassResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idScheduleGroup": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "scheduleGroupTitle": {
+            "type": "string"
+          },
+          "idCategory": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "categoryName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "trainerName": {
+            "type": "string"
+          },
+          "branchName": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Start date, formatted yyyy-MM-dd."
+          },
+          "startTime": {
+            "type": "string",
+            "description": "Start time, formatted HH:mm."
+          },
+          "endTime": {
+            "type": "string",
+            "description": "End time, formatted HH:mm."
+          },
+          "startDateTime": {
+            "type": "string",
+            "description": "Start date and time, formatted yyyy-MM-dd HH:mm:ss."
+          },
+          "repeatUntil": {
+            "type": "string",
+            "description": "Repeat until date, formatted yyyy-MM-dd."
+          },
+          "duration": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "day": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "repeatType": {
+            "type": "string",
+            "enum": [
+              "DAILY",
+              "WEEKLY",
+              "BIWEEKLY",
+              "MONTHLY",
+              "TERM"
+            ]
+          },
+          "recurrencePattern": {
+            "type": "string"
+          },
+          "colorCode": {
+            "type": "string"
+          },
+          "isPastSchedule": {
+            "type": "boolean"
+          },
+          "fieldGameName": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "attendeesCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "allAttendeesCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "waitlistCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lateCancellationCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "isOnline": {
+            "type": "boolean"
+          },
+          "isCancelled": {
+            "type": "boolean"
+          },
+          "sessionType": {
+            "type": "string"
+          },
+          "idTrainer": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idBranch": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "levelName": {
+            "type": "string"
+          },
+          "activityLevelsNames": {
+            "type": "string"
+          },
+          "fromAge": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "toAge": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idClient": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "idLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "picUrl": {
+            "type": "string"
+          }
+        },
+        "description": "A scheduled class/session in the tenant's timetable."
+      },
+      "BranchResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "areaName": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "countryCode": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "A tenant branch."
+      },
+      "MembershipOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Id of the membership/package.",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the membership/package."
+          },
+          "price": {
+            "type": "number",
+            "description": "Price."
+          },
+          "remainingSessions": {
+            "type": "integer",
+            "description": "Remaining sessions.",
+            "format": "int32"
+          },
+          "canUse": {
+            "type": "boolean",
+            "description": "Whether it can be used for this booking."
+          }
+        },
+        "description": "Membership/package option details."
+      },
+      "PrepareClassBookingResponse": {
+        "type": "object",
+        "properties": {
+          "classOccurrenceId": {
+            "type": "integer",
+            "description": "Id of the class occurrence.",
+            "format": "int32"
+          },
+          "eventName": {
+            "type": "string",
+            "description": "Name of the event/class."
+          },
+          "eventStartDate": {
+            "type": "string",
+            "description": "Start date/time of the event."
+          },
+          "eventEndDate": {
+            "type": "string",
+            "description": "End date/time of the event."
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency for pricing."
+          },
+          "price": {
+            "type": "number",
+            "description": "Price for the booking."
+          },
+          "discountedPrice": {
+            "type": "number",
+            "description": "Discounted price if applicable."
+          },
+          "memberships": {
+            "type": "array",
+            "description": "List of available memberships/packages for the customer.",
+            "items": {
+              "$ref": "#/components/schemas/MembershipOption"
+            }
+          },
+          "mandatoryMemberships": {
+            "type": "array",
+            "description": "List of mandatory memberships required.",
+            "items": {
+              "$ref": "#/components/schemas/MembershipOption"
+            }
+          },
+          "isTrusted": {
+            "type": "boolean",
+            "description": "Whether the customer is trusted."
+          },
+          "cancellationPolicy": {
+            "type": "string",
+            "description": "Cancellation policy text."
+          },
+          "waiver": {
+            "type": "string",
+            "description": "Waiver text."
+          },
+          "cancellationSigned": {
+            "type": "boolean",
+            "description": "Whether cancellation has been signed."
+          },
+          "waiverSigned": {
+            "type": "boolean",
+            "description": "Whether waiver has been signed."
+          },
+          "phoneNumber": {
+            "type": "string",
+            "description": "Phone number for contact."
+          },
+          "message": {
+            "type": "string",
+            "description": "Status message."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the preparation was successful."
+          },
+          "onlinePaymentRule": {
+            "type": "string",
+            "description": "Online payment rule for the tenant."
+          },
+          "maximumSessionsOwed": {
+            "type": "integer",
+            "description": "Maximum sessions owed allowed.",
+            "format": "int32"
+          },
+          "sessionsOverdue": {
+            "type": "boolean",
+            "description": "Whether sessions are overdue."
+          },
+          "removeSelectPackage": {
+            "type": "boolean",
+            "description": "Whether select package option should be removed."
+          },
+          "onlinePaymentMethods": {
+            "type": "array",
+            "description": "Available online payment methods.",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethod"
+            }
+          }
+        },
+        "description": "Response for preparing a class/event booking. Contains pricing, availability, and payment options."
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "description": "Exchange your API key for a short-lived JWT via POST /api/v1/token, then pass the returned accessToken here as the Bearer token. Do not use the raw API key directly on these endpoints.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
