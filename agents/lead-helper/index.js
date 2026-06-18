@@ -36,7 +36,7 @@ const { markRespondedHandler, copyTextHandler } = require('../../shared/callback
 // below are wrapped so a nurture failure never touches heartbeat or polling.
 const nurture = require('../../shared/nurture');
 const { writeHeartbeat } = require('../../shared/heartbeat');
-const { buildGreetingPrompt } = require('./prompts');
+const { buildGreetingPrompt, fallbackGreeting } = require('./prompts');
 
 // Test-only: freeze heartbeat writes while polling continues normally, so the
 // watchdog's "online + stale = hung" branch can be exercised without dropping
@@ -218,16 +218,19 @@ async function handleNew(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, 
   if (!result || result.changes === 0) return; // idempotency
   const leadId = result.lastInsertRowid;
 
-  // Generate English greeting via Claude
+  // Age-segmented welcome draft via Claude; verbatim approved fallback if it fails.
   let greetingText = null;
   try {
-    greetingText = await generateText(buildGreetingPrompt({ parentName: parsed.parent_name }));
-    if (greetingText) {
-      _greetingCache.set(String(leadId), greetingText);
-      updateLeadGreeting(leadId, greetingText); // persist to DB — survives restarts
-    }
+    greetingText = await generateText(buildGreetingPrompt({ parentName: parsed.parent_name, childAge: parsed.child_age }));
   } catch (err) {
-    logger.warn({ err }, 'Claude unavailable — sending card without draft');
+    logger.warn({ err }, 'Claude unavailable — using static fallback draft');
+  }
+  if (!greetingText) {
+    greetingText = fallbackGreeting({ parentName: parsed.parent_name, childAge: parsed.child_age });
+  }
+  if (greetingText) {
+    _greetingCache.set(String(leadId), greetingText);
+    updateLeadGreeting(leadId, greetingText); // persist to DB — survives restarts
   }
 
   const headerLine = topNote
