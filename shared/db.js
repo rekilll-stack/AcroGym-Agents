@@ -187,6 +187,50 @@ function _runMigrations(db) {
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_reg_optin    ON registrations(whatsapp_optin)`),
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_reg_whatsapp ON registrations(whatsapp_norm)`),
     () => db.exec(`CREATE INDEX IF NOT EXISTS idx_reg_review   ON registrations(needs_review)`),
+
+    // v22: broadcast infrastructure (B1) — additive. Recipients come from
+    // `registrations` (deduped by whatsapp_norm via getOptedInRecipients), NOT
+    // from leads — so client_messages carries recipient_phone (= whatsapp_norm,
+    // the same identity R3 uses) as the per-recipient key; lead_id stays NULL on
+    // broadcast rows.
+    //   status lifecycle: draft → sending → done | failed; failed → sending on
+    //   resume; canceled is a terminal operator stop.
+    //   updated_at DEFAULT fires ONLY on INSERT — the B4 dispatcher MUST write
+    //   updated_at explicitly on every UPDATE (status/sent mutations). Same as v21.
+    () => db.exec(`CREATE TABLE IF NOT EXISTS broadcasts (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      status               TEXT NOT NULL DEFAULT 'draft',
+      segment_kind         TEXT NOT NULL,
+      segment_value        TEXT,
+      segment_min          INTEGER,
+      segment_max          INTEGER,
+      channel              TEXT NOT NULL,
+      body_kind            TEXT NOT NULL,
+      text                 TEXT,
+      template_name        TEXT,
+      template_params_json TEXT,
+      total                INTEGER NOT NULL DEFAULT 0,
+      sent                 INTEGER NOT NULL DEFAULT 0,
+      failed_count         INTEGER NOT NULL DEFAULT 0,
+      created_at           TEXT DEFAULT (datetime('now')),
+      updated_at           TEXT DEFAULT (datetime('now')),
+      started_at           TEXT,
+      finished_at          TEXT
+    )`),
+    // broadcasts must exist before the REFERENCES column is added. ADD COLUMN
+    // with a REFERENCES clause is allowed by SQLite only when the new column's
+    // default is NULL — which it is (no DEFAULT given).
+    () => db.exec(`ALTER TABLE client_messages ADD COLUMN broadcast_id INTEGER REFERENCES broadcasts(id)`),
+    () => db.exec(`ALTER TABLE client_messages ADD COLUMN recipient_phone TEXT`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_broadcasts_status ON broadcasts(status)`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_client_msgs_broadcast ON client_messages(broadcast_id, recipient_phone)`),
+    // One row per (broadcast, recipient) → INSERT OR IGNORE makes a resend a
+    // no-op (the B5 idempotency/resume backbone). Partial: only broadcast rows.
+    () => db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cm_broadcast_recipient
+                   ON client_messages(broadcast_id, recipient_phone) WHERE broadcast_id IS NOT NULL`),
+    // child_age persisted for lead segmentation / age-based nurture. Independent
+    // of the broadcast age-segment (that derives from registrations dob).
+    () => db.exec(`ALTER TABLE leads ADD COLUMN child_age TEXT`),
   ];
 
   for (const migrate of migrations) {

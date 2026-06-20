@@ -206,6 +206,14 @@ function saveLead(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, status,
     try { updateLeadChildrenDob(result.lastInsertRowid, parsed.children_dob); }
     catch (err) { logger.warn({ err }, 'children_dob persist failed — lead saved without it'); }
   }
+  // child_age for lead segmentation / age-based nurture (isolated — same pattern
+  // as source/children_dob). NOT the broadcast age-segment (that's registrations).
+  if (result && result.lastInsertRowid && parsed.child_age) {
+    try {
+      getDb().prepare(`UPDATE leads SET child_age = ? WHERE id = ?`)
+        .run(parsed.child_age, result.lastInsertRowid);
+    } catch (err) { logger.warn({ err }, 'child_age persist failed — lead saved without it'); }
+  }
   return result;
 }
 
@@ -509,8 +517,12 @@ process.on('unhandledRejection', async (reason) => {
   await sendToAdmin(`🚨 Lead-helper unhandled rejection: <code>${reason}</code>`).catch(() => {});
 });
 
-start().catch(async (err) => {
-  logger.fatal({ err }, 'Failed to start');
-  await sendToAdmin(`🚨 Lead-helper failed to start: <code>${err.message}</code>`).catch(() => {});
-  process.exit(1);
-});
+if (require.main === module) {
+  start().catch(async (err) => {
+    logger.fatal({ err }, 'Failed to start');
+    await sendToAdmin(`🚨 Lead-helper failed to start: <code>${err.message}</code>`).catch(() => {});
+    process.exit(1);
+  });
+}
+
+module.exports = { saveLead };
