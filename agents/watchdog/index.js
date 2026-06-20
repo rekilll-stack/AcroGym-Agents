@@ -132,14 +132,19 @@ function evaluate(agent, hb, proc, now) {
   // restarts it). A missing heartbeat → ageMs=Infinity → also stale.
   if (agent.pm2 === false) {
     if (!isStale) return { problem: false, reason: 'ok', detailHtml: '' };
+    // "Never ran" (no heartbeat → ageMs=Infinity) reads differently from
+    // "ran, then went silent". Don't print "Infinity мин / с —".
+    const everRan = hb && hb.last_ok_at;
+    const head = everRan
+      ? `Cron-агент молчит уже <b>${fmtMins(ageMs)} мин</b> (с ${fmtTime(hb.last_ok_at)}, порог ${fmtMins(agent.thresholdMs)} мин).`
+      : `Cron-агент <b>ещё ни разу не отрабатывал</b> (heartbeat отсутствует, порог ${fmtMins(agent.thresholdMs)} мин).`;
     return {
       problem: true,
       reason: 'stale',
       detailHtml:
-        `Cron-агент молчит уже <b>${fmtMins(ageMs)} мин</b> ` +
-        `(с ${fmtTime(hb && hb.last_ok_at)}, порог ${fmtMins(agent.thresholdMs)} мин).\n` +
+        `${head}\n` +
         `Нет pm2-процесса — крон должен перезапускать себя сам; проверь <code>crontab -l</code> и лог поллера.` +
-        (hb && hb.detail ? `\nПоследняя отметка: ${htmlEscape(hb.detail)}` : ''),
+        (everRan && hb.detail ? `\nПоследняя отметка: ${htmlEscape(hb.detail)}` : ''),
     };
   }
 

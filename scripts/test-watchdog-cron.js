@@ -45,13 +45,17 @@ const rStale  = evaluate(cron, staleHb, null, NOW);
 console.log('  →', JSON.stringify({ problem: rStale.problem, reason: rStale.reason }));
 t('80-min-old heartbeat → problem', rStale.problem === true);
 t("reason === 'stale' (NOT 'hung' → no auto-restart)", rStale.reason === 'stale');
-t('detail mentions the silence', /молчит/.test(rStale.detailHtml));
+t('ran-then-silent → detail says "молчит N мин" with a real time', /молчит/.test(rStale.detailHtml));
+t('ran-then-silent → no "Infinity", no dangling "с —"', !/Infinity/.test(rStale.detailHtml) && !/с —/.test(rStale.detailHtml));
 
 console.log('\n=== no heartbeat at all (null → Infinity) → alert, reason=stale ===');
 const rNone = evaluate(cron, null, null, NOW);
 console.log('  →', JSON.stringify({ problem: rNone.problem, reason: rNone.reason }));
+console.log('  detail:', rNone.detailHtml.split('\n')[0]);
 t('missing heartbeat → problem', rNone.problem === true);
 t("missing heartbeat → reason 'stale'", rNone.reason === 'stale');
+t('never-ran → detail says "ни разу не отрабатывал" (readable)', /ни разу не отрабатывал/.test(rNone.detailHtml));
+t('never-ran → NO "Infinity мин", NO dangling "с —"', !/Infinity/.test(rNone.detailHtml) && !/с —/.test(rNone.detailHtml));
 
 console.log('\n=== fresh heartbeat (within threshold) → ok ===');
 const freshHb = { last_ok_at: NOW - 10 * MIN, detail: 'ok, 8 rows, 0 new' }; // 10 < 70
