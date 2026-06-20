@@ -8,7 +8,7 @@
  * require.main guard, so importing it does NOT tick / send Telegram alerts).
  *
  *   rm -f /tmp/wd-cron.db*
- *   cp data/acrogym.db /tmp/wd-cron.db
+ *   sqlite3 data/acrogym.db ".backup '/tmp/wd-cron.db'"   # consistent — captures WAL
  *   ACROGYM_DB_PATH=/tmp/wd-cron.db node scripts/test-watchdog-cron.js
  */
 

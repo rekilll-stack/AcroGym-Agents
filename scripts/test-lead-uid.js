@@ -5,7 +5,7 @@
  * Runs against a TEMP COPY of the DB — never the production file.
  *
  * Usage:
- *   cp data/acrogym.db /tmp/acrogym-test-uid.db
+ *   sqlite3 data/acrogym.db ".backup '/tmp/acrogym-test-uid.db'"   # consistent — captures WAL
  *   ACROGYM_DB_PATH=/tmp/acrogym-test-uid.db node scripts/test-lead-uid.js
  */
 

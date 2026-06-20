@@ -3,7 +3,7 @@
 /**
  * R3 — registrations DB layer test (temp DB only).
  *   rm -f /tmp/reg-db.db*
- *   cp data/acrogym.db /tmp/reg-db.db
+ *   sqlite3 data/acrogym.db ".backup '/tmp/reg-db.db'"   # consistent — captures WAL
  *   ACROGYM_DB_PATH=/tmp/reg-db.db node scripts/test-registrations-db.js
  */
 

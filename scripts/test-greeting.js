@@ -7,7 +7,7 @@
  *
  * Usage (temp DB only):
  *   rm -f /tmp/acrogym-test-greeting.db*
- *   cp data/acrogym.db /tmp/acrogym-test-greeting.db
+ *   sqlite3 data/acrogym.db ".backup '/tmp/acrogym-test-greeting.db'"   # consistent — captures WAL
  *   ACROGYM_DB_PATH=/tmp/acrogym-test-greeting.db node scripts/test-greeting.js
  */
 

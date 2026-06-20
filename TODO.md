@@ -4,6 +4,15 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 
 ---
 
+## Conventions (permanent rules — NOT deferred)
+
+### Temp DB for test/harness runs: `sqlite3 .backup`, NEVER `cp`
+- **Rule:** make a throwaway copy of the prod DB with `sqlite3 data/acrogym.db ".backup '/tmp/x.db'"`, never `cp data/acrogym.db /tmp/x.db`.
+- **Why:** the prod DB runs in WAL mode. A plain `cp` of the `.db` file alone copies a **stale** snapshot — recent writes still living in `-wal` (seen: a 4 MB un-checkpointed WAL with all 8 `registrations` rows) are missing. The temp run then lies (e.g. "registrations empty"), giving false confidence right before a prod touch. `.backup` is a consistent snapshot that folds in the WAL (same mechanism `backup-db.js` uses).
+- **Status:** applied to all `scripts/test-*.js` headers (cp → .backup). Keep new harnesses on `.backup`.
+
+---
+
 ## Known technical debt
 
 ### Logger — duplicate pretty + JSON output
@@ -37,6 +46,13 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 - **Where:** owner-bot heartbeat `detail` carries a cumulative `poll_err: N` (Telegram long-polling errors since process start). Currently watched "by eye" — no threshold.
 - **Trigger:** if `poll_err` climbs **> +50 per day**, investigate (API throttle / network flap / long-polling churn). Slow drift (a few/hour) is normal and ignored.
 - **Why deferred:** needs a small day-over-day delta tracker (store yesterday's count, diff on the daily ping) rather than the current absolute number; not worth a process touch mid-feature.
+- **Estimated effort:** ~30 min.
+
+### registration tests assume an empty table — make them self-isolating
+- **Files:** `scripts/test-registrations-db.js`, `scripts/test-poll-registrations.js`
+- **Issue:** Both assert **absolute** counts on a "fresh" DB (`getRegistrations().length === 2`; "all 8 non-blank inserted"). That only held because the old `cp` harness copied a stale WAL-less snapshot (empty `registrations`). On a consistent `.backup` copy the real 8 prod rows are present → the absolute assertions fail. The code under test is correct (proven: with `DELETE FROM registrations` they go 13/13 and 8/8).
+- **Impact:** test-only — false reds when run on a faithful copy. No runtime effect.
+- **Future fix:** make each test set up its own precondition (clear/seed its own `registrations`) and assert **deltas**, not table-wide absolutes, so they don't depend on the copy's state.
 - **Estimated effort:** ~30 min.
 
 ---

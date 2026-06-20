@@ -6,7 +6,7 @@
  * isolation (map_errors), and the heartbeat detail format.
  *
  *   rm -f /tmp/poll.db*
- *   cp data/acrogym.db /tmp/poll.db
+ *   sqlite3 data/acrogym.db ".backup '/tmp/poll.db'"   # consistent — captures WAL
  *   ACROGYM_DB_PATH=/tmp/poll.db node scripts/test-poll-registrations.js
  */
 
