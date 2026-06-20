@@ -100,6 +100,14 @@ T('RU preview title present', pvRu.includes('Предпросмотр рассы
 T('enter_text EN carries the English-only reminder', /must be in English/.test(t('broadcast.enter_text', 'en')));
 T('enter_text RU carries the reminder (на английском)', /на английском/.test(t('broadcast.enter_text', 'ru')));
 
+console.log('\n=== return-to-menu after terminal states (reuses /export pattern) ===');
+const { backKb } = require('../agents/owner-bot/callbacks/broadcast-callbacks');
+const kbEn = backKb('en'), kbRu = backKb('ru');
+const btnEn = kbEn.inline_keyboard[0][0], btnRu = kbRu.inline_keyboard[0][0];
+T('back button wired to existing menu:back handler', btnEn.callback_data === 'menu:back');
+T('back button label reuses common.back_to_menu (EN)', btnEn.text === t('common.back_to_menu', 'en'));
+T('back button label localised (RU differs from EN)', btnRu.text === t('common.back_to_menu', 'ru') && btnRu.text !== btnEn.text);
+
 console.log('\n=== formatter is read-only ===');
 const regAfter = db.prepare('SELECT count(*) c FROM registrations').get().c;
 T('registrations count unchanged by preview/dry-run', regAfter === regBefore);

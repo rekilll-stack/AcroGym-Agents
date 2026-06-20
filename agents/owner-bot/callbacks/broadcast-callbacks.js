@@ -31,6 +31,13 @@ const AGE_BANDS = { '3-5': [3, 5], '6-9': [6, 9], '10-14': [10, 14] };
 
 const lang = (chatId) => getPreferredLanguage(chatId) || 'en';
 
+// Reuse the existing /export return-to-menu pattern: a language-aware
+// "⬅ Back to menu" button (common.back_to_menu key) wired to the existing
+// menu:back handler. Shown after terminal states so the owner is never stuck.
+const backKb = (l) => ({
+  inline_keyboard: [[{ text: t('common.back_to_menu', l), callback_data: 'menu:back' }]],
+});
+
 /** Build the resolver/builder segment object from stored state params. */
 function segmentFromParams(p) {
   if (p.segment_kind === 'age')         return { kind: 'age', min: p.segment_min, max: p.segment_max };
@@ -42,7 +49,7 @@ function segmentFromParams(p) {
 async function expiredGuard(state, chatId, bot, l) {
   if (!isExpired(state)) return false;
   clearState(chatId);
-  await bot.sendMessage(chatId, t('broadcast.expired', l), { parse_mode: 'MarkdownV2' }).catch(() => {});
+  await bot.sendMessage(chatId, t('broadcast.expired', l), { parse_mode: 'MarkdownV2', reply_markup: backKb(l) }).catch(() => {});
   return true;
 }
 
@@ -90,7 +97,7 @@ async function onCallback(query, bot) {
   // cancel works regardless of state
   if (sub === 'cancel') {
     clearState(chatId);
-    await bot.sendMessage(chatId, t('broadcast.cancelled', l), { parse_mode: 'MarkdownV2' }).catch(() => {});
+    await bot.sendMessage(chatId, t('broadcast.cancelled', l), { parse_mode: 'MarkdownV2', reply_markup: backKb(l) }).catch(() => {});
     return;
   }
 
@@ -154,7 +161,7 @@ async function onCallback(query, bot) {
 
     case 'send':
       // STUB — B3 cannot send. No dispatch code is imported here.
-      return bot.sendMessage(chatId, t('broadcast.send_stub', l), { parse_mode: 'MarkdownV2' }).catch(() => {});
+      return bot.sendMessage(chatId, t('broadcast.send_stub', l), { parse_mode: 'MarkdownV2', reply_markup: backKb(l) }).catch(() => {});
 
     default:
       return;
@@ -186,4 +193,4 @@ function setupBroadcastCallbacks() {
   logger.info('Broadcast callbacks registered');
 }
 
-module.exports = { setupBroadcastCallbacks };
+module.exports = { setupBroadcastCallbacks, backKb };
