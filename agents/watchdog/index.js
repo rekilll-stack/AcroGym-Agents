@@ -37,6 +37,10 @@ const lastAutoRestart = new Map(); // agent name → timestamp (in-memory; reset
 const WATCHED = [
   { name: 'lead-helper', thresholdMs: 5 * 60 * 1000, kind: 'sheets' },
   { name: 'owner-bot',   thresholdMs: 5 * 60 * 1000, kind: 'telegram' },
+  // Cron agent (no pm2 process): judged by heartbeat freshness only. 30-min
+  // cron → 70-min threshold tolerates one transient miss, catches a real
+  // stall within the hour. pm2:false → no auto-restart (cron re-runs itself).
+  { name: 'registrations-poller', thresholdMs: 70 * 60 * 1000, kind: 'cron', pm2: false },
 ];
 
 // Backup dead-man's-switch: the daily cron drops a .db.gz into backups/daily/
@@ -121,6 +125,23 @@ async function pm2Snapshot() {
 function evaluate(agent, hb, proc, now) {
   const ageMs   = hb && hb.last_ok_at ? now - hb.last_ok_at : Infinity;
   const isStale = ageMs > agent.thresholdMs;
+
+  // 0) Cron agent (no pm2 process): judged by heartbeat freshness ALONE.
+  // There is no process to inspect or restart — the cron re-runs itself, so a
+  // stale heartbeat is reported as 'stale' (NOT 'hung' → tick() never auto-
+  // restarts it). A missing heartbeat → ageMs=Infinity → also stale.
+  if (agent.pm2 === false) {
+    if (!isStale) return { problem: false, reason: 'ok', detailHtml: '' };
+    return {
+      problem: true,
+      reason: 'stale',
+      detailHtml:
+        `Cron-агент молчит уже <b>${fmtMins(ageMs)} мин</b> ` +
+        `(с ${fmtTime(hb && hb.last_ok_at)}, порог ${fmtMins(agent.thresholdMs)} мин).\n` +
+        `Нет pm2-процесса — крон должен перезапускать себя сам; проверь <code>crontab -l</code> и лог поллера.` +
+        (hb && hb.detail ? `\nПоследняя отметка: ${htmlEscape(hb.detail)}` : ''),
+    };
+  }
 
   // Process state (null proc = pm2 unavailable this tick)
   const status   = proc ? proc.status : 'unknown';
@@ -297,4 +318,8 @@ process.on('unhandledRejection', (reason) => {
   logger.error({ reason }, 'Unhandled rejection');
 });
 
-start();
+if (require.main === module) {
+  start();
+}
+
+module.exports = { evaluate, WATCHED };
