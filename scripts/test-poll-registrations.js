@@ -26,6 +26,9 @@ const { mapRow } = require('../shared/registrations/mapper');
 const { processRows, readSheet } = require('./poll-registrations');
 
 getDb(); // open temp + migrate
+// Self-isolating: clear registrations so "fresh DB → all rows inserted" holds
+// regardless of prod rows the .backup carried in.
+getDb().exec('DELETE FROM registrations;');
 
 let pass = 0, fail = 0;
 const t = (n, c) => { if (c) { console.log('  ✅ ' + n); pass++; } else { console.log('  ❌ ' + n); fail++; } };

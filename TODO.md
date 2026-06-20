@@ -55,11 +55,9 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 - **Why deferred:** needs a small day-over-day delta tracker (store yesterday's count, diff on the daily ping) rather than the current absolute number; not worth a process touch mid-feature.
 - **Estimated effort:** ~30 min.
 
-### registration tests assume an empty table — make them self-isolating
-- **Files:** `scripts/test-registrations-db.js`, `scripts/test-poll-registrations.js`
-- **Issue:** Both assert **absolute** counts on a "fresh" DB (`getRegistrations().length === 2`; "all 8 non-blank inserted"). That only held because the old `cp` harness copied a stale WAL-less snapshot (empty `registrations`). On a consistent `.backup` copy the real 8 prod rows are present → the absolute assertions fail. The code under test is correct (proven: with `DELETE FROM registrations` they go 13/13 and 8/8).
-- **Impact:** test-only — false reds when run on a faithful copy. No runtime effect.
-- **Future fix:** make each test set up its own precondition (clear/seed its own `registrations`) and assert **deltas**, not table-wide absolutes, so they don't depend on the copy's state.
-- **Estimated effort:** ~30 min.
+### ~~registration/broadcast tests assume an empty table — make them self-isolating~~ ✅ RESOLVED 2026-06-20
+- **Files:** `test-registrations-db.js`, `test-poll-registrations.js`, `test-broadcast-{resolver,preview,dispatch}.js`; `test-broadcast-migration.js` (tolerant count).
+- **Was:** absolute-count assertions assumed an empty `registrations`/`broadcasts` slate, which only held while prod had no opted-in rows / no broadcasts. Once the B4 live test added an opted-in owner-test row + a real broadcast, a consistent `.backup` copy carried them in → false reds.
+- **Fix shipped:** each test now clears its slate in the temp copy (`DELETE FROM client_messages; DELETE FROM broadcasts; DELETE FROM registrations;`) before seeding; migration test uses a tolerant `>= 8` (additive migration never drops). Suite is now self-verifying — no manual `clear` step needed.
 
 ---

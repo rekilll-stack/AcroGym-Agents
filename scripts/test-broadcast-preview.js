@@ -40,7 +40,11 @@ const mk = (over) => Object.assign({
   raw_row_hash: 'h', needs_review: 0,
 }, over);
 
-// Seed opted-in audience (self-isolating).
+// Self-isolating: clear the slate in the temp copy so the seeded audience is the
+// only one (independent of prod opted-in/owner-test rows in the .backup).
+db.exec('DELETE FROM client_messages; DELETE FROM broadcasts; DELETE FROM registrations;');
+
+// Seed opted-in audience.
 upsertRegistration(mk({ raw_row_hash: 'A', whatsapp_norm: '97455511111', parent_first: 'Anna',  client_type: 'new',
   children_json: kids([{ first_name: 'Teen', last_name: '', dob: '1/1/2014' }]) })); // age ~12
 upsertRegistration(mk({ raw_row_hash: 'B', whatsapp_norm: '97455522222', parent_first: 'Bader', client_type: 'existing',

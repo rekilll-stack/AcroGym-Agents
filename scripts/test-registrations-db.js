@@ -19,6 +19,9 @@ if (!process.env.ACROGYM_DB_PATH || process.env.ACROGYM_DB_PATH.includes('data/a
 
 const { getDb, upsertRegistration, getRegistrations, getOptedInRecipients } = require('../shared/db');
 getDb(); // open temp + migrate
+// Self-isolating: clear registrations in the temp copy so absolute-count
+// assertions don't depend on prod rows the .backup carried in.
+getDb().exec('DELETE FROM registrations;');
 
 let pass = 0, fail = 0;
 const t = (n, c) => { if (c) { console.log('  ✅ ' + n); pass++; } else { console.log('  ❌ ' + n); fail++; } };

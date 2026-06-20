@@ -28,6 +28,9 @@ const { setState, getState, updateParams, setStep, clearState } = require('../sh
 const { onCallback, onText } = require('../agents/owner-bot/callbacks/broadcast-callbacks');
 
 const db = getDb();
+// Self-isolating: clear the slate in the temp copy so seeded audience/broadcasts
+// are the only ones (independent of prod opted-in/owner-test + live broadcasts).
+db.exec('DELETE FROM client_messages; DELETE FROM broadcasts; DELETE FROM registrations;');
 let pass = 0, fail = 0;
 const T = (n, c) => { if (c) { console.log('  ✅ ' + n); pass++; } else { console.log('  ❌ ' + n); fail++; } };
 const recips = (n) => Array.from({ length: n }, (_, i) => ({ recipient_phone: `9745550${1000 + i}`, display_name: `R${i}`, phone_masked: `974•••••${10 + i}` }));

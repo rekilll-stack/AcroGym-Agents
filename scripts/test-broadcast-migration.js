@@ -62,7 +62,7 @@ t('…is partial (WHERE broadcast_id IS NOT NULL)', /WHERE\s+broadcast_id\s+IS\s
 
 console.log('=== existing data intact (prod copy: leads=12, registrations=8) ===');
 t('leads rows untouched (12)', db.prepare('SELECT count(*) c FROM leads').get().c === 12);
-t('registrations rows untouched (8)', db.prepare('SELECT count(*) c FROM registrations').get().c === 8);
+t('registrations rows preserved (>= original 8; additive migration never drops)', db.prepare('SELECT count(*) c FROM registrations').get().c >= 8);
 const cmBefore = db.prepare('SELECT count(*) c FROM client_messages').get().c;
 console.log('  client_messages rows before test inserts:', cmBefore);
 

@@ -39,10 +39,12 @@ const mk = (over) => Object.assign({
   raw_row_hash: 'h', needs_review: 0,
 }, over);
 
-console.log('=== prod-copy property: segment all → EMPTY (all 8 optin=0) ===');
-const allProd = resolveAudience({ kind: 'all' });
-console.log('  total on prod copy:', allProd.total);
-t('audience empty by design (no opted-in registrations yet)', allProd.total === 0);
+// Self-isolating: clear the audience slate in the temp copy so the test does not
+// depend on prod state (opted-in owner-test rows, live broadcasts in the .backup).
+db.exec('DELETE FROM client_messages; DELETE FROM broadcasts; DELETE FROM registrations;');
+
+console.log('=== clean slate → empty audience ===');
+t('audience empty before seeding', resolveAudience({ kind: 'all' }).total === 0);
 
 console.log('\n=== seed synthetic opted-in registrations (self-isolating) ===');
 // A: new, child 2014 (~12 → band 10-14). Two submissions same phone → dedup.
