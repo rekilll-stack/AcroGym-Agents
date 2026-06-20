@@ -64,13 +64,13 @@ const recips = (n) => Array.from({ length: n }, (_, i) => ({ recipient_phone: `9
     delay: async (ms) => { delays.push(ms); },
     batchSize: 2, delayMs: 50, lang: 'en',
   });
-  T('result done', res.status === 'done' && !res.aborted);
+  T('result failed (1 undelivered → resumable, B5 semantic)', res.status === 'failed' && !res.aborted);
   T('sent=2, failed=1, total=3', res.sent === 2 && res.failed === 1 && res.total === 3);
   T('send called for the 2 OK recipients', sends.length === 2);
   T('rate-limit: one inter-batch delay (3 recips, batch 2)', delays.length === 1 && delays[0] === 50);
 
   const done = getBroadcast(id);
-  T('broadcasts → status done', done.status === 'done');
+  T('broadcasts → status failed (has undelivered)', done.status === 'failed');
   T('counts persisted (sent=2, failed_count=1)', done.sent === 2 && done.failed_count === 1);
   T('started_at + finished_at set', !!done.started_at && !!done.finished_at);
   T('updated_at changed from creation (explicit on every UPDATE)', done.updated_at !== created.updated_at || done.status !== created.status);
@@ -85,7 +85,7 @@ const recips = (n) => Array.from({ length: n }, (_, i) => ({ recipient_phone: `9
   T('first startBroadcast → true (draft→sending)', startBroadcast(id2) === true);
   T('second startBroadcast → false (race loses, no double send)', startBroadcast(id2) === false);
   const reRun = await runBroadcast(id, { resolveAudience: () => ({ recipients: recips(3) }), sendBroadcastMessage: fakeSend, delay: async () => {}, lang: 'en' });
-  T('runBroadcast on a non-draft (done) row → aborted, no re-send', reRun.aborted === true);
+  T('runBroadcast on a non-draft row → aborted, no re-send', reRun.aborted === true);
 
   console.log('\n=== INSERT OR IGNORE dedup (B5 foundation) ===');
   const before = db.prepare('SELECT count(*) c FROM client_messages WHERE broadcast_id=?').get(id).c;

@@ -45,6 +45,7 @@ const { setupMenuCallbacks }   = require('./callbacks/menu-callbacks');
 const { setupExportCallbacks } = require('./callbacks/export-callbacks');
 const { setupLangCallbacks }   = require('./callbacks/lang-callbacks');
 const { setupBroadcastCallbacks } = require('./callbacks/broadcast-callbacks');
+const { resumeStaleBroadcasts }   = require('../../shared/broadcast/dispatcher');
 
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
@@ -198,6 +199,13 @@ async function start() {
     ownerProbe();
     setInterval(ownerProbe, 60 * 1000);
   }
+
+  // ── B5 crash recovery: finish any broadcast left orphaned in 'sending' (the
+  //    sending process died mid-run). Sends ONLY to recipients without a 'sent'
+  //    row (no double-send), telegram_test only. Inert when there are none. ──
+  resumeStaleBroadcasts({ lang: 'en' })
+    .then(r => { if (r.length) logger.warn({ resumed: r }, 'startup: resumed orphaned broadcast(s)'); })
+    .catch(err => logger.error({ err }, 'startup broadcast resume failed'));
 
   // ── Cron: daily digest 08:00 Asia/Qatar — owner's chosen language(s) ─
   cron.schedule('0 8 * * *', async () => {

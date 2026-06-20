@@ -837,6 +837,66 @@ function logBroadcastRecipient(r) {
   return info.changes === 1;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Broadcast resume / idempotency (B5) — built on the B4 schema + UNIQUE.
+// ─────────────────────────────────────────────────────────────
+
+/** Phones already successfully delivered for a broadcast — the skip-set. */
+function getSentPhones(broadcastId) {
+  const rows = getDb()
+    .prepare(`SELECT recipient_phone FROM client_messages WHERE broadcast_id=? AND delivery_status='sent'`)
+    .all(broadcastId);
+  return new Set(rows.map(r => r.recipient_phone));
+}
+
+/** Authoritative counts from the log (cumulative across resumes). */
+function getBroadcastCounts(broadcastId) {
+  const row = getDb().prepare(`
+    SELECT SUM(CASE WHEN delivery_status='sent'   THEN 1 ELSE 0 END) AS sent,
+           SUM(CASE WHEN delivery_status='failed' THEN 1 ELSE 0 END) AS failed
+    FROM client_messages WHERE broadcast_id=?
+  `).get(broadcastId);
+  return { sent: row.sent || 0, failed: row.failed || 0 };
+}
+
+/**
+ * Mark a recipient delivered, idempotently. UPDATE an existing row (e.g. a prior
+ * 'failed' → 'sent' on resume); if none exists, INSERT 'sent'. Safe to re-run.
+ */
+function markRecipientSent(r) {
+  const db = getDb();
+  const upd = db.prepare(`
+    UPDATE client_messages SET delivery_status='sent', sent_at=datetime('now')
+     WHERE broadcast_id=@b AND recipient_phone=@p
+  `).run({ b: r.broadcast_id, p: r.recipient_phone });
+  if (upd.changes === 0) {
+    db.prepare(`
+      INSERT OR IGNORE INTO client_messages
+        (lead_id, broadcast_id, recipient_phone, message_type, text, channel, delivery_status, agent_name, sent_at)
+      VALUES (NULL, @b, @p, 'broadcast', @text, @channel, 'sent', 'broadcast', datetime('now'))
+    `).run({ b: r.broadcast_id, p: r.recipient_phone, text: r.text ?? null, channel: r.channel });
+  }
+}
+
+/**
+ * Claim a broadcast for resume: 'sending' (orphaned by a crash) or 'failed'
+ * (has undelivered) → 'sending'. Returns true iff claimed. done/canceled/draft
+ * are not resumable here (draft uses startBroadcast). updated_at explicit.
+ */
+function claimResume(id) {
+  const r = getDb().prepare(`
+    UPDATE broadcasts
+       SET status='sending', started_at=COALESCE(started_at, datetime('now')), updated_at=datetime('now')
+     WHERE id=? AND status IN ('sending','failed')
+  `).run(id);
+  return r.changes === 1;
+}
+
+/** Orphaned broadcasts to resume on startup: status='sending' (crashed mid-run). */
+function getResumableBroadcastIds() {
+  return getDb().prepare(`SELECT id FROM broadcasts WHERE status='sending' ORDER BY id`).all().map(r => r.id);
+}
+
 module.exports = {
   getDb,
   insertLead,
@@ -847,6 +907,11 @@ module.exports = {
   getBroadcast,
   startBroadcast,
   finishBroadcast,
+  getSentPhones,
+  getBroadcastCounts,
+  markRecipientSent,
+  claimResume,
+  getResumableBroadcastIds,
   logBroadcastRecipient,
   updateLeadChildrenDob,
   getNurtureEligibleLeads,

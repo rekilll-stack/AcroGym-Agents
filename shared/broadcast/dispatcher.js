@@ -19,6 +19,8 @@ const { escapeMd, sendToBroadcastTest } = require('../telegram');
 const { resolveAudience } = require('./resolver');
 const {
   getBroadcast, startBroadcast, finishBroadcast, logBroadcastRecipient,
+  getSentPhones, getBroadcastCounts, markRecipientSent,
+  claimResume, getResumableBroadcastIds,
 } = require('../db');
 
 const logger = createLogger('broadcast-dispatch');
@@ -43,11 +45,18 @@ async function sendBroadcastMessage({ channel, who, body, lang = 'en', send = se
 const _delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Run a broadcast: atomic draft→sending, batch-send with rate-limit, per-recipient
- * log, sending→done|failed. Deps injectable for tests.
- * @returns {{aborted:boolean, status?:string, sent?:number, failed?:number, total?:number}}
+ * Shared send loop (B5 idempotent). Skips recipients already delivered ('sent'),
+ * so a re-run/resume never double-sends. Success → markRecipientSent (UPDATE a
+ * prior 'failed' → 'sent', else INSERT 'sent'); failure → 'failed' row. Counts
+ * come from the log (cumulative across resumes). Finishes 'done' iff nobody is
+ * left undelivered, else 'failed' (resumable). Assumes the broadcast is already
+ * in 'sending' (caller claimed it).
+ *
+ * Resume targets the CURRENT audience minus already-sent: an opt-out after the
+ * original send drops off; a fresh opt-in would be included. Fine for crash
+ * recovery within minutes (documented edge).
  */
-async function runBroadcast(broadcastId, deps = {}) {
+async function _dispatch(bc, deps = {}) {
   const resolve   = deps.resolveAudience      || resolveAudience;
   const sendMsg   = deps.sendBroadcastMessage || sendBroadcastMessage;
   const delay     = deps.delay                || _delay;
@@ -55,42 +64,73 @@ async function runBroadcast(broadcastId, deps = {}) {
   const delayMs   = deps.delayMs   || Number(process.env.BROADCAST_RATE_DELAY_MS) || 1000;
   const lang      = deps.lang || 'en';
 
+  const segment = { kind: bc.segment_kind, value: bc.segment_value, min: bc.segment_min, max: bc.segment_max };
+  try {
+    const all     = resolve(segment).recipients;
+    const sentSet = getSentPhones(bc.id);
+    const todo    = all.filter(r => !sentSet.has(r.recipient_phone)); // skip already-delivered
+
+    for (let i = 0; i < todo.length; i += batchSize) {
+      for (const r of todo.slice(i, i + batchSize)) {
+        const who = `${r.display_name} ${r.phone_masked}`.trim();
+        try {
+          await sendMsg({ channel: bc.channel, who, body: bc.text, lang });
+          markRecipientSent({ broadcast_id: bc.id, recipient_phone: r.recipient_phone, text: bc.text, channel: bc.channel });
+        } catch (err) {
+          logger.error({ err: err.message, broadcastId: bc.id }, 'recipient send failed');
+          logBroadcastRecipient({ broadcast_id: bc.id, recipient_phone: r.recipient_phone, text: bc.text, channel: bc.channel, delivery_status: 'failed' });
+        }
+      }
+      if (i + batchSize < todo.length) await delay(delayMs);
+    }
+    const c = getBroadcastCounts(bc.id);
+    const status = c.failed > 0 ? 'failed' : 'done'; // done only when all delivered
+    finishBroadcast(bc.id, { status, sent: c.sent, failed: c.failed });
+    return { aborted: false, status, sent: c.sent, failed: c.failed, total: all.length, processed: todo.length };
+  } catch (err) {
+    logger.error({ err: err.message, broadcastId: bc.id }, 'broadcast run failed');
+    const c = getBroadcastCounts(bc.id);
+    finishBroadcast(bc.id, { status: 'failed', sent: c.sent, failed: c.failed });
+    return { aborted: false, status: 'failed', sent: c.sent, failed: c.failed };
+  }
+}
+
+/**
+ * Fresh dispatch from the Send button. Atomic draft→sending guards a double tap
+ * (only one caller wins). Then the shared idempotent loop.
+ */
+async function runBroadcast(broadcastId, deps = {}) {
   const bc = getBroadcast(broadcastId);
   if (!bc) throw new Error(`broadcast ${broadcastId} not found`);
-
-  // Atomic anti-double-start: only one caller wins draft→sending.
   if (!startBroadcast(broadcastId)) {
     logger.warn({ broadcastId, status: bc.status }, 'not in draft — already started; aborting');
     return { aborted: true };
   }
-
-  const segment = { kind: bc.segment_kind, value: bc.segment_value, min: bc.segment_min, max: bc.segment_max };
-  let sent = 0, failed = 0, total = 0;
-  try {
-    const { recipients } = resolve(segment);
-    total = recipients.length;
-    for (let i = 0; i < recipients.length; i += batchSize) {
-      for (const r of recipients.slice(i, i + batchSize)) {
-        const who = `${r.display_name} ${r.phone_masked}`.trim();
-        try {
-          await sendMsg({ channel: bc.channel, who, body: bc.text, lang });
-          logBroadcastRecipient({ broadcast_id: broadcastId, recipient_phone: r.recipient_phone, text: bc.text, channel: bc.channel, delivery_status: 'sent' });
-          sent++;
-        } catch (err) {
-          logger.error({ err: err.message, broadcastId }, 'recipient send failed');
-          logBroadcastRecipient({ broadcast_id: broadcastId, recipient_phone: r.recipient_phone, text: bc.text, channel: bc.channel, delivery_status: 'failed' });
-          failed++;
-        }
-      }
-      if (i + batchSize < recipients.length) await delay(delayMs);
-    }
-    finishBroadcast(broadcastId, { status: 'done', sent, failed });
-    return { aborted: false, status: 'done', sent, failed, total };
-  } catch (err) {
-    logger.error({ err: err.message, broadcastId }, 'broadcast run failed');
-    finishBroadcast(broadcastId, { status: 'failed', sent, failed });
-    return { aborted: false, status: 'failed', sent, failed, total };
-  }
+  return _dispatch(getBroadcast(broadcastId), deps);
 }
 
-module.exports = { sendBroadcastMessage, runBroadcast };
+/**
+ * Resume an interrupted broadcast: 'sending' (crash-orphaned) or 'failed' (has
+ * undelivered) → continue, sending ONLY to recipients without a 'sent' row.
+ */
+async function resumeBroadcast(broadcastId, deps = {}) {
+  const bc = getBroadcast(broadcastId);
+  if (!bc) return { skipped: true, reason: 'not-found' };
+  if (!claimResume(broadcastId)) return { skipped: true, reason: `not resumable (${bc.status})` };
+  logger.warn({ broadcastId, prevStatus: bc.status }, 'resuming broadcast');
+  return _dispatch(getBroadcast(broadcastId), deps);
+}
+
+/**
+ * Crash recovery: resume every broadcast left orphaned in 'sending'. Called on
+ * owner-bot startup. Inert when there are none. telegram_test only (boundary).
+ */
+async function resumeStaleBroadcasts(deps = {}) {
+  const ids = getResumableBroadcastIds();
+  const results = [];
+  for (const id of ids) results.push({ id, ...(await resumeBroadcast(id, deps)) });
+  if (ids.length) logger.warn({ count: ids.length, ids }, 'resumed stale broadcasts on startup');
+  return results;
+}
+
+module.exports = { sendBroadcastMessage, runBroadcast, resumeBroadcast, resumeStaleBroadcasts };
