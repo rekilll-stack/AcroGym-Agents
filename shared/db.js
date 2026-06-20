@@ -644,9 +644,93 @@ function getNurtureDeliveryStats(dateStr) {
   return { total, confirmed, pending: total - confirmed };
 }
 
+// ─────────────────────────────────────────────────────────────
+// registrations (R3) — projection of the big enrollment form.
+// raw_row_hash = canonical content hash; conflict means an identical row, so
+// upsert is insert-or-ignore (DO NOTHING) — re-reading the sheet never dups
+// and never churns updated_at. (Poller liveness is a heartbeat, not updated_at.)
+// ─────────────────────────────────────────────────────────────
+
+const REG_COLS = [
+  'submitted_at', 'parent_first', 'parent_last', 'email', 'mobile_norm',
+  'whatsapp_norm', 'children_json', 'children_count', 'whatsapp_optin', 'optin_at',
+  'optin_version', 'photo_consent', 'tc_accepted', 'qid', 'start_when',
+  'client_type', 'raw_row_hash', 'needs_review',
+];
+
+/** Insert a mapped registration; no-op if its raw_row_hash already exists. */
+function upsertRegistration(reg) {
+  const res = getDb().prepare(`
+    INSERT INTO registrations (${REG_COLS.join(', ')})
+    VALUES (${REG_COLS.map(c => '@' + c).join(', ')})
+    ON CONFLICT(raw_row_hash) DO NOTHING
+  `).run(reg);
+  return res.changes > 0
+    ? { action: 'inserted', id: res.lastInsertRowid }
+    : { action: 'skipped' };
+}
+
+/** Inspection helper: optional equality filters on a few columns. */
+function getRegistrations(filter = {}) {
+  const where = [], params = {};
+  for (const k of ['needs_review', 'whatsapp_optin', 'client_type']) {
+    if (filter[k] !== undefined) { where.push(`${k} = @${k}`); params[k] = filter[k]; }
+  }
+  return getDb().prepare(
+    `SELECT * FROM registrations ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY submitted_at`
+  ).all(params);
+}
+
+// dob → age (inline to avoid a circular require with nurture). Mirrors nurture.
+function _regAge(dobRaw, now = new Date()) {
+  if (!dobRaw) return null;
+  const d = new Date(String(dobRaw).trim());
+  if (isNaN(d)) return null;
+  let age = now.getUTCFullYear() - d.getUTCFullYear();
+  const md = now.getUTCMonth() - d.getUTCMonth();
+  if (md < 0 || (md === 0 && now.getUTCDate() < d.getUTCDate())) age--;
+  return age;
+}
+function _anyChildInBand(childrenJson, min, max) {
+  let kids = [];
+  try { kids = JSON.parse(childrenJson).children || []; } catch { return false; }
+  return kids.some(c => { const a = _regAge(c.dob); return a != null && a >= min && a <= max; });
+}
+
+/**
+ * Broadcast audience: opted-in, reviewed-clean, with a usable WhatsApp number,
+ * de-duplicated by whatsapp_norm (latest submission wins — most current data).
+ * @param {object} segment { kind:'all' } | { kind:'client_type', value } | { kind:'age', min, max }
+ */
+function getOptedInRecipients(segment = { kind: 'all' }) {
+  const where = ['whatsapp_optin = 1', 'needs_review = 0', "whatsapp_norm IS NOT NULL", "whatsapp_norm <> ''"];
+  const params = {};
+  if (segment.kind === 'client_type' && segment.value) { where.push('client_type = @ctype'); params.ctype = segment.value; }
+
+  let rows = getDb().prepare(`SELECT * FROM registrations WHERE ${where.join(' AND ')}`).all(params);
+
+  // age — derived from children_json dob on demand (not stored): keep a row if
+  // ANY of its children falls in the band (message is to the parent).
+  if (segment.kind === 'age' && segment.min != null && segment.max != null) {
+    rows = rows.filter(r => _anyChildInBand(r.children_json, segment.min, segment.max));
+  }
+
+  // de-dup by phone — latest submitted_at wins.
+  const byPhone = new Map();
+  const ts = (s) => { const t = Date.parse(String(s || '')); return isNaN(t) ? 0 : t; };
+  for (const r of rows) {
+    const prev = byPhone.get(r.whatsapp_norm);
+    if (!prev || ts(r.submitted_at) >= ts(prev.submitted_at)) byPhone.set(r.whatsapp_norm, r);
+  }
+  return [...byPhone.values()];
+}
+
 module.exports = {
   getDb,
   insertLead,
+  upsertRegistration,
+  getRegistrations,
+  getOptedInRecipients,
   updateLeadChildrenDob,
   getNurtureEligibleLeads,
   insertNurtureEnrollment,
