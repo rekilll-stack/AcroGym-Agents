@@ -17,13 +17,19 @@
     "dryrun_title": "🔍 *Dry\\-run — полный список получателей \\({{count}}\\)*",
     "btn_send": "✅ Отправить ({{count}})",
     "btn_dryrun": "🔍 Dry-run",
-    "send_stub": "⚠️ Отправка пока не включена — ничего не отправлено\\.",
     "cancelled": "✖️ Рассылка отменена\\.",
     "expired": "⌛ Сессия истекла — начните заново через /broadcast\\.",
     "seg_all_label": "Все согласившиеся",
     "seg_age_label": "Возраст {{band}}",
     "seg_ctype_label": "Тип клиента: {{value}}",
-    "channel_telegram_test": "Telegram (тест)"
+    "channel_telegram_test": "Telegram (тест)",
+    "audience_changed": "⚠️ Аудитория изменилась \\({{old}} → {{new}}\\)\\. Проверьте обновлённый предпросмотр перед отправкой\\.",
+    "confirm_count_prompt": "⚠️ Большая аудитория: *{{count}}*\\. Для подтверждения пришлите точное число получателей:",
+    "confirm_mismatch": "❌ {{typed}} ≠ {{actual}} — отменено ради безопасности\\.",
+    "sending": "📤 Отправляю {{count}}…",
+    "sent_done": "✅ Отправлено: {{sent}}/{{total}} \\(ошибок: {{failed}}\\)",
+    "send_failed": "🔴 Рассылка не удалась: {{reason}}",
+    "test_tag": "🧪 \\[ТЕСТ → {{who}}\\]"
   },
   "common": {
     "brand": "AcroGym",

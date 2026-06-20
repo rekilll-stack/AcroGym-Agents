@@ -769,12 +769,85 @@ function getOptedInRecipients(segment = { kind: 'all' }) {
   return [...byPhone.values()];
 }
 
+// ─────────────────────────────────────────────────────────────
+// Broadcast dispatch (B4) — broadcasts row lifecycle + per-recipient log.
+// updated_at is written EXPLICITLY on every UPDATE (DEFAULT fires on INSERT only).
+// ─────────────────────────────────────────────────────────────
+
+function createBroadcast(b) {
+  const info = getDb().prepare(`
+    INSERT INTO broadcasts
+      (status, segment_kind, segment_value, segment_min, segment_max,
+       channel, body_kind, text, total)
+    VALUES
+      ('draft', @segment_kind, @segment_value, @segment_min, @segment_max,
+       @channel, @body_kind, @text, @total)
+  `).run({
+    segment_kind: b.segment_kind, segment_value: b.segment_value ?? null,
+    segment_min: b.segment_min ?? null, segment_max: b.segment_max ?? null,
+    channel: b.channel, body_kind: b.body_kind || 'text', text: b.text ?? null,
+    total: b.total ?? 0,
+  });
+  return info.lastInsertRowid;
+}
+
+function getBroadcast(id) {
+  return getDb().prepare('SELECT * FROM broadcasts WHERE id = ?').get(id);
+}
+
+// Atomic draft→sending. Returns true IFF this call made the transition
+// (changes===1). A racing/duplicate start sees changes===0 → caller aborts.
+function startBroadcast(id) {
+  const info = getDb().prepare(`
+    UPDATE broadcasts
+       SET status='sending', started_at=datetime('now'), updated_at=datetime('now')
+     WHERE id=? AND status='draft'
+  `).run(id);
+  return info.changes === 1;
+}
+
+function finishBroadcast(id, { status, sent, failed }) {
+  getDb().prepare(`
+    UPDATE broadcasts
+       SET status=@status, sent=@sent, failed_count=@failed,
+           finished_at=datetime('now'), updated_at=datetime('now')
+     WHERE id=@id
+  `).run({ id, status, sent, failed });
+}
+
+// Per-recipient log. INSERT OR IGNORE on UNIQUE(broadcast_id, recipient_phone)
+// (B1) → a re-run never double-logs (B5 resume foundation). lead_id is NULL —
+// broadcast recipients are registrations, not leads. delivery_status: 'sent' on
+// success, 'failed' on send error (variant A — the failed row records WHO).
+// B5 resume semantics: resend WHERE delivery_status != 'sent'; a later success
+// is an UPDATE failed→sent (built in B5). Returns true if a row was inserted.
+function logBroadcastRecipient(r) {
+  const info = getDb().prepare(`
+    INSERT OR IGNORE INTO client_messages
+      (lead_id, broadcast_id, recipient_phone, message_type, text, language,
+       channel, delivery_status, agent_name, sent_at)
+    VALUES
+      (NULL, @broadcast_id, @recipient_phone, 'broadcast', @text, @language,
+       @channel, @delivery_status, 'broadcast', datetime('now'))
+  `).run({
+    broadcast_id: r.broadcast_id, recipient_phone: r.recipient_phone,
+    text: r.text ?? null, language: r.language ?? null,
+    channel: r.channel, delivery_status: r.delivery_status,
+  });
+  return info.changes === 1;
+}
+
 module.exports = {
   getDb,
   insertLead,
   upsertRegistration,
   getRegistrations,
   getOptedInRecipients,
+  createBroadcast,
+  getBroadcast,
+  startBroadcast,
+  finishBroadcast,
+  logBroadcastRecipient,
   updateLeadChildrenDob,
   getNurtureEligibleLeads,
   insertNurtureEnrollment,

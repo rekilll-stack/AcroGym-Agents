@@ -17,13 +17,19 @@
     "dryrun_title": "🔍 *Dry run — full recipient list \\({{count}}\\)*",
     "btn_send": "✅ Send to {{count}}",
     "btn_dryrun": "🔍 Dry run",
-    "send_stub": "⚠️ Sending isn't enabled yet — nothing was sent\\.",
     "cancelled": "✖️ Broadcast cancelled\\.",
     "expired": "⌛ Session expired — start again with /broadcast\\.",
     "seg_all_label": "All opted-in",
     "seg_age_label": "Age {{band}}",
     "seg_ctype_label": "Client type: {{value}}",
-    "channel_telegram_test": "Telegram (test)"
+    "channel_telegram_test": "Telegram (test)",
+    "audience_changed": "⚠️ Audience changed \\({{old}} → {{new}}\\)\\. Review the updated preview before sending\\.",
+    "confirm_count_prompt": "⚠️ Large audience: *{{count}}*\\. To confirm, reply with the exact number of recipients:",
+    "confirm_mismatch": "❌ {{typed}} ≠ {{actual}} — cancelled for safety\\.",
+    "sending": "📤 Sending to {{count}}…",
+    "sent_done": "✅ Sent: {{sent}}/{{total}} \\(failed: {{failed}}\\)",
+    "send_failed": "🔴 Broadcast failed: {{reason}}",
+    "test_tag": "🧪 \\[TEST → {{who}}\\]"
   },
   "common": {
     "brand": "AcroGym",

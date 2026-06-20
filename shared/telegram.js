@@ -116,6 +116,24 @@ async function sendToOwner(text, options = {}) {
 }
 
 /**
+ * Broadcast TEST channel: deliver to BROADCAST_TEST_CHAT_IDS (the owner's test
+ * inbox) via the Owner bot. This is the ONLY delivery path for channel
+ * 'telegram_test' — a client phone number is NEVER a send target here. Unlike
+ * _send, errors PROPAGATE (no swallow) so the dispatcher can mark a recipient
+ * as failed. Throws if the test chat isn't configured (fail loud, never silent).
+ */
+async function sendToBroadcastTest(text, options = {}) {
+  const chatIds = parseChatIds('BROADCAST_TEST_CHAT_IDS');
+  if (!chatIds.length) throw new Error('BROADCAST_TEST_CHAT_IDS not configured');
+  const bot = getOwnerBot();
+  const results = [];
+  for (const chatId of chatIds) {
+    results.push(await bot.sendMessage(chatId, text, { parse_mode: 'MarkdownV2', ...options }));
+  }
+  return results;
+}
+
+/**
  * Редактирует существующее сообщение.
  * bot — 'admin' | 'owner'
  */
@@ -510,6 +528,7 @@ module.exports = {
   escapeMd,
   sendToAdmin,
   sendToOwner,
+  sendToBroadcastTest,
   sendPhotoToOwner,
   sendMediaGroupToOwner,
   sendDocumentToOwner,

@@ -17,6 +17,7 @@ const { t }            = require('../../../shared/i18n');
 const {
   registerOwnerCallback,
   registerOwnerTextHandler,
+  escapeMd,
 } = require('../../../shared/telegram');
 const {
   getState, setState, setStep, updateParams, clearState, isExpired,
@@ -24,6 +25,12 @@ const {
 const { getPreferredLanguage } = require('../../../shared/preferences');
 const { resolveAudience }      = require('../../../shared/broadcast/resolver');
 const { buildPreview, buildDryRun } = require('../builders/broadcast-preview');
+const { createBroadcast }      = require('../../../shared/db');
+const { runBroadcast }         = require('../../../shared/broadcast/dispatcher');
+
+// Above this many recipients, a single tap is not enough — the owner must type
+// the exact count to confirm (guard against an accidental mass send).
+const CONFIRM_THRESHOLD = 20;
 
 const logger = createLogger('owner-bot');
 
@@ -80,6 +87,43 @@ async function showPreview(chatId, bot, l) {
 
   await bot.sendMessage(chatId, text, { parse_mode: 'MarkdownV2', reply_markup: { inline_keyboard: rows } }).catch((err) =>
     logger.error({ err }, 'broadcast preview send failed'));
+}
+
+/** Recount the audience NOW from stored params. */
+function recount(p) {
+  const segment = segmentFromParams(p);
+  return resolveAudience(segment).recipients.length;
+}
+
+/**
+ * Begin the real dispatch after confirmation. Anti-re-entrancy: better-sqlite3 is
+ * synchronous and the bot is single-threaded, so the dispatching check-and-set
+ * runs to completion before any await — a double tap's second call sees the flag
+ * and bails. The DB-level atomic draft→sending in runBroadcast is the second guard.
+ */
+async function startDispatch(chatId, bot, l) {
+  const st = getState(chatId);
+  if (!st || st.action !== 'broadcast') return;
+  if (st.params.dispatching) return;             // re-entrancy guard (sync read)
+  updateParams(chatId, { dispatching: true });   // set BEFORE any await
+
+  const p  = getState(chatId).params;
+  const id = createBroadcast({
+    segment_kind: p.segment_kind, segment_value: p.segment_value,
+    segment_min: p.segment_min, segment_max: p.segment_max,
+    channel: p.channel, body_kind: p.body_kind || 'text', text: p.text,
+    total: p.total ?? 0,
+  });
+  clearState(chatId); // flow consumed — the broadcasts row is now the source of truth
+
+  await bot.sendMessage(chatId, t('broadcast.sending', l, { count: p.total ?? 0 }), { parse_mode: 'MarkdownV2' }).catch(() => {});
+  const res = await runBroadcast(id, { lang: l });
+  if (res.aborted) return; // DB anti-double-start already handled it
+
+  const msg = res.status === 'done'
+    ? t('broadcast.sent_done', l, { sent: res.sent, total: res.total, failed: res.failed })
+    : t('broadcast.send_failed', l, { reason: escapeMd('dispatch error') });
+  await bot.sendMessage(chatId, msg, { parse_mode: 'MarkdownV2', reply_markup: backKb(l) }).catch(() => {});
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -159,9 +203,22 @@ async function onCallback(query, bot) {
         logger.error({ err }, 'broadcast dry-run send failed'));
     }
 
-    case 'send':
-      // STUB — B3 cannot send. No dispatch code is imported here.
-      return bot.sendMessage(chatId, t('broadcast.send_stub', l), { parse_mode: 'MarkdownV2', reply_markup: backKb(l) }).catch(() => {});
+    case 'send': {
+      const count = recount(state.params); // recount at the moment of the tap
+      if (count !== (state.params.total ?? -1)) {
+        // Audience drifted between preview and tap → do NOT send by the old N;
+        // show a fresh preview so the owner re-confirms against the new number.
+        await bot.sendMessage(chatId, t('broadcast.audience_changed', l, { old: state.params.total ?? 0, new: count }), { parse_mode: 'MarkdownV2' }).catch(() => {});
+        return showPreview(chatId, bot, l);
+      }
+      if (count === 0) return; // nothing to send (no Send button rendered anyway)
+      if (count > CONFIRM_THRESHOLD) {
+        updateParams(chatId, { expected_count: count });
+        setStep(chatId, 'confirm_count');
+        return bot.sendMessage(chatId, t('broadcast.confirm_count_prompt', l, { count }), { parse_mode: 'MarkdownV2' }).catch(() => {});
+      }
+      return startDispatch(chatId, bot, l); // N ≤ threshold: a single tap suffices
+    }
 
     default:
       return;
@@ -177,14 +234,29 @@ async function onText(msg, bot) {
   const l      = lang(chatId);
   const state  = getState(chatId);
 
-  if (!state || state.action !== 'broadcast' || state.step !== 'text') return; // not our turn
+  if (!state || state.action !== 'broadcast') return; // not our turn
   if (await expiredGuard(state, chatId, bot, l)) return;
 
-  const text = (msg.text || '').trim();
-  if (!text) return;
+  // Step: message body input → show preview.
+  if (state.step === 'text') {
+    const text = (msg.text || '').trim();
+    if (!text) return;
+    updateParams(chatId, { text });
+    return showPreview(chatId, bot, l);
+  }
 
-  updateParams(chatId, { text });
-  await showPreview(chatId, bot, l);
+  // Step: large-audience confirmation → must type the exact recipient count.
+  if (state.step === 'confirm_count') {
+    const typed = parseInt((msg.text || '').trim(), 10);
+    if (Number.isNaN(typed)) return; // ignore non-numbers, stay on the step
+    const count = recount(state.params); // authoritative recount at confirm time
+    if (typed !== count) {
+      clearState(chatId);
+      return bot.sendMessage(chatId, t('broadcast.confirm_mismatch', l, { typed, actual: count }), { parse_mode: 'MarkdownV2', reply_markup: backKb(l) }).catch(() => {});
+    }
+    updateParams(chatId, { total: count });
+    return startDispatch(chatId, bot, l);
+  }
 }
 
 function setupBroadcastCallbacks() {
@@ -193,4 +265,4 @@ function setupBroadcastCallbacks() {
   logger.info('Broadcast callbacks registered');
 }
 
-module.exports = { setupBroadcastCallbacks, backKb };
+module.exports = { setupBroadcastCallbacks, backKb, onCallback, onText };
