@@ -33,4 +33,10 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 - **Future fix:** Reword the v21 comment to DO-NOTHING (re-read is a no-op; a new submission gets a new hash → new row). One-line docs touch.
 - **Estimated effort:** ~5 min.
 
+### owner-bot poll_err — quantify the watch trigger
+- **Where:** owner-bot heartbeat `detail` carries a cumulative `poll_err: N` (Telegram long-polling errors since process start). Currently watched "by eye" — no threshold.
+- **Trigger:** if `poll_err` climbs **> +50 per day**, investigate (API throttle / network flap / long-polling churn). Slow drift (a few/hour) is normal and ignored.
+- **Why deferred:** needs a small day-over-day delta tracker (store yesterday's count, diff on the daily ping) rather than the current absolute number; not worth a process touch mid-feature.
+- **Estimated effort:** ~30 min.
+
 ---
