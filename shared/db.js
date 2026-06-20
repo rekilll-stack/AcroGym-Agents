@@ -155,6 +155,38 @@ function _runMigrations(db) {
     () => db.exec(`ALTER TABLE leads ADD COLUMN lead_uid TEXT`),
     () => db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_uid
                    ON leads(lead_uid) WHERE lead_uid IS NOT NULL`),
+
+    // v21: registrations — projection of the big enrollment form (separate from
+    // the leads pipeline). Filled by a dedicated poller (scripts/poll-registrations).
+    // Booleans are 0/1. raw_row_hash (UNIQUE) is the upsert key — re-reading the
+    // sheet never duplicates; an edited submission upserts. updated_at is bumped
+    // explicitly on UPDATE (SQLite's DEFAULT only fires on INSERT).
+    () => db.exec(`CREATE TABLE IF NOT EXISTS registrations (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      submitted_at    TEXT,
+      parent_first    TEXT,
+      parent_last     TEXT,
+      email           TEXT,
+      mobile_norm     TEXT,
+      whatsapp_norm   TEXT,
+      children_json   TEXT,
+      children_count  INTEGER,
+      whatsapp_optin  INTEGER NOT NULL DEFAULT 0,
+      optin_at        TEXT,
+      optin_version   TEXT,
+      photo_consent   INTEGER NOT NULL DEFAULT 0,
+      tc_accepted     INTEGER NOT NULL DEFAULT 0,
+      qid             TEXT,
+      start_when      TEXT,
+      client_type     TEXT,
+      raw_row_hash    TEXT NOT NULL UNIQUE,
+      needs_review    INTEGER NOT NULL DEFAULT 0,
+      created_at      TEXT DEFAULT (datetime('now')),
+      updated_at      TEXT DEFAULT (datetime('now'))
+    )`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_reg_optin    ON registrations(whatsapp_optin)`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_reg_whatsapp ON registrations(whatsapp_norm)`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_reg_review   ON registrations(needs_review)`),
   ];
 
   for (const migrate of migrations) {
