@@ -3,6 +3,7 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const { createLogger } = require('./logger');
+const { getState }     = require('./state'); // text router dispatches by current_action
 
 const logger = createLogger('telegram');
 
@@ -259,7 +260,7 @@ function startCallbackPolling() {
 let _ownerPollingBot = null;
 const _ownerCallbackHandlers = new Map(); // prefix → handler
 const _ownerCommandHandlers  = new Map(); // '/command' → handler
-let   _ownerTextHandler      = null;      // single handler for plain-text input
+const _ownerTextHandlers     = new Map(); // action → plain-text handler (router dispatches by current_action)
 
 // Owner polling-error telemetry — surfaced in owner-bot heartbeat detail so the
 // watchdog can tell "loop alive + Telegram reachable" (getMe ok) apart from
@@ -292,13 +293,16 @@ function registerOwnerCommand(command, handler) {
 }
 
 /**
- * Регистрирует обработчик ТЕКСТОВЫХ сообщений (не команд) от OWNER_CHAT_IDS.
- * Используется для ввода дат в /export flow.
+ * Регистрирует обработчик ТЕКСТОВЫХ сообщений (не команд) от OWNER_CHAT_IDS,
+ * привязанный к действию (current_action). Роутер в polling выбирает обработчик
+ * по активному состоянию диалога — так /export и /broadcast сосуществуют, не
+ * перетирая друг друга.
+ * @param {string}   action  — e.g. 'export' | 'broadcast'
  * @param {Function} handler — async (msg, bot) => {}
  */
-function registerOwnerTextHandler(handler) {
-  _ownerTextHandler = handler;
-  logger.debug('Owner text handler зарегистрирован');
+function registerOwnerTextHandler(action, handler) {
+  _ownerTextHandlers.set(action, handler);
+  logger.debug({ action }, 'Owner text handler зарегистрирован');
 }
 
 /**
@@ -337,12 +341,19 @@ function startOwnerPolling() {
         } catch (err) {
           logger.error({ err, command }, 'Ошибка в owner command handler');
         }
-      } else if (_ownerTextHandler) {
-        // Plain text — передаём в зарегистрированный text handler (для ввода дат)
-        try {
-          await _ownerTextHandler(msg, _ownerPollingBot);
-        } catch (err) {
-          logger.error({ err }, 'Ошибка в owner text handler');
+      } else if (_ownerTextHandlers.size) {
+        // Plain text — роутер по current_action: один активный диалог за раз
+        // (/export ввод дат, /broadcast ввод текста). Если состояния нет —
+        // никого не зовём.
+        let action = null;
+        try { const st = getState(msg.chat.id); action = st && st.action; } catch (_) {}
+        const handler = action && _ownerTextHandlers.get(action);
+        if (handler) {
+          try {
+            await handler(msg, _ownerPollingBot);
+          } catch (err) {
+            logger.error({ err, action }, 'Ошибка в owner text handler');
+          }
         }
       }
     });

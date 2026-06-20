@@ -46,13 +46,20 @@ function toR3Segment(segment = {}) {
  *   phone_masked: string      // 974•••••01 — for preview / dry-run / logs
  * }> }}
  */
-function resolveAudience(segment = { kind: 'all' }) {
+function resolveAudience(segment = { kind: 'all' }, opts = {}) {
   const rows = getOptedInRecipients(toR3Segment(segment)); // read-only SELECT
-  const recipients = rows.map(r => ({
-    recipient_phone: r.whatsapp_norm,
-    display_name:    r.parent_first || '',
-    phone_masked:    maskPhone(r.whatsapp_norm),
-  }));
+  const recipients = rows.map(r => {
+    const rec = {
+      recipient_phone: r.whatsapp_norm,
+      display_name:    r.parent_first || '',
+      phone_masked:    maskPhone(r.whatsapp_norm),
+    };
+    // Opt-in enrichment for the B3 age preview only: pass the raw children
+    // through so the preview builder can show which child is in the band.
+    // Default output stays the minimal 3 fields (B2 contract unchanged).
+    if (opts.withChildren) rec.children_json = r.children_json;
+    return rec;
+  });
   return { segment, total: recipients.length, recipients };
 }
 

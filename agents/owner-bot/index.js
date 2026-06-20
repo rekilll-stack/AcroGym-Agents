@@ -37,12 +37,14 @@ const handleStatus    = require('./commands/status');
 const handleHelp      = require('./commands/help');
 const handleExport    = require('./commands/export');
 const handleLang      = require('./commands/lang');
+const handleBroadcast = require('./commands/broadcast');
 
 // Callbacks
 const { setupDigestCallbacks } = require('./callbacks/digest-callbacks');
 const { setupMenuCallbacks }   = require('./callbacks/menu-callbacks');
 const { setupExportCallbacks } = require('./callbacks/export-callbacks');
 const { setupLangCallbacks }   = require('./callbacks/lang-callbacks');
+const { setupBroadcastCallbacks } = require('./callbacks/broadcast-callbacks');
 
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
@@ -155,6 +157,7 @@ async function start() {
   setupMenuCallbacks();
   setupExportCallbacks();
   setupLangCallbacks();
+  setupBroadcastCallbacks();
 
   // Register text commands
   registerOwnerCommand('/menu',      handleMenu);
@@ -165,6 +168,7 @@ async function start() {
   registerOwnerCommand('/pending',   handlePending);
   registerOwnerCommand('/status',    handleStatus);
   registerOwnerCommand('/export',    handleExport);
+  registerOwnerCommand('/broadcast', handleBroadcast);
   registerOwnerCommand('/lang',      handleLang);
   registerOwnerCommand('/help',      handleHelp);
 

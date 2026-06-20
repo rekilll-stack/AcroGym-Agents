@@ -592,7 +592,7 @@ function setupExportCallbacks() {
     if (action === 'export_pdf') return monthExportPdfHandler(query, bot);
     // other month:* callbacks can be added here
   });
-  registerOwnerTextHandler(ownerTextHandler);
+  registerOwnerTextHandler('export', ownerTextHandler);
 }
 
 module.exports = {

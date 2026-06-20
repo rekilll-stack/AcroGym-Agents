@@ -154,6 +154,12 @@ async function menuCallbackHandler(query, bot) {
       break;
     }
 
+    case 'broadcast': {
+      const handleBroadcast = require('../commands/broadcast');
+      await handleBroadcast({ chat: { id: chatId }, text: '/broadcast' }, bot);
+      break;
+    }
+
     case 'status': {
       const handleStatus = require('../commands/status');
       await handleStatus({ chat: { id: chatId }, text: '/status' }, bot);

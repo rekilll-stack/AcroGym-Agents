@@ -22,6 +22,7 @@ function buildMainKeyboard(lang = 'en') {
         { text: t('menu.btn_nurture', lang), callback_data: 'menu:nurture' },
       ],
       [{ text: t('menu.btn_export', lang), callback_data: 'menu:export' }],
+      [{ text: t('broadcast.btn_menu', lang), callback_data: 'menu:broadcast' }],
       [
         { text: t('menu.btn_status', lang), callback_data: 'menu:status' },
         { text: t('menu.btn_lang',   lang), callback_data: 'menu:lang'   },

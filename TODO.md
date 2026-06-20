@@ -35,6 +35,13 @@ Engineering backlog. Items here have been consciously deferred — they are trac
   3. Visual verification (byte-diff + libreoffice PDF→preview) after each batch
 - **Estimated effort:** 2–3 hours focused refactor
 
+### broadcasts migration (v22) — stale enum comment ('draft' = B3)
+- **File:** `shared/db.js` (migration v22, the `broadcasts` status-enum comment)
+- **Issue:** The comment scopes `draft` to B3 ("created via /broadcast … B3 lives here"), implying B3 writes a draft row. The implemented B3 is **write-free** — the draft lives only in `user_state`; the `broadcasts` row is created by B4 at dispatch start. Comment misleads; behaviour is correct (B3 leaves no prod-data trace).
+- **Impact:** Documentation only — no runtime effect.
+- **Future fix:** Reword the v22 status comment: `draft` is the initial state of a row **created in B4**; B3 holds the ephemeral draft in `user_state`. One-line docs touch.
+- **Estimated effort:** ~5 min.
+
 ### registrations migration (v21) — stale comment
 - **File:** `shared/db.js` (migration v21, the `registrations` CREATE TABLE comment)
 - **Issue:** The comment says "an edited submission upserts" / "updated_at is bumped explicitly on UPDATE". The implemented behaviour is variant A — `upsertRegistration` is INSERT ... ON CONFLICT DO NOTHING (no UPDATE branch). Comment misleads; behaviour is correct.
