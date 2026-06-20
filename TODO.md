@@ -26,4 +26,11 @@ Engineering backlog. Items here have been consciously deferred — they are trac
   3. Visual verification (byte-diff + libreoffice PDF→preview) after each batch
 - **Estimated effort:** 2–3 hours focused refactor
 
+### registrations migration (v21) — stale comment
+- **File:** `shared/db.js` (migration v21, the `registrations` CREATE TABLE comment)
+- **Issue:** The comment says "an edited submission upserts" / "updated_at is bumped explicitly on UPDATE". The implemented behaviour is variant A — `upsertRegistration` is INSERT ... ON CONFLICT DO NOTHING (no UPDATE branch). Comment misleads; behaviour is correct.
+- **Impact:** Documentation only — no runtime effect.
+- **Future fix:** Reword the v21 comment to DO-NOTHING (re-read is a no-op; a new submission gets a new hash → new row). One-line docs touch.
+- **Estimated effort:** ~5 min.
+
 ---
