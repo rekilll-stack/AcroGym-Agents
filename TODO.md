@@ -38,11 +38,11 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 ### ~~registrations migration (v21) — stale comment~~ ✅ RESOLVED 2026-06-21
 - **File:** `shared/db.js` (migration v21 comment). Was: "an edited submission upserts / updated_at bumped on UPDATE" — wrong (upsertRegistration is INSERT ... ON CONFLICT DO NOTHING, no UPDATE branch). Reworded to state the DO-NOTHING behaviour. (The v22 comment was checked and is already correct — no drift there.)
 
-### owner-bot poll_err — quantify the watch trigger
-- **Where:** owner-bot heartbeat `detail` carries a cumulative `poll_err: N` (Telegram long-polling errors since process start). Currently watched "by eye" — no threshold.
-- **Trigger:** if `poll_err` climbs **> +50 per day**, investigate (API throttle / network flap / long-polling churn). Slow drift (a few/hour) is normal and ignored.
-- **Why deferred:** needs a small day-over-day delta tracker (store yesterday's count, diff on the daily ping) rather than the current absolute number; not worth a process touch mid-feature.
-- **Estimated effort:** ~30 min.
+### owner-bot poll_err — quantify the watch trigger (DEFERRED — spec wrinkle found 2026-06-21)
+- **Where:** owner-bot heartbeat `detail` carries `poll_err: N` from `_ownerPollErr.count` (telegram.js) — **in-memory, resets to 0 on every restart**. watchdog does NOT parse this detail (only displays it), so the detail format is free to change.
+- **Wrinkle:** the planned "+50/day" trigger as a simple day-over-day diff is **ill-defined** — the counter resets on every deploy/restart (owner-bot restarts often), so `today − yesterday` goes negative / loses the day's accumulation after a restart. A correct version needs either **(A)** a cumulative count persisted across restarts (DB write per polling error + restore on startup — invasive, for a metric currently ~0), or **(B)** a rate metric (`poll_err / uptime_h`, flag on high rate — robust to restarts but NOT "+50/day").
+- **Decision:** deferred — don't ship a tracker that reports "baseline reset" noise after every deploy. poll_err is currently ~0 and not climbing (watch by eye stays). Revisit (pick A or B) only if it actually starts rising.
+- **Estimated effort:** ~30 min once a metric (A or B) is chosen.
 
 ### ~~registration/broadcast tests assume an empty table — make them self-isolating~~ ✅ RESOLVED 2026-06-20
 - **Files:** `test-registrations-db.js`, `test-poll-registrations.js`, `test-broadcast-{resolver,preview,dispatch}.js`; `test-broadcast-migration.js` (tolerant count).
