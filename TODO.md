@@ -61,3 +61,15 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 - **Fix shipped:** each test now clears its slate in the temp copy (`DELETE FROM client_messages; DELETE FROM broadcasts; DELETE FROM registrations;`) before seeding; migration test uses a tolerant `>= 8` (additive migration never drops). Suite is now self-verifying — no manual `clear` step needed.
 
 ---
+
+## Planned — WhatsApp Activation Day (B6, DEFERRED)
+
+The broadcast track is functionally complete for `telegram_test` at B5. **B6 (WhatsApp send branch) is deliberately NOT built** — decided 2026-06-21. The "can't reach real numbers" boundary holds by the **absence of send code** (the safest guarantee — a throw-stub can't be misconfigured). Building B6 now would replace that with "code exists, disabled by flag/token" → a new misconfig/guard-bug → real-send failure class, for ~zero benefit (template structure already in B1; payload would target a non-existent Meta template; activation is blocked on Meta App Review anyway). `shared/channels/whatsapp-cloud.js` and the dispatcher's `whatsapp_cloud` branch **stay pure throw-stubs**.
+
+**Do ALL of this on activation day — понимание→ОК→code WITH Kirill, NO autonomy. Cost of error = an irreplaceable phone number + a Meta ban.**
+1. Meta App Review approved → a real **UTILITY template** registered + approved (we'll know its exact param shape only then).
+2. Cloud API token → `.env` via server (secret, never chat).
+3. ONE pass against the REAL template shape: payload-builder + transport (HTTPS POST `graph.facebook.com`) + **feature-flag** + **token-guard** (no token → throw before network).
+4. UI: add the WhatsApp channel option to `/broadcast` — it does **not** exist now, and that absence is part of what holds the boundary. Add ONLY on activation day.
+5. `resumeBroadcast` edge: resume targets *current audience minus already-'sent'* → on WhatsApp verify an **opt-OUT between start and resume is excluded** (negligible on telegram_test's minute window; matters on real numbers).
+6. Live controlled test on **ONE** real number (yours/test) BEFORE any rollout; respect tiered limits, ramp gradually.
