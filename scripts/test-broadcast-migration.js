@@ -62,7 +62,14 @@ t('…is partial (WHERE broadcast_id IS NOT NULL)', /WHERE\s+broadcast_id\s+IS\s
 
 console.log('=== existing data intact (prod copy: leads=12, registrations=8) ===');
 t('leads rows untouched (12)', db.prepare('SELECT count(*) c FROM leads').get().c === 12);
-t('registrations rows preserved (>= original 8; additive migration never drops)', db.prepare('SELECT count(*) c FROM registrations').get().c >= 8);
+// Structural, not count-based: an additive migration (CREATE IF NOT EXISTS /
+// ADD COLUMN) can't drop a table or its rows. Asserting a row count instead
+// couples the test to prod data (which legitimately changes — e.g. cleanups).
+{
+  const regCols = db.prepare('PRAGMA table_info(registrations)').all().map(r => r.name);
+  t('registrations table intact (key columns present; additive migration never drops it)',
+    ['whatsapp_optin', 'raw_row_hash', 'children_json', 'whatsapp_norm'].every(c => regCols.includes(c)));
+}
 const cmBefore = db.prepare('SELECT count(*) c FROM client_messages').get().c;
 console.log('  client_messages rows before test inserts:', cmBefore);
 
