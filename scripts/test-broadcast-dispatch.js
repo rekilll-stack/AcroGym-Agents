@@ -25,7 +25,7 @@ if (!process.env.ACROGYM_DB_PATH || process.env.ACROGYM_DB_PATH.includes('data/a
 const { getDb, createBroadcast, getBroadcast, startBroadcast, logBroadcastRecipient, upsertRegistration } = require('../shared/db');
 const { sendBroadcastMessage, runBroadcast } = require('../shared/broadcast/dispatcher');
 const { setState, getState, updateParams, setStep, clearState } = require('../shared/state');
-const { onCallback, onText } = require('../agents/owner-bot/callbacks/broadcast-callbacks');
+const { onCallback, onText, pickResultMessage } = require('../agents/owner-bot/callbacks/broadcast-callbacks');
 
 const db = getDb();
 // Self-isolating: clear the slate in the temp copy so seeded audience/broadcasts
@@ -120,6 +120,26 @@ const recips = (n) => Array.from({ length: n }, (_, i) => ({ recipient_phone: `9
   T('stale total → audience_changed message (not sent)', calls.some(c => /changed|изменил/i.test(c.text)));
 
   clearState(CHAT);
+
+  console.log('\n=== #3 fatal propagation: real reason out of runBroadcast ===');
+  const idF = createBroadcast({ segment_kind: 'all', channel: 'telegram_test', body_kind: 'text', text: 'x', total: 0 });
+  const rFatal = await runBroadcast(idF, {
+    resolveAudience: () => { throw new Error('resolve boom'); }, // fatal before the loop
+    sendBroadcastMessage: async () => {}, delay: async () => {}, lang: 'en',
+  });
+  T('fatal → status failed', rFatal.status === 'failed');
+  T('fatal → error carries the REAL reason (not generic)', rFatal.error === 'resolve boom');
+
+  console.log('\n=== #3 three-way result message (pickResultMessage) ===');
+  const mFull    = pickResultMessage({ status: 'done',   sent: 5,  total: 5,  failed: 0 }, 'ru');
+  const mPartial = pickResultMessage({ status: 'failed', sent: 18, total: 20, failed: 2 }, 'ru');
+  const mFatal   = pickResultMessage({ status: 'failed', sent: 0,  total: 5,  failed: 0, error: 'resolve boom' }, 'ru');
+  const mFatalE  = pickResultMessage({ status: 'failed', sent: 0,  total: 0,  failed: 0, error: '' }, 'en');
+  T('full (failed=0) → ✅ sent_done', mFull.includes('✅') && mFull.includes('5/5'));
+  T('partial (failed>0) → ⚠️ sent_partial, NOT ✅, NOT 🔴', mPartial.includes('⚠️') && /18\/20/.test(mPartial) && mPartial.includes('не доставлено') && !mPartial.includes('✅') && !mPartial.includes('🔴'));
+  T('fatal → 🔴 send_failed with the real reason', mFatal.includes('🔴') && mFatal.includes('resolve boom'));
+  T('fatal with empty reason → fallback "dispatch error"', mFatalE.includes('🔴') && mFatalE.includes('dispatch error'));
+
   console.log(`\n═══ Results: ${pass} passed, ${fail} failed ═══`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('ERROR:', e.stack); process.exit(1); });

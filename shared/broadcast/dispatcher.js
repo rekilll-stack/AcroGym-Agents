@@ -91,7 +91,9 @@ async function _dispatch(bc, deps = {}) {
     logger.error({ err: err.message, broadcastId: bc.id }, 'broadcast run failed');
     const c = getBroadcastCounts(bc.id);
     finishBroadcast(bc.id, { status: 'failed', sent: c.sent, failed: c.failed });
-    return { aborted: false, status: 'failed', sent: c.sent, failed: c.failed };
+    // error set ONLY on a fatal (outer catch) — the caller uses its presence to
+    // tell a real failure ('🔴 send_failed' + reason) from a partial one (counts).
+    return { aborted: false, status: 'failed', sent: c.sent, failed: c.failed, error: err.message };
   }
 }
 

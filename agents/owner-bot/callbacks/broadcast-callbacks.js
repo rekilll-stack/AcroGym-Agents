@@ -96,6 +96,22 @@ function recount(p) {
 }
 
 /**
+ * Pick the result message for the owner by outcome (pure, testable):
+ *   fatal (res.error present) → 🔴 send_failed + real reason (fallback generic);
+ *   partial (failed > 0)      → ⚠️ sent_partial (honest counts, resumable);
+ *   full                      → ✅ sent_done.
+ */
+function pickResultMessage(res, l) {
+  if (res.error !== undefined) {
+    return t('broadcast.send_failed', l, { reason: escapeMd(res.error || 'dispatch error') });
+  }
+  if (res.failed > 0) {
+    return t('broadcast.sent_partial', l, { sent: res.sent, total: res.total, failed: res.failed });
+  }
+  return t('broadcast.sent_done', l, { sent: res.sent, total: res.total, failed: res.failed });
+}
+
+/**
  * Begin the real dispatch after confirmation. Anti-re-entrancy: better-sqlite3 is
  * synchronous and the bot is single-threaded, so the dispatching check-and-set
  * runs to completion before any await — a double tap's second call sees the flag
@@ -120,10 +136,7 @@ async function startDispatch(chatId, bot, l) {
   const res = await runBroadcast(id, { lang: l });
   if (res.aborted) return; // DB anti-double-start already handled it
 
-  const msg = res.status === 'done'
-    ? t('broadcast.sent_done', l, { sent: res.sent, total: res.total, failed: res.failed })
-    : t('broadcast.send_failed', l, { reason: escapeMd('dispatch error') });
-  await bot.sendMessage(chatId, msg, { parse_mode: 'MarkdownV2', reply_markup: backKb(l) }).catch(() => {});
+  await bot.sendMessage(chatId, pickResultMessage(res, l), { parse_mode: 'MarkdownV2', reply_markup: backKb(l) }).catch(() => {});
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -265,4 +278,4 @@ function setupBroadcastCallbacks() {
   logger.info('Broadcast callbacks registered');
 }
 
-module.exports = { setupBroadcastCallbacks, backKb, onCallback, onText };
+module.exports = { setupBroadcastCallbacks, backKb, onCallback, onText, pickResultMessage };
