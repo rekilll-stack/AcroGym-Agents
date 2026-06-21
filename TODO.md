@@ -15,10 +15,11 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 
 ## Known technical debt
 
-### ~~Logger — duplicate pretty + JSON output~~ — INVESTIGATED 2026-06-21, premise wrong (recommend close)
+### ~~Logger — duplicate pretty + JSON output~~ ✅ RESOLVED 2026-06-21 — NON-ISSUE, do NOT "fix"
+- 🔴 **Do not "fix" this — it is working as intended.** The original premise ("each event written twice to stdout, pretty + JSON") is **wrong**.
 - **File:** `shared/logger.js`
-- **Reality (checked against the files):** the logger does NOT double to stdout. Two pino targets: `pino/file` → **JSON** to `logs/<agent>.log`; `pino-pretty` → **pretty** to stdout (captured by PM2 into `logs/<agent>-out.log`). So JSON and pretty live in **separate files, each single-format** — not "twice to stdout". `logs/backup.log` (cron) is JSON-only (the pretty worker doesn't flush before `process.exit`).
-- **Conclusion:** not a bug. Removing either target would *reduce* observability (lose the parseable JSON file, or lose the human-readable PM2 log). The only downside is ~2× storage (same event as JSON + as pretty), which is a format choice, not a defect; pm2-logrotate handles rotation. **Not touching the shared logger** (5-agent blast radius) for this. Recommend closing.
+- **Reality (checked against the files):** the logger does NOT double to stdout. Two pino targets: `pino/file` → **JSON** to `logs/<agent>.log`; `pino-pretty` → **pretty** to stdout (captured by PM2 into `logs/<agent>-out.log`). JSON and pretty live in **separate files, each single-format** — not "twice to stdout". `logs/backup.log` (cron) is JSON-only.
+- **Why left alone:** removing either target would *reduce* observability (lose the parseable JSON file, or lose the human-readable PM2 log). The only cost is ~2× storage (same event as JSON + as pretty) — a format choice, not a defect; pm2-logrotate handles rotation. Shared logger = 5-agent blast radius; not worth touching for a non-problem.
 
 ### PDF exporter — i18n decoupling
 - **File:** `agents/owner-bot/exporters/pdf-exporter.js`
