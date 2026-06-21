@@ -3,7 +3,7 @@
 const { createLogger }         = require('../../../shared/logger');
 const { t }                    = require('../../../shared/i18n');
 const { escapeMd }             = require('../../../shared/telegram');
-const { BACK_KB }              = require('../keyboards');
+const { backKeyboard }         = require('../keyboards');
 const { getPreferredLanguage } = require('../../../shared/preferences');
 
 const logger = createLogger('owner-bot');
@@ -33,7 +33,7 @@ module.exports = async function handleHelp(msg, bot) {
   ];
 
   try {
-    await bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'MarkdownV2', reply_markup: BACK_KB });
+    await bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'MarkdownV2', reply_markup: backKeyboard(lang) });
   } catch (err) {
     logger.error({ err }, '/help command failed');
   }

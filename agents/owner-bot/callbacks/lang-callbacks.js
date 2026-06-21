@@ -18,7 +18,7 @@ const { setPreferredLanguage }  = require('../../../shared/preferences');
 const { sendDailyDigest }       = require('../schedulers/daily');
 const { sendWeeklySlice }       = require('../schedulers/weekly');
 const { sendMonthlyReport }     = require('../schedulers/monthly');
-const { BACK_KB }               = require('../keyboards');
+const { backKeyboard }          = require('../keyboards');
 
 const logger = createLogger('owner-bot');
 
@@ -122,7 +122,7 @@ async function langCallbackHandler(query, bot) {
       chat_id:      chatId,
       message_id:   msgId,
       parse_mode:   'MarkdownV2',
-      reply_markup: BACK_KB,
+      reply_markup: backKeyboard(lang),
     });
   } catch (err) {
     logger.warn({ err: err.message }, '[lang-callback] editMessageText failed');

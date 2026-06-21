@@ -13,12 +13,14 @@ const { t } = require('../../shared/i18n');
 // Back-to-menu keyboard (single-row, single button)
 // ─────────────────────────────────────────────────────────────
 
-/** Inline keyboard with one "⬅ Back to menu" button. */
-const BACK_KB = {
-  inline_keyboard: [[
-    { text: t('common.back_to_menu', 'en'), callback_data: 'menu:back' },
-  ]],
-};
+/**
+ * Inline keyboard with one language-aware "⬅ Back to menu" button.
+ * @param {string} lang  — 'en' | 'ru' | 'both' | null ; anything but 'ru' → 'en'.
+ */
+function backKeyboard(lang = 'en') {
+  const L = lang === 'ru' ? 'ru' : 'en'; // 'both'/null/unknown → en (neutral)
+  return { inline_keyboard: [[{ text: t('common.back_to_menu', L), callback_data: 'menu:back' }]] };
+}
 
 // ─────────────────────────────────────────────────────────────
 // Language picker keyboards
@@ -62,4 +64,4 @@ function langChangeKeyboard() {
   };
 }
 
-module.exports = { BACK_KB, langInitKeyboard, langChangeKeyboard };
+module.exports = { backKeyboard, langInitKeyboard, langChangeKeyboard };

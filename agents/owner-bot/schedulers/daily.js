@@ -12,7 +12,7 @@ const { sendToOwner, sendMediaGroupToOwner } = require('../../../shared/notify')
 const { escapeMd }                           = require('../../../shared/telegram');
 const { buildDigest }                        = require('../builders/daily-builder');
 const { createTranslator }                   = require('../../../shared/i18n');
-const { BACK_KB }                            = require('../keyboards');
+const { backKeyboard }                       = require('../keyboards');
 
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
@@ -96,7 +96,7 @@ async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en'
 
   // Part 1: main text (MarkdownV2)
   try {
-    const results = await sendToOwner(digest.text, { reply_markup: BACK_KB });
+    const results = await sendToOwner(digest.text, { reply_markup: backKeyboard(lang) });
     if (results.length > 0) {
       logger.info('[daily] Digest main message sent');
     } else {
@@ -132,7 +132,7 @@ async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en'
         ]);
       }
 
-      keyboard.push(BACK_KB.inline_keyboard[0]); // append "⬅ Back to menu" row
+      keyboard.push(backKeyboard(lang).inline_keyboard[0]); // append "⬅ Back to menu" row
       await sendToOwner(listText, { reply_markup: { inline_keyboard: keyboard } });
       logger.info({ count: pending.length }, '[daily] Pending list sent');
     } catch (err) {

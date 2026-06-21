@@ -10,7 +10,7 @@ const { createLogger } = require('../../../shared/logger');
 const { sendToOwner }  = require('../../../shared/notify');
 const { escapeMd }     = require('../../../shared/telegram');
 const { buildMonthlyReport } = require('../builders/monthly-builder');
-const { BACK_KB }      = require('../keyboards');
+const { backKeyboard } = require('../keyboards');
 
 const logger = createLogger('owner-bot');
 
@@ -64,7 +64,7 @@ async function sendMonthlyReport({ dryRun = false, lang = 'en', month } = {}) {
 
   // ── REAL SEND ─────────────────────────────────────────────
   try {
-    const results = await sendToOwner(report.text, { reply_markup: BACK_KB });
+    const results = await sendToOwner(report.text, { reply_markup: backKeyboard(lang) });
     if (results.length > 0) {
       logger.info('[monthly] Monthly report summary sent');
     } else {

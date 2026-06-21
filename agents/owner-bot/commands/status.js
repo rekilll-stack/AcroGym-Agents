@@ -72,8 +72,8 @@ module.exports = async function handleStatus(msg, bot) {
     text += `\n*${tr.t('status.section_disk')}*\n`;
     text += tr.t('status.disk_free', { free: escapeMd(diskFree), total: '—' }) + '\n';
 
-    const { BACK_KB } = require('../keyboards');
-    await bot.sendMessage(chatId, text, { parse_mode: 'MarkdownV2', reply_markup: BACK_KB });
+    const { backKeyboard } = require('../keyboards');
+    await bot.sendMessage(chatId, text, { parse_mode: 'MarkdownV2', reply_markup: backKeyboard(lang) });
   } catch (err) {
     logger.error({ err }, '/status command failed');
     await bot.sendMessage(chatId,

@@ -14,7 +14,7 @@ const { sendWeeklySlice }       = require('../schedulers/weekly');
 const { sendMonthlyReport }     = require('../schedulers/monthly');
 const { sendMainMenu }          = require('../commands/menu');
 const { getPreferredLanguage }  = require('../../../shared/preferences');
-const { BACK_KB, langInitKeyboard, langChangeKeyboard } = require('../keyboards');
+const { backKeyboard, langInitKeyboard, langChangeKeyboard } = require('../keyboards');
 
 const logger = createLogger('owner-bot');
 
@@ -86,7 +86,7 @@ async function menuCallbackHandler(query, bot) {
       if (total === 0) {
         await bot.sendMessage(chatId, t('pending.empty', pendingLang), {
           parse_mode:   'MarkdownV2',
-          reply_markup: BACK_KB,
+          reply_markup: backKeyboard(pendingLang),
         });
       } else {
         const leads    = getAllPending(20, 0);
@@ -133,16 +133,17 @@ async function menuCallbackHandler(query, bot) {
     // ── Nurture: read-only execution summary (Owner = eyes) ───
     case 'nurture': {
       const nurture = require('../../../shared/nurture');
+      const nurtureLang = getPreferredLanguage(chatId) || 'en';
       try {
         await bot.sendMessage(chatId, nurture.buildOwnerSummaryText(), {
           parse_mode:   'HTML',
-          reply_markup: BACK_KB,
+          reply_markup: backKeyboard(nurtureLang),
         });
       } catch (err) {
         logger.error({ err }, 'menu:nurture summary failed');
         await bot.sendMessage(chatId, `❌ Nurture summary error: <code>${err.message}</code>`, {
           parse_mode:   'HTML',
-          reply_markup: BACK_KB,
+          reply_markup: backKeyboard(nurtureLang),
         }).catch(() => {});
       }
       break;
@@ -176,7 +177,7 @@ async function menuCallbackHandler(query, bot) {
       logger.warn({ action }, 'Unknown menu action');
       await bot.sendMessage(chatId, '❓ Unknown menu action\\.', {
         parse_mode:   'MarkdownV2',
-        reply_markup: BACK_KB,
+        reply_markup: backKeyboard(getPreferredLanguage(chatId) || 'en'),
       }).catch(() => {});
   }
 }

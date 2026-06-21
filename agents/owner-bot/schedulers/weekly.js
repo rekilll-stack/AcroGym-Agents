@@ -13,7 +13,7 @@ const { sendToOwner, sendMediaGroupToOwner } = require('../../../shared/notify')
 const { escapeMd }                           = require('../../../shared/telegram');
 const { buildWeeklySlice }                   = require('../builders/weekly-builder');
 const { createTranslator }                   = require('../../../shared/i18n');
-const { BACK_KB }                            = require('../keyboards');
+const { backKeyboard }                       = require('../keyboards');
 
 const logger = createLogger('owner-bot');
 
@@ -79,7 +79,7 @@ async function sendWeeklySlice({ withCharts = false, dryRun = false, lang = 'en'
 
   // ── REAL SEND ─────────────────────────────────────────────
   try {
-    const results = await sendToOwner(slice.text, { reply_markup: BACK_KB });
+    const results = await sendToOwner(slice.text, { reply_markup: backKeyboard(lang) });
     if (results.length > 0) {
       logger.info('[weekly] Weekly slice main message sent');
     } else {

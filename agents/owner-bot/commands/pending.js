@@ -10,7 +10,7 @@ const { createLogger }               = require('../../../shared/logger');
 const { t }                          = require('../../../shared/i18n');
 const { getAllPending, countPending } = require('../../../shared/db');
 const { getPreferredLanguage }        = require('../../../shared/preferences');
-const { langInitKeyboard, BACK_KB }  = require('../keyboards');
+const { langInitKeyboard, backKeyboard } = require('../keyboards');
 
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
@@ -67,7 +67,7 @@ module.exports = async function handlePending(msg, bot) {
       text += `\n<i>Showing ${from}–${to} of ${total}. Use /pending ${to + 1} to see more.</i>`;
     }
 
-    keyboard.push(BACK_KB.inline_keyboard[0]); // "⬅ Back to menu" row
+    keyboard.push(backKeyboard(lang).inline_keyboard[0]); // "⬅ Back to menu" row
     await bot.sendMessage(chatId, text, {
       parse_mode:   'HTML',
       reply_markup: { inline_keyboard: keyboard },
