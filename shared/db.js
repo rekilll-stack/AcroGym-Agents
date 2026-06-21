@@ -158,9 +158,10 @@ function _runMigrations(db) {
 
     // v21: registrations — projection of the big enrollment form (separate from
     // the leads pipeline). Filled by a dedicated poller (scripts/poll-registrations).
-    // Booleans are 0/1. raw_row_hash (UNIQUE) is the upsert key — re-reading the
-    // sheet never duplicates; an edited submission upserts. updated_at is bumped
-    // explicitly on UPDATE (SQLite's DEFAULT only fires on INSERT).
+    // Booleans are 0/1. raw_row_hash (UNIQUE) is the upsert key — upsertRegistration
+    // is INSERT ... ON CONFLICT(raw_row_hash) DO NOTHING (no UPDATE branch):
+    // re-reading the sheet is a no-op; a new/changed submission gets a new hash
+    // → a new row. (Editing answers is disabled in the form, so the hash is stable.)
     () => db.exec(`CREATE TABLE IF NOT EXISTS registrations (
       id              INTEGER PRIMARY KEY AUTOINCREMENT,
       submitted_at    TEXT,
