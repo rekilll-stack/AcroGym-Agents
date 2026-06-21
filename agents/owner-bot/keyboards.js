@@ -22,6 +22,21 @@ function backKeyboard(lang = 'en') {
   return { inline_keyboard: [[{ text: t('common.back_to_menu', L), callback_data: 'menu:back' }]] };
 }
 
+/**
+ * Persistent bottom button "☰ Main menu" — a reply keyboard that stays above the
+ * input. Tapping it sends the button text, which the owner-bot maps to the menu
+ * toggle (open / hide the inline console).
+ */
+function persistentMenuKeyboard(lang = 'en') {
+  const L = lang === 'ru' ? 'ru' : 'en';
+  return { keyboard: [[{ text: t('menu.persistent_btn', L) }]], resize_keyboard: true, is_persistent: true };
+}
+
+/** The exact button labels (both languages) — used to recognise a tap. */
+function persistentMenuLabels() {
+  return [t('menu.persistent_btn', 'en'), t('menu.persistent_btn', 'ru')];
+}
+
 // ─────────────────────────────────────────────────────────────
 // Language picker keyboards
 // ─────────────────────────────────────────────────────────────
@@ -64,4 +79,4 @@ function langChangeKeyboard() {
   };
 }
 
-module.exports = { backKeyboard, langInitKeyboard, langChangeKeyboard };
+module.exports = { backKeyboard, persistentMenuKeyboard, persistentMenuLabels, langInitKeyboard, langChangeKeyboard };

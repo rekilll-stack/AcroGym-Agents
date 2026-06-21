@@ -279,6 +279,7 @@ let _ownerPollingBot = null;
 const _ownerCallbackHandlers = new Map(); // prefix → handler
 const _ownerCommandHandlers  = new Map(); // '/command' → handler
 const _ownerTextHandlers     = new Map(); // action → plain-text handler (router dispatches by current_action)
+const _ownerTextTriggers     = new Map(); // exact text → handler (e.g. persistent reply-keyboard button)
 
 // Owner polling-error telemetry — surfaced in owner-bot heartbeat detail so the
 // watchdog can tell "loop alive + Telegram reachable" (getMe ok) apart from
@@ -324,6 +325,17 @@ function registerOwnerTextHandler(action, handler) {
 }
 
 /**
+ * Регистрирует обработчик на ТОЧНОЕ совпадение текста (не команда, не флоу) —
+ * для постоянной reply-кнопки меню. Проверяется до action-роутера.
+ * @param {string}   text     — точный текст кнопки
+ * @param {Function} handler  — async (msg, bot) => {}
+ */
+function registerOwnerTextTrigger(text, handler) {
+  _ownerTextTriggers.set(text, handler);
+  logger.debug({ text }, 'Owner text trigger зарегистрирован');
+}
+
+/**
  * Запускает polling на OWNER_BOT для приёма:
  *  - текстовых команд (/yesterday, /week, etc.)
  *  - callback_query от inline-кнопок дайджеста
@@ -358,6 +370,14 @@ function startOwnerPolling() {
           await handler(msg, _ownerPollingBot);
         } catch (err) {
           logger.error({ err, command }, 'Ошибка в owner command handler');
+        }
+      } else if (_ownerTextTriggers.has(text)) {
+        // Exact-text trigger (persistent reply-keyboard button) — checked before
+        // the flow router so it works regardless of any active dialog state.
+        try {
+          await _ownerTextTriggers.get(text)(msg, _ownerPollingBot);
+        } catch (err) {
+          logger.error({ err, text }, 'Ошибка в owner text trigger');
         }
       } else if (_ownerTextHandlers.size) {
         // Plain text — роутер по current_action: один активный диалог за раз
@@ -538,6 +558,7 @@ module.exports = {
   registerOwnerCallback,
   registerOwnerCommand,
   registerOwnerTextHandler,
+  registerOwnerTextTrigger,
   startOwnerPolling,
   getOwnerPollingErrorStats,
 };

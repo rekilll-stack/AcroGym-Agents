@@ -58,6 +58,7 @@
   "menu": {
     "title": "🤸 *AcroGym Owner Console*",
     "subtitle": "_Tap any option below_",
+    "persistent_btn": "☰ Main menu",
     "btn_daily": "📊 Yesterday's digest",
     "btn_weekly": "📅 Weekly slice",
     "btn_monthly": "🗓 Monthly report",

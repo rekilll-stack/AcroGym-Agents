@@ -9,9 +9,11 @@ const cron = require('node-cron');
 const { createLogger }  = require('../../shared/logger');
 const {
   registerOwnerCommand,
+  registerOwnerTextTrigger,
   startOwnerPolling,
   getOwnerPollingErrorStats,
 } = require('../../shared/telegram');
+const { persistentMenuLabels } = require('./keyboards');
 const { sendToOwner }      = require('../../shared/notify');
 const { writeHeartbeat }   = require('../../shared/heartbeat');
 const { gcExpiredStates }  = require('../../shared/state');
@@ -172,6 +174,11 @@ async function start() {
   registerOwnerCommand('/broadcast', handleBroadcast);
   registerOwnerCommand('/lang',      handleLang);
   registerOwnerCommand('/help',      handleHelp);
+
+  // Persistent bottom button "☰ Main menu" (both languages) → toggle the console.
+  for (const label of persistentMenuLabels()) {
+    registerOwnerTextTrigger(label, handleMenu.toggleMenu);
+  }
 
   // Start OWNER_BOT polling
   const ownerBot = startOwnerPolling();

@@ -12,7 +12,7 @@ const { t }                               = require('../../../shared/i18n');
 const { sendDailyDigest }       = require('../schedulers/daily');
 const { sendWeeklySlice }       = require('../schedulers/weekly');
 const { sendMonthlyReport }     = require('../schedulers/monthly');
-const { sendMainMenu }          = require('../commands/menu');
+const { openMenu }              = require('../commands/menu');
 const { getPreferredLanguage }  = require('../../../shared/preferences');
 const { backKeyboard, langInitKeyboard, langChangeKeyboard } = require('../keyboards');
 
@@ -125,8 +125,8 @@ async function menuCallbackHandler(query, bot) {
     // ── Back to menu ──────────────────────────────────────────
     case 'back': {
       const backLang = getPreferredLanguage(chatId) || 'en';
-      await sendMainMenu(chatId, bot, backLang).catch(err =>
-        logger.error({ err }, 'menu:back sendMainMenu failed'));
+      await openMenu(chatId, bot, backLang).catch(err =>
+        logger.error({ err }, 'menu:back openMenu failed'));
       break;
     }
 
