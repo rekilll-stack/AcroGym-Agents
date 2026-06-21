@@ -15,13 +15,10 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 
 ## Known technical debt
 
-### Logger — duplicate pretty + JSON output
+### ~~Logger — duplicate pretty + JSON output~~ — INVESTIGATED 2026-06-21, premise wrong (recommend close)
 - **File:** `shared/logger.js`
-- **Issue:** Each log event is written twice to stdout — once pino-pretty (ANSI-coloured) and once raw JSON. Visible in `logs/backup.log` (cron redirect) and in every PM2 agent log.
-- **Impact:** Cosmetic only — logs are noisier and ~2× larger; no functional effect. Grep/parse still works on the JSON lines.
-- **Why deferred:** Pure log hygiene, zero runtime risk; not worth touching the shared logger mid-feature.
-- **Future fix:** Configure pino so exactly one transport targets stdout (pretty in dev / JSON in prod), not both.
-- **Estimated effort:** ~30 min.
+- **Reality (checked against the files):** the logger does NOT double to stdout. Two pino targets: `pino/file` → **JSON** to `logs/<agent>.log`; `pino-pretty` → **pretty** to stdout (captured by PM2 into `logs/<agent>-out.log`). So JSON and pretty live in **separate files, each single-format** — not "twice to stdout". `logs/backup.log` (cron) is JSON-only (the pretty worker doesn't flush before `process.exit`).
+- **Conclusion:** not a bug. Removing either target would *reduce* observability (lose the parseable JSON file, or lose the human-readable PM2 log). The only downside is ~2× storage (same event as JSON + as pretty), which is a format choice, not a defect; pm2-logrotate handles rotation. **Not touching the shared logger** (5-agent blast radius) for this. Recommend closing.
 
 ### PDF exporter — i18n decoupling
 - **File:** `agents/owner-bot/exporters/pdf-exporter.js`
