@@ -37,6 +37,8 @@
     "doha_time": "Doha time",
     "loading": "⏳ Generating\\.\\.\\.",
     "back_to_menu": "⬅ Back to menu",
+    "btn_copy": "📋 Copy #{{n}}",
+    "btn_done": "✅ Done",
     "yes": "Yes",
     "no": "No",
     "cancel": "Cancel",
@@ -59,6 +61,7 @@
   "menu": {
     "title": "🤸 *AcroGym Owner Console*",
     "subtitle": "_Tap any option below_",
+    "unknown_action": "❓ Unknown menu action\\.",
     "persistent_btn": "☰ Main menu",
     "btn_daily": "📊 Yesterday's digest",
     "btn_weekly": "📅 Weekly slice",

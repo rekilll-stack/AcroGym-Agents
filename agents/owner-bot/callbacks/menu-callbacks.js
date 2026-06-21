@@ -102,8 +102,8 @@ async function menuCallbackHandler(query, bot) {
             phone: escapeMd(l.parent_phone || '—'),
           }) + '\n';
           keyboard.push([
-            { text: `📋 Copy #${i + 1}`, callback_data: `copy_text:${l.id}` },
-            { text: '✅ Done',            callback_data: `mark_responded:${l.id}` },
+            { text: t('common.btn_copy', pendingLang, { n: i + 1 }), callback_data: `copy_text:${l.id}` },
+            { text: t('common.btn_done', pendingLang),                callback_data: `mark_responded:${l.id}` },
           ]);
         }
         keyboard.push([{ text: t('common.back_to_menu', pendingLang), callback_data: 'menu:back' }]);
@@ -175,9 +175,10 @@ async function menuCallbackHandler(query, bot) {
 
     default:
       logger.warn({ action }, 'Unknown menu action');
-      await bot.sendMessage(chatId, '❓ Unknown menu action\\.', {
+      const unkLang = getPreferredLanguage(chatId) || 'en';
+      await bot.sendMessage(chatId, t('menu.unknown_action', unkLang), {
         parse_mode:   'MarkdownV2',
-        reply_markup: backKeyboard(getPreferredLanguage(chatId) || 'en'),
+        reply_markup: backKeyboard(unkLang),
       }).catch(() => {});
   }
 }
