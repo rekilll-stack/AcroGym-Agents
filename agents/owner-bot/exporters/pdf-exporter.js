@@ -17,6 +17,7 @@ const icons                    = require('../../../shared/pdf-icons');
 const { renderPieChart, renderLineChart } = require('../../../shared/chart');
 const { buildReportData, formatDuration } = require('../../../shared/report-data');
 const { createLogger }         = require('../../../shared/logger');
+const { t }                    = require('../../../shared/i18n');
 
 const logger = createLogger('pdf-exporter');
 
@@ -31,120 +32,73 @@ const LIGHT  = '#F8F9FA';
 const PAGE   = { size: 'A4', margin: 0 };
 
 // ── Bilingual text ───────────────────────────────────────────
-const TX = {
-  en: {
-    cover_title:       'MONTHLY REPORT',
-    cover_date_label:  (d) => d,                          // "May 2026"
-    cover_generated:   (d) => `Generated ${d}`,           // "Generated 2026-05-27"
-    summary_header:    'EXECUTIVE SUMMARY',
-    leads_label:       'NEW LEADS',
-    revenue_label:     'REVENUE (QAR)',
-    members_label:     'ACTIVE MEMBERS',
-    pending_label:     'in2 pending',
-    status_revenue:    'Revenue: in2 data pending (August 2026)',
-    status_leads_zero:    'Leads: no activity (0 this month, target 40)',
-    status_leads_red:     (n) => `Leads: below target (${n} this month, target 40)`,
-    status_leads_yellow:  (n) => `Leads: approaching target (${n} this month, target 40)`,
-    status_leads_green:   (n) => `Leads: on target (${n} this month, target 40)`,
-    status_response_none: 'Response: no responses yet',
-    status_response_calc: (t, goal) => `Avg first-response ${t}, goal ≤ ${goal}`,
-    key_events:        'Key Events',
-    ev_leads_zero:     'No new leads this month',
-    ev_leads_some:     (n) => `${n} new leads this month`,
-    ev_in2:            'Revenue & attendance data pending in2 (Aug 2026)',
-    ev_response_none:  'Avg first-response: no data yet',
-    ev_response_calc:  (t, goal, met) => `Avg first-response ${t} — target ≤ ${goal} ${met ? 'met' : 'not met'}`,
-    vs_prev_pos:       (p) => `+${p}% vs prev month`,
-    vs_prev_neg:       (p) => `${p}% vs prev month`,
-    vs_prev_zero:      '0% vs prev month',
-    vs_no_prior:       'no prior data',
-    vs_no_activity:    '—',
-    chart_no_data:     'No daily activity for this period',
-    pie_no_data:       'No source data for this period',
-    leads_header:      'LEADS & PIPELINE',
-    funnel_title:      'Conversion Funnel',
-    f_submitted:       'Submitted',
-    f_responded:       'Responded',
-    f_trial_book:      'Trial Booked',
-    f_trial_attend:    'Trial Attended',
-    f_subscribed:      'Subscribed',
-    in2_title:         'Coming with in2 integration',
-    in2_body:          'Trial bookings, attendance tracking, subscriptions and revenue after in2 API (Aug 2026).',
-    sources_title:     'Lead Sources Distribution',
-    src_col_source:    'Source',
-    src_col_leads:     'Leads',
-    chart_title:       'Daily Leads — Last 4 Weeks',
-    best_label:        (d, n) => `Best: ${d} (${n} leads)`,
-    worst_label:       (d, n) => `Worst: ${d} (${n} lead${n !== 1 ? 's' : ''})`,
-    p4_header:         'ATTENDANCE, REVENUE & COACHES',
-    s_attendance:      'Attendance',
-    s_attendance_sub:  'Total visits, per-coach attendance, group fill rates',
-    s_revenue:         'Revenue',
-    s_revenue_sub:     'Monthly revenue, QAR per session, coach compensation',
-    s_coaches:         'Coach Overview',
-    s_coaches_sub:     'Session counts, performance metrics, feedback scores',
-    coming_in2:        'Coming with in2 integration',
-    expected:          'Expected: August 2026',
-    footer:            'AcroGym · Monthly Report',
-    page_of:           (n, t) => `Page ${n} of ${t}`,
-  },
-  ru: {
-    cover_title:       'ЕЖЕМЕСЯЧНЫЙ ОТЧЁТ',
-    cover_date_label:  (d) => d,
-    cover_generated:   (d) => `Сформировано ${d}`,
-    summary_header:    'ИТОГИ МЕСЯЦА',
-    leads_label:       'НОВЫЕ ЛИДЫ',
-    revenue_label:     'ВЫРУЧКА (QAR)',
-    members_label:     'АКТИВНЫХ ЧЛЕНОВ',
-    pending_label:     'ожидает in2',
-    status_revenue:    'Выручка: данные in2 ожидаются (август 2026)',
-    status_leads_zero:    'Лиды: активности не было (0 за месяц, цель 40)',
-    status_leads_red:     (n) => `Лиды: ниже цели (${n} за месяц, цель 40)`,
-    status_leads_yellow:  (n) => `Лиды: приближаются к цели (${n} за месяц, цель 40)`,
-    status_leads_green:   (n) => `Лиды: цель достигнута (${n} за месяц, цель 40)`,
-    status_response_none: 'Отклик: ответов ещё не было',
-    status_response_calc: (t, goal) => `Ср. время ответа ${t}, цель ≤ ${goal}`,
-    key_events:        'Ключевые события',
-    ev_leads_zero:     'Заявок в этом месяце не было',
-    ev_leads_some:     (n) => `${n} новых лидов в этом месяце`,
-    ev_in2:            'Выручка и посещаемость ожидают in2 (авг. 2026)',
-    ev_response_none:  'Ср. время ответа: данных пока нет',
-    ev_response_calc:  (t, goal, met) => `Ср. время ответа ${t} — цель ≤ ${goal} ${met ? 'достигнута' : 'не достигнута'}`,
-    vs_prev_pos:       (p) => `+${p}% к прошлому месяцу`,
-    vs_prev_neg:       (p) => `${p}% к прошлому месяцу`,
-    vs_prev_zero:      '0% к прошлому месяцу',
-    vs_no_prior:       'нет данных за прошлый месяц',
-    vs_no_activity:    '—',
-    chart_no_data:     'Нет активности за период',
-    pie_no_data:       'Нет данных по источникам за период',
-    leads_header:      'ЛИДЫ И ВОРОНКА ПРОДАЖ',
-    funnel_title:      'Воронка конверсии',
-    f_submitted:       'Подано заявок',
-    f_responded:       'Получили ответ',
-    f_trial_book:      'Записались на пробу',
-    f_trial_attend:    'Пришли на пробу',
-    f_subscribed:      'Оформили абонемент',
-    in2_title:         'Появится с интеграцией in2',
-    in2_body:          'Бронирование, посещаемость, конверсии и выручка появятся после запуска in2 (август 2026).',
-    sources_title:     'Распределение по источникам',
-    src_col_source:    'Источник',
-    src_col_leads:     'Лиды',
-    chart_title:       'Лиды по дням — последние 4 недели',
-    best_label:        (d, n) => `Лучший: ${d} (${n} лидов)`,
-    worst_label:       (d, n) => `Худший: ${d} (${n} лид${n === 1 ? '' : n < 5 ? 'а' : 'ов'})`,
-    p4_header:         'ПОСЕЩАЕМОСТЬ, ВЫРУЧКА И ТРЕНЕРЫ',
-    s_attendance:      'Посещаемость',
-    s_attendance_sub:  'Итого визитов, посещаемость по тренерам, заполняемость групп',
-    s_revenue:         'Выручка',
-    s_revenue_sub:     'Ежемесячная выручка, QAR за занятие, вознаграждение тренеров',
-    s_coaches:         'Обзор тренеров',
-    s_coaches_sub:     'Кол-во занятий, показатели эффективности, оценки обратной связи',
-    coming_in2:        'Появится с интеграцией in2',
-    expected:          'Ожидается: август 2026',
-    footer:            'AcroGym · Месячный отчёт',
-    page_of:           (n, t) => `Стр. ${n} из ${t}`,
-  },
-};
+// Bilingual text now lives in shared/i18n under the `pdf.*` namespace (verbatim
+// migration — same wording the owner approved). buildTx keeps the EXACT shape the
+// renderer expects (plain strings + parametrised functions) so call sites are
+// unchanged; only the source of the strings moved (hardcoded → i18n).
+function buildTx(lang) {
+  const T = (k, v) => t(`pdf.${k}`, lang, v);
+  // RU plural for "лид" — preserves the original simple (n<5) rule verbatim.
+  const leadsNoun = (n) => lang === 'ru'
+    ? (n === 1 ? 'лид' : n < 5 ? 'лида' : 'лидов')
+    : (n === 1 ? 'lead' : 'leads');
+  return {
+    cover_title:          T('cover_title'),
+    cover_date_label:     (d) => d,
+    cover_generated:      (d) => T('cover_generated', { date: d }),
+    summary_header:       T('summary_header'),
+    leads_label:          T('leads_label'),
+    revenue_label:        T('revenue_label'),
+    members_label:        T('members_label'),
+    pending_label:        T('pending_label'),
+    status_revenue:       T('status_revenue'),
+    status_leads_zero:    T('status_leads_zero'),
+    status_leads_red:     (n) => T('status_leads_red',    { n }),
+    status_leads_yellow:  (n) => T('status_leads_yellow', { n }),
+    status_leads_green:   (n) => T('status_leads_green',  { n }),
+    status_response_none: T('status_response_none'),
+    status_response_calc: (time, goal) => T('status_response_calc', { time, goal }),
+    key_events:        T('key_events'),
+    ev_leads_zero:     T('ev_leads_zero'),
+    ev_leads_some:     (n) => T('ev_leads_some', { n }),
+    ev_in2:            T('ev_in2'),
+    ev_response_none:  T('ev_response_none'),
+    ev_response_calc:  (time, goal, met) => T('ev_response_calc', { time, goal, verdict: met ? T('verdict_met') : T('verdict_not_met') }),
+    vs_prev_pos:       (p) => T('vs_prev_pos', { p }),
+    vs_prev_neg:       (p) => T('vs_prev_neg', { p }),
+    vs_prev_zero:      T('vs_prev_zero'),
+    vs_no_prior:       T('vs_no_prior'),
+    vs_no_activity:    T('vs_no_activity'),
+    chart_no_data:     T('chart_no_data'),
+    pie_no_data:       T('pie_no_data'),
+    leads_header:      T('leads_header'),
+    funnel_title:      T('funnel_title'),
+    f_submitted:       T('f_submitted'),
+    f_responded:       T('f_responded'),
+    f_trial_book:      T('f_trial_book'),
+    f_trial_attend:    T('f_trial_attend'),
+    f_subscribed:      T('f_subscribed'),
+    in2_title:         T('in2_title'),
+    in2_body:          T('in2_body'),
+    sources_title:     T('sources_title'),
+    src_col_source:    T('src_col_source'),
+    src_col_leads:     T('src_col_leads'),
+    chart_title:       T('chart_title'),
+    best_label:        (d, n) => T('best_label',  { d, n }),
+    worst_label:       (d, n) => T('worst_label', { d, n, noun: leadsNoun(n) }),
+    p4_header:         T('p4_header'),
+    s_attendance:      T('s_attendance'),
+    s_attendance_sub:  T('s_attendance_sub'),
+    s_revenue:         T('s_revenue'),
+    s_revenue_sub:     T('s_revenue_sub'),
+    s_coaches:         T('s_coaches'),
+    s_coaches_sub:     T('s_coaches_sub'),
+    coming_in2:        T('coming_in2'),
+    expected:          T('expected'),
+    footer:            T('footer'),
+    page_of:           (n, total) => T('page_of', { n, total }),
+  };
+}
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -158,7 +112,7 @@ function noLig(str) {
 // ── Main export function ─────────────────────────────────────
 
 async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } = {}) {
-  const tx = TX[lang] || TX.en;
+  const tx = buildTx(lang);
 
   // ── Shared data (DB + derived) ────────────────────────────
   const rd = await buildReportData({ period, lang, dateFrom, dateTo });
@@ -492,4 +446,4 @@ async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } =
   return bufferPromise;
 }
 
-module.exports = { generatePdf };
+module.exports = { generatePdf, buildTx };

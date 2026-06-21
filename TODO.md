@@ -21,17 +21,10 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 - **Reality (checked against the files):** the logger does NOT double to stdout. Two pino targets: `pino/file` → **JSON** to `logs/<agent>.log`; `pino-pretty` → **pretty** to stdout (captured by PM2 into `logs/<agent>-out.log`). JSON and pretty live in **separate files, each single-format** — not "twice to stdout". `logs/backup.log` (cron) is JSON-only.
 - **Why left alone:** removing either target would *reduce* observability (lose the parseable JSON file, or lose the human-readable PM2 log). The only cost is ~2× storage (same event as JSON + as pretty) — a format choice, not a defect; pm2-logrotate handles rotation. Shared logger = 5-agent blast radius; not worth touching for a non-problem.
 
-### PDF exporter — i18n decoupling
+### ~~PDF exporter — i18n decoupling~~ ✅ RESOLVED 2026-06-21
 - **File:** `agents/owner-bot/exporters/pdf-exporter.js`
-- **Issue:** Contains hardcoded `TX` dictionary (~80 strings × EN + RU) instead of using `shared/i18n`
-- **Lines:** ~30–119 (the `TX` object literal)
-- **Impact:** PDF text won't auto-update when i18n is changed; risk of EN/RU divergence with other agents (digest, weekly, monthly Telegram messages)
-- **Why deferred:** PDF text is accepted by stakeholder, PPTX is the priority. Refactor is non-trivial: ~30 new i18n keys needed because PDF phrasing differs from telegram-style `monthly.*` keys (e.g. `'NEW LEADS'` vs `monthly.exec_headline_leads: 'New leads'` — different case; `'Submitted'` vs `'Submitted form'` — different wording).
-- **Future fix:**
-  1. Create dedicated `pdf.*` i18n namespace with PDF-specific phrasing (separate from telegram-style `monthly.*`)
-  2. Migrate `TX[lang][key]` → `t('pdf.<key>', lang)` key by key
-  3. Visual verification (byte-diff + libreoffice PDF→preview) after each batch
-- **Estimated effort:** 2–3 hours focused refactor
+- **Done:** the hardcoded `TX` dictionary (54 keys × EN+RU) moved verbatim into the `pdf.*` i18n namespace; `buildTx(lang)` rebuilds the exact shape the renderer expects (plain strings + parametrised functions) from `t('pdf.*', lang, vars)`, so call sites are unchanged. Parametrised entries became `{{var}}` templates; the RU "лид" plural + the met/not-met verdict are resolved in code (verbatim logic). A stale unused `pdf.*` namespace (7 keys from an abandoned TOC/appendix design) was replaced.
+- **Verified:** `test-pdf-i18n.js` asserts new i18n output == old TX output for every key/arg (118/118, incl plurals & verdict branches); rendered PDFs are **byte-for-byte identical** to the pre-migration baseline (EN 144398, RU 149052, Δ0). Language picker unchanged (en/ru/both → per-lang PDF). PPTX was already on i18n (untouched).
 
 ### ~~registrations migration (v21) — stale comment~~ ✅ RESOLVED 2026-06-21
 - **File:** `shared/db.js` (migration v21 comment). Was: "an edited submission upserts / updated_at bumped on UPDATE" — wrong (upsertRegistration is INSERT ... ON CONFLICT DO NOTHING, no UPDATE branch). Reworded to state the DO-NOTHING behaviour. (The v22 comment was checked and is already correct — no drift there.)
