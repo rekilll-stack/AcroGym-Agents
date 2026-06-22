@@ -343,8 +343,10 @@ function placeholderText(candidate) {
  * the admin sends to the client by hand). After delivering touch N, advances the
  * enrollment to touch N+1 (next_due = enrolled + offset) or ends the series. Gates
  * + stop conditions live in getDripCandidates. `deliver` is injectable for tests.
+ * `buildContent(candidate)` supplies the real per-touch body (A.3, wired by
+ * lead-helper); when absent the body stays the placeholder.
  */
-async function buildAndSendQueue({ deliver = sendToClient, limit = 100 } = {}) {
+async function buildAndSendQueue({ deliver = sendToClient, limit = 100, buildContent } = {}) {
   const candidates = getDripCandidates(limit);
   let queued = 0;
 
@@ -357,9 +359,10 @@ async function buildAndSendQueue({ deliver = sendToClient, limit = 100 } = {}) {
       language:        c.language || 'en',
     };
     try {
+      const messageText = buildContent ? await buildContent(c) : placeholderText(c);
       await deliver({
         lead,
-        messageText: placeholderText(c),
+        messageText,
         messageType: 'nurture',
         metadata:    { agentName: 'nurture', leadId: c.lead_id, touch: c.next_touch },
       });
@@ -421,10 +424,10 @@ async function sendOwnerSummary(now = new Date()) {
 // Daily run (enroll → queue → summary)
 // ─────────────────────────────────────────────────────────────
 
-async function runDaily() {
+async function runDaily({ buildContent } = {}) {
   const now = new Date();
   const enroll = enrollEligibleLeads(now);
-  const queue  = await buildAndSendQueue();
+  const queue  = await buildAndSendQueue({ buildContent });
   await sendOwnerSummary(now);
   logger.info({ enrolled: enroll.enrolled, queued: queue.queued }, 'Nurture: daily run complete');
   return { ...enroll, ...queue };

@@ -37,6 +37,7 @@ const { markRespondedHandler, copyTextHandler } = require('../../shared/callback
 const nurture = require('../../shared/nurture');
 const { writeHeartbeat } = require('../../shared/heartbeat');
 const { buildGreetingPrompt, fallbackGreeting } = require('./prompts');
+const { buildDripContent } = require('./drip-content');
 
 // Test-only: freeze heartbeat writes while polling continues normally, so the
 // watchdog's "online + stale = hung" branch can be exercised without dropping
@@ -495,7 +496,7 @@ async function start() {
   // logged and contained, never propagating into the lead-helper core loop.
   cron.schedule('0 8 * * *', async () => {
     try {
-      await nurture.runDaily();
+      await nurture.runDaily({ buildContent: buildDripContent });
     } catch (err) {
       logger.error({ err }, 'nurture.runDaily failed — core loop unaffected');
     }
