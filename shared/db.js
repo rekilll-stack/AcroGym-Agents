@@ -770,6 +770,51 @@ function getNurtureDeliveryStats(dateStr) {
   return { total, confirmed, pending: total - confirmed };
 }
 
+/**
+ * Drip funnel for the owner summary: where active enrollments sit in the
+ * sequence, who's done, who's paused, who's HELD (due but blocked by a gate —
+ * welcome not yet 'responded', or the prior touch not confirmed_sent), and how
+ * many will go out on the next run. `held` + `due_now` use the SAME gate logic
+ * as getDripCandidates (kept in sync — `due_now` mirrors the candidate query,
+ * `held` is due-but-NOT-a-candidate). Converted leads (client_type 'existing')
+ * are silently excluded — they stop, they are not "stuck".
+ */
+function getDripFunnelStats() {
+  const row = getDb().prepare(`
+    SELECT
+      SUM(CASE WHEN n.status='active' AND n.next_touch = 2 AND l.client_type <> 'existing' THEN 1 ELSE 0 END) AS awaiting_t2,
+      SUM(CASE WHEN n.status='active' AND n.next_touch = 3 AND l.client_type <> 'existing' THEN 1 ELSE 0 END) AS awaiting_t3,
+      SUM(CASE WHEN n.status='active' AND n.next_touch IS NULL AND n.last_touch_at IS NOT NULL THEN 1 ELSE 0 END) AS completed,
+      SUM(CASE WHEN n.status='paused' THEN 1 ELSE 0 END) AS paused,
+      SUM(CASE
+        WHEN n.status='active' AND n.next_touch IS NOT NULL AND n.next_due_at <= datetime('now')
+             AND l.client_type <> 'existing'
+             AND (n.next_touch <> 2 OR l.status = 'responded')
+             AND (n.next_touch = 2 OR EXISTS (
+                   SELECT 1 FROM client_messages m
+                   WHERE m.lead_id = n.lead_id AND m.message_type='nurture' AND m.delivery_status='confirmed_sent'))
+        THEN 1 ELSE 0 END) AS due_now,
+      SUM(CASE
+        WHEN n.status='active' AND n.next_touch IS NOT NULL AND n.next_due_at <= datetime('now')
+             AND l.client_type <> 'existing'
+             AND NOT ( (n.next_touch <> 2 OR l.status = 'responded')
+                       AND (n.next_touch = 2 OR EXISTS (
+                             SELECT 1 FROM client_messages m
+                             WHERE m.lead_id = n.lead_id AND m.message_type='nurture' AND m.delivery_status='confirmed_sent')) )
+        THEN 1 ELSE 0 END) AS held
+    FROM nurture_enrollments n
+    JOIN leads l ON l.id = n.lead_id
+  `).get();
+  return {
+    awaiting_t2: row.awaiting_t2 || 0,
+    awaiting_t3: row.awaiting_t3 || 0,
+    completed:   row.completed   || 0,
+    paused:      row.paused      || 0,
+    due_now:     row.due_now     || 0,
+    held:        row.held        || 0,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────
 // registrations (R3) — projection of the big enrollment form.
 // raw_row_hash = canonical content hash; conflict means an identical row, so
@@ -1005,6 +1050,7 @@ module.exports = {
   advanceDripTouch,
   getNurtureAudienceCounts,
   getNurtureDeliveryStats,
+  getDripFunnelStats,
   getLeadByRow,
   getLeadByUid,
   getLeadById,

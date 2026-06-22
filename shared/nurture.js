@@ -23,6 +23,7 @@ const {
   advanceDripTouch,
   getNurtureAudienceCounts,
   getNurtureDeliveryStats,
+  getDripFunnelStats,
 } = require('./db');
 
 // Drip schedule (A.2): touch → day-offset from enrollment (day 0). Touch 1 is the
@@ -397,15 +398,26 @@ function buildOwnerSummaryText(now = new Date()) {
   const dateStr = qatarDateStr(now);
   const counts  = getNurtureAudienceCounts();
   const stats   = getNurtureDeliveryStats(dateStr);
+  const funnel  = getDripFunnelStats();
 
   const byAud = { cold: 0, warm: 0, enrolled: 0 };
   for (const r of counts) if (byAud[r.audience] != null) byAud[r.audience] = r.cnt;
   const totalEnrolled = byAud.cold + byAud.warm + byAud.enrolled;
 
+  // "Held" earns a ⚠️ only when someone is actually stuck on a gate.
+  const heldLine = `${funnel.held > 0 ? '⚠️ ' : ''}Held (waiting on a gate): <b>${funnel.held}</b>`;
+
   return (
     `📊 <b>Nurture — execution summary</b>\n` +
     `Enrolled (active): <b>${totalEnrolled}</b> ` +
     `(cold ${byAud.cold} · warm ${byAud.warm} · enrolled ${byAud.enrolled})\n\n` +
+    `🌱 <b>Drip funnel</b>\n` +
+    `• Awaiting touch 2 (follow-up): <b>${funnel.awaiting_t2}</b>\n` +
+    `• Awaiting touch 3 (pre-launch): <b>${funnel.awaiting_t3}</b>\n` +
+    `• Completed series: <b>${funnel.completed}</b>\n` +
+    `• Paused: <b>${funnel.paused}</b>\n` +
+    `• ${heldLine}\n` +
+    `Due to go out next run: <b>${funnel.due_now}</b>\n\n` +
     `📬 Today's queue: <b>${stats.total}</b>\n` +
     `✅ Sent: <b>${stats.confirmed}</b>\n` +
     `⏳ Awaiting: <b>${stats.pending}</b>`

@@ -42,6 +42,16 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 
 ---
 
+## Pre-launch checklist — BEFORE real lead flow (Aug–Sep 2026)
+
+### 🔴 Restart nurture agent on the drip code before leads start arriving
+- **Why:** A.3 (097ee25) changed the daily-run code path — `lead-helper/index.js` now injects `buildDripContent` into `nurture.runDaily`, so the 08:00 Doha cron drafts REAL touch-2/3 content. The running PM2 process still holds the **pre-A.3 code** (placeholder path). It was intentionally NOT restarted now: prod has **0 eligible leads** and the drip is inert until real leads appear (~September 2026).
+- **Risk if skipped:** once a real lead enrolls and the cron fires drip, a stale process would draft the `[NURTURE · touch N placeholder]` text to the admin instead of the approved content.
+- **Action (before the lead flow opens, Aug–Sep):** `pm2 restart lead-helper` (and any other nurture-touching agents) so the runtime is on the drip code. Verify after: enroll one synthetic lead, force a due touch on a temp DB, confirm the draft is real content (not placeholder).
+- **Status:** deferred by design — this is a "before launch" gate, not a "now" task.
+
+---
+
 ## Planned — WhatsApp Activation Day (B6, DEFERRED)
 
 The broadcast track is functionally complete for `telegram_test` at B5. **B6 (WhatsApp send branch) is deliberately NOT built** — decided 2026-06-21. The "can't reach real numbers" boundary holds by the **absence of send code** (the safest guarantee — a throw-stub can't be misconfigured). Building B6 now would replace that with "code exists, disabled by flag/token" → a new misconfig/guard-bug → real-send failure class, for ~zero benefit (template structure already in B1; payload would target a non-existent Meta template; activation is blocked on Meta App Review anyway). `shared/channels/whatsapp-cloud.js` and the dispatcher's `whatsapp_cloud` branch **stay pure throw-stubs**.

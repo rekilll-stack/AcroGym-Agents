@@ -17,6 +17,10 @@ const TYPE_LABELS = {
   confirmation: 'Подтверждение',
 };
 
+// Admin-facing drip touch marker (card framing only — never the copyable text),
+// so the admin sees which touch they're sending. Touch 1 = greeting (separate).
+const DRIP_TOUCH_KIND = { 2: 'follow-up', 3: 'pre-launch' };
+
 // ─────────────────────────────────────────────────────────────
 // Таблица client_messages инициализируется в db.js —
 // здесь используем готовую функцию getDb()
@@ -47,8 +51,34 @@ function _getClientMessage(id) {
 // РЕЖИМ: telegram_draft
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Builds the admin draft card (framing only). The drip touch marker lives here,
+ * in the header — NEVER in the copyable client text (`messageText`), which the
+ * admin sends to the parent verbatim. Pure → unit-testable.
+ */
+function buildDraftCard({ lead, messageText, messageType, touch } = {}) {
+  const langFlag = LANG_FLAGS[lead.language] || '🌍';
+  const typeLabel = TYPE_LABELS[messageType] || messageType;
+  const touchSuffix =
+    (messageType === 'nurture' && DRIP_TOUCH_KIND[touch])
+      ? ` — касание ${touch} (${DRIP_TOUCH_KIND[touch]})`
+      : '';
+  const phone = lead.parent_whatsapp || lead.parent_phone || '—';
+
+  return (
+    `📩 <b>Готовое сообщение для клиента</b>\n` +
+    `👤 Кому: ${lead.parent_name || '—'}\n` +
+    `💬 WhatsApp: ${phone}\n` +
+    `${langFlag} Язык: ${lead.language || '—'}\n` +
+    `🏷️ Тип: ${typeLabel}${touchSuffix}\n\n` +
+    `──────── СКОПИРОВАТЬ ────────\n` +
+    `${messageText}\n` +
+    `──────────────────────────────`
+  );
+}
+
 async function sendDraftToAdmin(lead, messageText, messageType, metadata = {}) {
-  const { agentName = 'unknown', leadId } = metadata;
+  const { agentName = 'unknown', leadId, touch } = metadata;
   const channel = 'telegram_draft';
 
   // 1. Записываем в БД
@@ -61,20 +91,8 @@ async function sendDraftToAdmin(lead, messageText, messageType, metadata = {}) {
     agentName,
   });
 
-  // 2. Формируем карточку
-  const langFlag = LANG_FLAGS[lead.language] || '🌍';
-  const typeLabel = TYPE_LABELS[messageType] || messageType;
-  const phone = lead.parent_whatsapp || lead.parent_phone || '—';
-
-  const card =
-    `📩 <b>Готовое сообщение для клиента</b>\n` +
-    `👤 Кому: ${lead.parent_name || '—'}\n` +
-    `💬 WhatsApp: ${phone}\n` +
-    `${langFlag} Язык: ${lead.language || '—'}\n` +
-    `🏷️ Тип: ${typeLabel}\n\n` +
-    `──────── СКОПИРОВАТЬ ────────\n` +
-    `${messageText}\n` +
-    `──────────────────────────────`;
+  // 2. Формируем карточку (маркер касания — только в обрамлении)
+  const card = buildDraftCard({ lead, messageText, messageType, touch });
 
   const keyboard = {
     inline_keyboard: [[
@@ -189,4 +207,4 @@ registerCallback('client_sent', async (query, bot) => {
   }
 });
 
-module.exports = { sendToClient };
+module.exports = { sendToClient, buildDraftCard };
