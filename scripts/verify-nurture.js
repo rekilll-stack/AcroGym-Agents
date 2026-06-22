@@ -158,12 +158,17 @@ const stubDeliver = async ({ lead, messageText, messageType, metadata }) => {
   `).run(metadata.leadId, messageType, messageText, lead.language, metadata.agentName);
   delivered.push(metadata.leadId);
 };
+// Drip (A.2): the queue now delivers DUE touches. Make touch 2 due + the welcome
+// handled (status='responded') for the 3 non-converted leads. L3 is 'existing'
+// (converted) → the drip excludes it. So 3 — not 4 — get touch 2.
+conn.prepare(`UPDATE leads SET status='responded' WHERE id IN (${L1},${L2},${L6})`).run();
+conn.prepare(`UPDATE nurture_enrollments SET next_due_at=datetime('now','-1 day') WHERE next_touch=2`).run();
 const q1 = await nurture.buildAndSendQueue({ deliver: stubDeliver });
-check('queue delivered to all 4 active enrollments', q1.queued === 4);
-check('messageType is nurture for every item', delivered.length === 4);
+check('drip queues touch 2 to the 3 non-converted (L3 existing excluded)', q1.queued === 3);
+check('messageType is nurture for every item', delivered.length === 3);
 
 const q2 = await nurture.buildAndSendQueue({ deliver: stubDeliver });
-check('re-run queues 0 (already has nurture message)', q2.queued === 0);
+check('re-run queues 0 (advanced to touch 3, not due yet)', q2.queued === 0);
 
 // ── 6. ✅ Sent → confirmed_sent ───────────────────────────────
 console.log('\n6) Execution loop');
@@ -171,9 +176,9 @@ const firstMsg = conn.prepare(`SELECT id FROM client_messages WHERE message_type
 conn.prepare(`UPDATE client_messages SET delivery_status='confirmed_sent', confirmed_at=datetime('now') WHERE id=?`).run(firstMsg.id);
 const today = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
 const stats = db.getNurtureDeliveryStats(today);
-check('today total=4', stats.total === 4);
+check('today total=3 (drip touch 2 to 3 non-converted)', stats.total === 3);
 check('confirmed=1 after one ✅ Sent', stats.confirmed === 1);
-check('pending=3', stats.pending === 3);
+check('pending=2', stats.pending === 2);
 
 // ── 7. Owner summary counts ───────────────────────────────────
 console.log('\n7) Owner summary');
@@ -181,7 +186,7 @@ const summary = nurture.buildOwnerSummaryText(new Date());
 // After override: cold=L6(1), warm=L1+L2(2), enrolled=L3(1)
 check('summary shows 4 enrolled total', /Enrolled \(active\): <b>4<\/b>/.test(summary));
 check('summary breakdown cold 1 · warm 2 · enrolled 1', /cold 1 · warm 2 · enrolled 1/.test(summary));
-check('summary today queue total 4', /Today's queue: <b>4<\/b>/.test(summary));
+check('summary today queue total 3', /Today's queue: <b>3<\/b>/.test(summary));
 check('summary sent 1', /Sent: <b>1<\/b>/.test(summary));
 
 // ── 8. Migration idempotency (fresh process, existing temp DB) ─

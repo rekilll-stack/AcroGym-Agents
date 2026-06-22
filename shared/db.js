@@ -611,15 +611,22 @@ function getNurtureEligibleLeads() {
   `).all();
 }
 
-/** Inserts an enrollment; no-op if the lead is already enrolled (lead_id UNIQUE). */
+/**
+ * Inserts an enrollment; no-op if the lead is already enrolled (lead_id UNIQUE).
+ * Drip (A.2): a new enrollment is scheduled for touch 2 at day-0 + 3 days
+ * (welcome = touch 1 is the lead-helper card). Legacy rows (pre-A.2) keep
+ * next_touch NULL → inert.
+ */
 function insertNurtureEnrollment(e) {
   return getDb().prepare(`
     INSERT OR IGNORE INTO nurture_enrollments
       (lead_id, audience, audience_auto, audience_override,
-       age_segment, children_count, children_json, status)
+       age_segment, children_count, children_json, status,
+       next_touch, next_due_at)
     VALUES
       (@lead_id, @audience, @audience_auto, @audience_override,
-       @age_segment, @children_count, @children_json, @status)
+       @age_segment, @children_count, @children_json, @status,
+       2, datetime('now', '+3 days'))
   `).run(e);
 }
 
@@ -669,6 +676,70 @@ function getNurtureQueueCandidates(limit = 100) {
     ORDER BY n.id ASC
     LIMIT ?
   `).all(limit);
+}
+
+/**
+ * Drip candidates (A.2): active enrollments whose next touch is due, with the gates:
+ *   - conversion stop: lead is not 'existing' (until in2 gives a real signal);
+ *   - touch-2 gate: the welcome (lead-helper flow) must be handled (lead.status
+ *     'responded') before the drip starts;
+ *   - "don't stack drafts": touch ≥3 only after the PREVIOUS nurture draft is
+ *     confirmed_sent (admin actually sent it).
+ * Legacy (next_touch NULL) and paused/converted leads never appear here.
+ */
+function getDripCandidates(limit = 100) {
+  return getDb().prepare(`
+    SELECT
+      n.id            AS enrollment_id,
+      n.lead_id       AS lead_id,
+      n.next_touch    AS next_touch,
+      n.created_at    AS enrolled_at,
+      n.audience      AS audience,
+      n.age_segment   AS age_segment,
+      n.children_count AS children_count,
+      l.parent_name   AS parent_name,
+      l.parent_phone  AS parent_phone,
+      l.parent_whatsapp AS parent_whatsapp,
+      l.parent_email  AS parent_email,
+      l.language      AS language
+    FROM nurture_enrollments n
+    JOIN leads l ON l.id = n.lead_id
+    WHERE n.status = 'active'
+      AND n.next_touch IS NOT NULL
+      AND n.next_due_at <= datetime('now')
+      AND l.client_type <> 'existing'
+      AND (n.next_touch <> 2 OR l.status = 'responded')
+      AND (n.next_touch = 2 OR EXISTS (
+            SELECT 1 FROM client_messages m
+            WHERE m.lead_id = n.lead_id
+              AND m.message_type = 'nurture'
+              AND m.delivery_status = 'confirmed_sent'))
+    ORDER BY n.next_due_at ASC
+    LIMIT ?
+  `).all(limit);
+}
+
+/**
+ * Advance the drip after a touch was queued. nextTouch null = series done
+ * (next_due_at cleared). Otherwise schedule the next touch at enrolled_at +
+ * offsetDays (offset from day 0 — consistent). updated_at written explicitly.
+ */
+function advanceDripTouch(enrollmentId, { nextTouch, enrolledAt, offsetDays }) {
+  if (nextTouch == null) {
+    return getDb().prepare(`
+      UPDATE nurture_enrollments
+      SET next_touch = NULL, next_due_at = NULL,
+          last_touch_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ?
+    `).run(enrollmentId);
+  }
+  return getDb().prepare(`
+    UPDATE nurture_enrollments
+    SET next_touch = @nextTouch,
+        next_due_at = datetime(@enrolledAt, '+' || @offsetDays || ' days'),
+        last_touch_at = datetime('now'), updated_at = datetime('now')
+    WHERE id = @id
+  `).run({ id: enrollmentId, nextTouch, enrolledAt, offsetDays });
 }
 
 /** Enrollment counts by effective audience — visibility for the owner summary. */
@@ -930,6 +1001,8 @@ module.exports = {
   getNurtureEnrollmentByLeadId,
   setNurtureOverride,
   getNurtureQueueCandidates,
+  getDripCandidates,
+  advanceDripTouch,
   getNurtureAudienceCounts,
   getNurtureDeliveryStats,
   getLeadByRow,

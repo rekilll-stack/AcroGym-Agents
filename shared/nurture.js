@@ -19,10 +19,17 @@ const { sendToClient } = require('./client-messaging');
 const {
   getNurtureEligibleLeads,
   insertNurtureEnrollment,
-  getNurtureQueueCandidates,
+  getDripCandidates,
+  advanceDripTouch,
   getNurtureAudienceCounts,
   getNurtureDeliveryStats,
 } = require('./db');
+
+// Drip schedule (A.2): touch → day-offset from enrollment (day 0). Touch 1 is the
+// welcome (lead-helper card); the drip owns touches 2+. Content is A.3 (placeholder
+// here). 3 = last touch → series ends (next_touch NULL).
+const TOUCHES = { 2: 3, 3: 7 };
+const LAST_TOUCH = 3;
 
 const logger = createLogger('nurture');
 
@@ -320,23 +327,25 @@ const AUDIENCE_TONE = {
   enrolled: 'enrolled — you are in, opening soon',
 };
 
-/** Phase-1 placeholder body. Real per-segment content is Phase 2. */
+/** Placeholder body — real per-touch, per-segment content is A.3. */
 function placeholderText(candidate) {
   const tone = AUDIENCE_TONE[candidate.audience] || candidate.audience;
   return (
-    `[NURTURE · Phase 1 placeholder]\n` +
+    `[NURTURE · touch ${candidate.next_touch} placeholder]\n` +
     `Audience: ${tone}\n` +
     `Age segment: ${candidate.age_segment}\n` +
-    `(Content lands in Phase 2 — this card verifies the pipe.)`
+    `(Real per-touch content lands in A.3 — this card verifies the drip pipe.)`
   );
 }
 
 /**
- * Builds the queue and delivers each item through the existing client pipe.
- * `deliver` is injectable so tests can stub the real send. Returns { queued }.
+ * Builds the drip queue and delivers each DUE touch to the admin (draft only —
+ * the admin sends to the client by hand). After delivering touch N, advances the
+ * enrollment to touch N+1 (next_due = enrolled + offset) or ends the series. Gates
+ * + stop conditions live in getDripCandidates. `deliver` is injectable for tests.
  */
 async function buildAndSendQueue({ deliver = sendToClient, limit = 100 } = {}) {
-  const candidates = getNurtureQueueCandidates(limit);
+  const candidates = getDripCandidates(limit);
   let queued = 0;
 
   for (const c of candidates) {
@@ -352,15 +361,23 @@ async function buildAndSendQueue({ deliver = sendToClient, limit = 100 } = {}) {
         lead,
         messageText: placeholderText(c),
         messageType: 'nurture',
-        metadata:    { agentName: 'nurture', leadId: c.lead_id },
+        metadata:    { agentName: 'nurture', leadId: c.lead_id, touch: c.next_touch },
       });
+      // Advance the sequence: schedule the next touch, or end the series.
+      const delivered = c.next_touch;
+      if (delivered >= LAST_TOUCH) {
+        advanceDripTouch(c.enrollment_id, { nextTouch: null });
+      } else {
+        const nextTouch = delivered + 1;
+        advanceDripTouch(c.enrollment_id, { nextTouch, enrolledAt: c.enrolled_at, offsetDays: TOUCHES[nextTouch] });
+      }
       queued++;
     } catch (err) {
       logger.error({ err, leadId: c.lead_id }, 'Nurture: queue delivery failed for lead');
     }
   }
 
-  if (queued > 0) logger.info({ queued }, 'Nurture: queue items delivered to admins');
+  if (queued > 0) logger.info({ queued }, 'Nurture: drip touches delivered to admins');
   return { queued };
 }
 
