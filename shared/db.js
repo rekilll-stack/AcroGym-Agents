@@ -232,6 +232,16 @@ function _runMigrations(db) {
     // child_age persisted for lead segmentation / age-based nurture. Independent
     // of the broadcast age-segment (that derives from registrations dob).
     () => db.exec(`ALTER TABLE leads ADD COLUMN child_age TEXT`),
+
+    // v23: nurture drip sequencing (Agent 3). Additive, nullable, NO DEFAULT —
+    // existing rows get NULL → legacy is inert (the cron skips next_touch IS NULL),
+    // so there is zero risk of a back-filled batch. New enrollments set next_touch=2
+    // + next_due_at explicitly at insert time (wired in A.2) — that is the real
+    // day-0 anchor. next_touch: NULL = not in drip; 2,3 = the next touch to draft.
+    () => db.exec(`ALTER TABLE nurture_enrollments ADD COLUMN next_touch    INTEGER`),
+    () => db.exec(`ALTER TABLE nurture_enrollments ADD COLUMN next_due_at   TEXT`),
+    () => db.exec(`ALTER TABLE nurture_enrollments ADD COLUMN last_touch_at TEXT`),
+    () => db.exec(`CREATE INDEX IF NOT EXISTS idx_nurture_next_due ON nurture_enrollments(next_due_at)`),
   ];
 
   for (const migrate of migrations) {
