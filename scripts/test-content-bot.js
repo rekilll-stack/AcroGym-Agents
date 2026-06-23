@@ -7,6 +7,7 @@
 
 const { isFormat, formatLabel, buildContentPrompt, fallbackContent } = require('../agents/content-bot/prompts');
 const { generateContent } = require('../agents/content-bot/generate');
+const { planFreeText, planFormatSelect } = require('../agents/content-bot/router');
 
 let pass = 0, fail = 0;
 const T = (n, c) => { console.log((c ? '  ✅ ' : '  ❌ ') + n); c ? pass++ : fail++; };
@@ -51,6 +52,27 @@ const T = (n, c) => { console.log((c ? '  ✅ ' : '  ❌ ') + n); c ? pass++ : f
   const empty = await generateContent('plan', 'topic', { generate: async () => '   ' });
   T('empty generation → fallback (tagged)', /offline skeleton/.test(empty));
   T('result always trimmed string', typeof ok === 'string' && ok === ok.trim());
+
+  console.log('\n=== router flow A: pick format → ask → type topic → generate ===');
+  // After picking a format (no pending topic) → ask for the topic.
+  T('format select, no pending → ask', planFormatSelect({}, 'post').action === 'ask');
+  // Awaiting topic + user types it → generate with that topic.
+  let r = planFreeText({ format: 'post', awaiting: 'topic' }, 'summer open day');
+  T('awaited topic → generate with the typed topic', r.action === 'generate' && r.format === 'post' && r.topic === 'summer open day');
+
+  console.log('\n=== router flow B (the bug): type topic FIRST → remembered → format uses it ===');
+  // No format chosen yet, user types what they want → store it, don't drop it.
+  r = planFreeText({}, 'announce registration opens next week');
+  T('text before format → stored as pending (NOT dropped)', r.action === 'store' && r.topic === 'announce registration opens next week');
+  // Then they tap a format → generate using the remembered topic (the fix).
+  r = planFormatSelect({ pendingTopic: 'announce registration opens next week' }, 'post');
+  T('format with pending topic → generate WITH that topic (bug fixed)', r.action === 'generate' && r.topic === 'announce registration opens next week');
+
+  console.log('\n=== router edge cases ===');
+  T('empty text → noop (no spurious store)', planFreeText({}, '   ').action === 'noop');
+  T('bad format → ignore', planFormatSelect({ pendingTopic: 'x' }, 'bogus').action === 'ignore');
+  T('awaiting topic wins over pending (flow A precedence)',
+    planFreeText({ format: 'ideas', awaiting: 'topic', pendingTopic: 'old' }, 'new topic').topic === 'new topic');
 
   console.log('\n🔴 boundary: no Instagram-publish CODE in the bot (word "Instagram" in boundary comments is fine)');
   const fs2 = require('fs'); const p2 = require('path');

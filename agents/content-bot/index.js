@@ -26,6 +26,7 @@ const { createLogger }   = require('../../shared/logger');
 const { writeHeartbeat } = require('../../shared/heartbeat');
 const { isFormat, formatLabel } = require('./prompts');
 const { generateContent } = require('./generate');
+const { planFreeText, planFormatSelect } = require('./router');
 
 const logger = createLogger('content-bot');
 
@@ -106,6 +107,7 @@ const topicPrompt = (format) =>
 // Core: generate a draft and send it (with Copy / Regenerate / Menu)
 // ─────────────────────────────────────────────────────────────
 async function deliverDraft(bot, chatId, format, topic) {
+  logger.info({ format, topicPreview: String(topic || '').slice(0, 80) }, 'generating draft');
   bot.sendChatAction(chatId, 'typing').catch(() => {});
   const draft = await generateContent(format, topic);
   const s = sessions.get(chatId) || {};
@@ -149,12 +151,16 @@ function start() {
       return;
     }
 
-    // Free text → if we're awaiting a topic, that's the topic; else nudge to menu.
-    const s = sessions.get(chatId);
-    if (s && s.awaiting === 'topic' && isFormat(s.format) && text) {
-      await deliverDraft(bot, chatId, s.format, text);
-    } else {
-      await bot.sendMessage(chatId, 'Pick a format first 👇', { reply_markup: menuKeyboard() }).catch(() => {});
+    // Free text → router decides (flow A: awaited topic → generate;
+    // flow B: typed first → remember as pending, never drop it).
+    const plan = planFreeText(sessions.get(chatId), text);
+    if (plan.action === 'generate') {
+      await deliverDraft(bot, chatId, plan.format, plan.topic);
+    } else if (plan.action === 'store') {
+      const s = sessions.get(chatId) || {};
+      s.pendingTopic = plan.topic;
+      sessions.set(chatId, s);
+      await bot.sendMessage(chatId, '👍 Got it. Pick a format and I\'ll write about that:', { reply_markup: menuKeyboard() }).catch(() => {});
     }
   });
 
@@ -174,10 +180,16 @@ function start() {
       }
       if (data.startsWith('fmt:')) {
         const format = data.slice(4);
-        if (!isFormat(format)) { await bot.answerCallbackQuery(query.id).catch(() => {}); return; }
-        sessions.set(chatId, { format, awaiting: 'topic' });
         await bot.answerCallbackQuery(query.id).catch(() => {});
-        await bot.sendMessage(chatId, topicPrompt(format), { parse_mode: 'Markdown' }).catch(() => {});
+        const plan = planFormatSelect(sessions.get(chatId), format);
+        if (plan.action === 'generate') {
+          // Flow B: user already gave the topic before picking a format — use it.
+          sessions.set(chatId, { format });
+          await deliverDraft(bot, chatId, format, plan.topic);
+        } else if (plan.action === 'ask') {
+          sessions.set(chatId, { format, awaiting: 'topic' });
+          await bot.sendMessage(chatId, topicPrompt(format), { parse_mode: 'Markdown' }).catch(() => {});
+        }
         return;
       }
       if (data === 'menu') {
