@@ -6,7 +6,7 @@
 
 const { generateText } = require('../../shared/claude');
 const { createLogger }  = require('../../shared/logger');
-const { buildContentPrompt, fallbackContent } = require('./prompts');
+const { buildContentPrompt, fallbackContent, buildCaptionPrompt, fallbackCaption } = require('./prompts');
 
 const logger = createLogger('content-bot');
 
@@ -27,4 +27,23 @@ async function generateContent(format, topic, { generate = generateText } = {}) 
   return fallbackContent(format, topic);
 }
 
-module.exports = { generateContent };
+/**
+ * Photo caption (C.4 vision): Claude Opus 4.8 looks at the image (base64) and
+ * writes an English brand-voice caption, with the child-safety rules in the
+ * prompt. Falls back to a tagged caption if vision is unavailable.
+ * @param {object} p  { imageBase64, mediaType, context }
+ * @param {object} [deps] { generate }
+ */
+async function generateCaption({ imageBase64, mediaType = 'image/jpeg', context = '' } = {}, { generate = generateText } = {}) {
+  try {
+    const prompt = buildCaptionPrompt(context);
+    const text = await generate({ ...prompt, images: [{ data: imageBase64, media_type: mediaType }] });
+    if (text && text.trim()) return text.trim();
+    logger.warn('empty caption — using fallback');
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Claude vision unavailable — using caption fallback');
+  }
+  return fallbackCaption();
+}
+
+module.exports = { generateContent, generateCaption };

@@ -160,7 +160,58 @@ function fallbackContent(format, topic) {
     `#AcroGym #DohaKids #KidsGymnastics #DohaFamily #ThePearlQatar #QatarKids #GymnasticsForKids #DohaParents`;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Photo caption (C.4 — vision). Claude Opus 4.8 looks at a photo and writes an
+// English Instagram caption in the brand voice. 🔴 CHILD SAFETY enforced in the
+// system prompt — about the activity/atmosphere, never individual children.
+// ─────────────────────────────────────────────────────────────
+const CAPTION_SYSTEM =
+  `${COMMON}\n\n` +
+  'TASK: You are given a PHOTO from AcroGym. Look at it and write ONE ready-to-' +
+  'publish Instagram caption in the brand voice — warm and family-first with a ' +
+  'quiet premium undertone. Reference the activity, energy and atmosphere in the ' +
+  'photo naturally. End with a soft, gentle invitation (never an aggressive call-' +
+  'to-action). Then a final line of 8-15 relevant hashtags (mix popular + niche), ' +
+  `e.g.:\n${HASHTAG_POOL}\n\n` +
+  '🔴 CHILD SAFETY — STRICT, NON-NEGOTIABLE:\n' +
+  '- The photo likely shows children. Write about the ACTIVITY, the movement, the ' +
+  'joy, the care and the environment — NOT about individual children.\n' +
+  "- Do NOT describe any child's physical appearance, body, face, clothing or " +
+  'looks. Do NOT estimate ages. Do NOT use or invent names. Do NOT single out a ' +
+  'specific child.\n' +
+  '- Keep it about the experience and the community, in a general, warm way. If in ' +
+  'doubt, stay general.\n\n' +
+  'English only — even if the user adds context in Russian, write the caption in ' +
+  'English. Output ONLY the caption followed by the hashtag line.';
+
+/**
+ * Vision prompt for a photo caption. The image is passed separately (base64) to
+ * generateText({ images }). `contextText` is optional free text the user
+ * attached with the photo (may be in Russian).
+ */
+function buildCaptionPrompt(contextText) {
+  const ctx = String(contextText || '').trim();
+  return {
+    system: CAPTION_SYSTEM,
+    user: ctx
+      ? `Optional context from the user about this photo (may be in Russian): ${ctx}\n\nWrite the English Instagram caption now.`
+      : 'Write the English Instagram caption for this photo now.',
+    maxTokens: 600,
+    model: 'claude-opus-4-8',
+  };
+}
+
+/** Graceful tagged fallback caption when vision is unavailable. */
+function fallbackCaption() {
+  return `${OFFLINE_TAG}\n\nThere's so much joy in watching children grow through ` +
+    `movement — building confidence, balance and big smiles, one playful step at a ` +
+    `time. That's the heart of AcroGym. Opening this September in The Pearl, Doha — ` +
+    `we'd love to welcome your family.\n\n` +
+    `#AcroGym #DohaKids #KidsGymnastics #DohaFamily #ThePearlQatar #QatarKids #GymnasticsForKids #ActiveKids`;
+}
+
 module.exports = {
   FORMATS, isFormat, formatLabel, buildContentPrompt, fallbackContent,
+  buildCaptionPrompt, fallbackCaption, CAPTION_SYSTEM,
   BRAND_CONTEXT, VOICE, HASHTAG_POOL,
 };

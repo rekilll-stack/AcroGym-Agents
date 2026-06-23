@@ -31,7 +31,7 @@ const { writeHeartbeat } = require('../../shared/heartbeat');
 const { t }              = require('../../shared/i18n');
 const { getPreferredLanguage, setPreferredLanguage } = require('../../shared/preferences');
 const { isFormat } = require('./prompts');
-const { generateContent } = require('./generate');
+const { generateContent, generateCaption } = require('./generate');
 const { planFreeText, planFormatSelect, escapeHtml } = require('./router');
 
 const logger = createLogger('content-bot');
@@ -96,7 +96,7 @@ function menuKeyboard(lang) {
     inline_keyboard: [
       [{ text: t('content.btn_post', lang), callback_data: 'fmt:post' }],
       [{ text: t('content.btn_ideas', lang), callback_data: 'fmt:ideas' }, { text: t('content.btn_plan', lang), callback_data: 'fmt:plan' }],
-      [{ text: t('content.btn_photo', lang), callback_data: 'fmt:photo_soon' }],
+      [{ text: t('content.btn_photo', lang), callback_data: 'fmt:photo' }],
       [{ text: t('content.btn_lang', lang), callback_data: 'showlang' }],
     ],
   };
@@ -146,6 +146,33 @@ async function deliverDraft(bot, chatId, format, topic) {
     .catch((err) => logger.error({ err: err.message }, 'draft send failed'));
 }
 
+// Download a Telegram photo (largest size) → base64. Telegram photos are JPEG.
+async function downloadPhotoBase64(bot, fileId) {
+  const link = await bot.getFileLink(fileId);
+  const res  = await fetch(link);
+  if (!res.ok) throw new Error(`photo download ${res.status}`);
+  const buf  = Buffer.from(await res.arrayBuffer());
+  return buf.toString('base64');
+}
+
+// C.4: generate a caption for a photo and deliver it (same <pre> one-tap-copy
+// card as text drafts). The image is kept in-session so 🔄 Regenerate works.
+async function deliverCaption(bot, chatId, base64, mediaType, context) {
+  const lang = uiLang(chatId);
+  logger.info({ hasContext: !!context }, 'generating photo caption (vision)');
+  bot.sendChatAction(chatId, 'typing').catch(() => {});
+  const caption = await generateCaption({ imageBase64: base64, mediaType, context }); // EN, child-safe (prompt)
+  const s = sessions.get(chatId) || {};
+  s.format = 'photo_caption'; s.lastDraft = caption; s.lastTopic = null; s.awaiting = null; s.pendingTopic = null;
+  s.lastImage = { base64, mediaType, context };
+  sessions.set(chatId, s);
+  const header = t('content.draft_header', lang, { format: label('photo_caption', lang) });
+  const hint   = t('content.copy_hint', lang);
+  const body = `${header}\n${hint}\n\n<pre>${escapeHtml(caption)}</pre>`;
+  await bot.sendMessage(chatId, body, { parse_mode: 'HTML', reply_markup: draftKeyboard(lang) })
+    .catch((err) => logger.error({ err: err.message }, 'caption send failed'));
+}
+
 // ─────────────────────────────────────────────────────────────
 // Entry point
 // ─────────────────────────────────────────────────────────────
@@ -166,6 +193,21 @@ function start() {
       return;
     }
     const lang = uiLang(chatId);
+
+    // Photo → caption it (any photo is unambiguous caption intent). msg.caption =
+    // optional note the user attached. Largest size is the last in msg.photo.
+    if (Array.isArray(msg.photo) && msg.photo.length) {
+      try {
+        const fileId = msg.photo[msg.photo.length - 1].file_id;
+        const base64 = await downloadPhotoBase64(bot, fileId);
+        await deliverCaption(bot, chatId, base64, 'image/jpeg', (msg.caption || '').trim());
+      } catch (err) {
+        logger.error({ err: err.message }, 'photo handling failed');
+        await bot.sendMessage(chatId, t('content.expecting_photo', lang)).catch(() => {});
+      }
+      return;
+    }
+
     const text = (msg.text || '').trim();
 
     if (text === '/start' || text === '/content') {
@@ -179,6 +221,13 @@ function start() {
     }
     if (text.startsWith('/')) {
       await showMenu(bot, chatId, lang);
+      return;
+    }
+
+    // If we're waiting for a photo and the user typed text instead → nudge.
+    const cur = sessions.get(chatId);
+    if (cur && cur.awaiting === 'photo') {
+      await bot.sendMessage(chatId, t('content.expecting_photo', lang)).catch(() => {});
       return;
     }
 
@@ -206,8 +255,10 @@ function start() {
     const lang = uiLang(chatId);
 
     try {
-      if (data === 'fmt:photo_soon') {
-        await bot.answerCallbackQuery(query.id, { text: t('content.photo_soon', lang), show_alert: true });
+      if (data === 'fmt:photo') {
+        sessions.set(chatId, { format: 'photo_caption', awaiting: 'photo' });
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.sendMessage(chatId, t('content.ask_photo', lang)).catch(() => {});
         return;
       }
       if (data.startsWith('fmt:')) {
@@ -244,7 +295,10 @@ function start() {
       }
       if (data === 'regen') {
         const s = sessions.get(chatId);
-        if (s && isFormat(s.format) && s.lastTopic) {
+        if (s && s.format === 'photo_caption' && s.lastImage) {
+          await bot.answerCallbackQuery(query.id, { text: t('content.regenerating', lang) }).catch(() => {});
+          await deliverCaption(bot, chatId, s.lastImage.base64, s.lastImage.mediaType, s.lastImage.context);
+        } else if (s && isFormat(s.format) && s.lastTopic) {
           await bot.answerCallbackQuery(query.id, { text: t('content.regenerating', lang) }).catch(() => {});
           await deliverDraft(bot, chatId, s.format, s.lastTopic);
         } else {

@@ -5,8 +5,8 @@
  *   node scripts/test-content-bot.js
  */
 
-const { isFormat, formatLabel, buildContentPrompt, fallbackContent } = require('../agents/content-bot/prompts');
-const { generateContent } = require('../agents/content-bot/generate');
+const { isFormat, formatLabel, buildContentPrompt, fallbackContent, buildCaptionPrompt, fallbackCaption } = require('../agents/content-bot/prompts');
+const { generateContent, generateCaption } = require('../agents/content-bot/generate');
 const { planFreeText, planFormatSelect, buildCopyButton, COPY_TEXT_LIMIT, escapeHtml } = require('../agents/content-bot/router');
 
 let pass = 0, fail = 0;
@@ -107,6 +107,28 @@ const T = (n, c) => { console.log((c ? '  ✅ ' : '  ❌ ') + n); c ? pass++ : f
     !!buildCopyButton('c', 'y'.repeat(COPY_TEXT_LIMIT)).copy_text && !buildCopyButton('c', 'y'.repeat(COPY_TEXT_LIMIT + 1)).copy_text);
   T('empty/undefined draft → fallback (no broken copy_text)', !buildCopyButton('c', '').copy_text && !buildCopyButton('c').copy_text);
   T('button always carries a label', bShort.text === '📋 Copy' && bLong.text === '📋 Copy');
+
+  console.log('\n=== C.4 photo caption: vision prompt + 🔴 CHILD SAFETY + fallback ===');
+  const cap = buildCaptionPrompt('сняли на первом занятии');
+  T('caption: brand block (AcroGym/Doha/Kristina)', /AcroGym/.test(cap.system) && /Doha/.test(cap.system) && /Kristina/.test(cap.system));
+  T('caption: Opus 4.8 vision model', cap.model === 'claude-opus-4-8');
+  // 🔴 the safety control — the prompt must forbid describing children
+  T('🔴 child-safety: forbids appearance/body/face/clothing', /physical appearance, body, face, clothing/i.test(cap.system));
+  T('🔴 child-safety: no names', /Do NOT use or invent names/i.test(cap.system));
+  T('🔴 child-safety: no age estimates', /Do NOT estimate ages/i.test(cap.system));
+  T('🔴 child-safety: about ACTIVITY not individual children', /about the ACTIVITY/i.test(cap.system) && /NOT about individual children/i.test(cap.system));
+  T('🔴 child-safety: marked strict/non-negotiable', /STRICT, NON-NEGOTIABLE/i.test(cap.system));
+  T('caption: English-only even with Russian context', /English only/i.test(cap.system) && /write the caption in\s*English/i.test(cap.system));
+  T('caption: Russian context carried for the model', /сняли на первом занятии/.test(cap.user));
+  T('caption fallback: tagged offline + hashtags', /offline skeleton/.test(fallbackCaption()) && /#AcroGym/.test(fallbackCaption()));
+  // generateCaption: passes the image to the model; falls back on failure
+  let capturedImages = null;
+  const okCap = await generateCaption({ imageBase64: 'AAAA', mediaType: 'image/jpeg', context: 'x' },
+    { generate: async (p) => { capturedImages = p.images; return 'A WARM CAPTION 🤸'; } });
+  T('generateCaption: model text used', okCap === 'A WARM CAPTION 🤸');
+  T('generateCaption: image passed as base64 block to the model', Array.isArray(capturedImages) && capturedImages[0].data === 'AAAA' && capturedImages[0].media_type === 'image/jpeg');
+  const downCap = await generateCaption({ imageBase64: 'AAAA' }, { generate: async () => { throw new Error('vision down'); } });
+  T('generateCaption: vision down → tagged fallback', /offline skeleton/.test(downCap));
 
   console.log('\n=== <pre> code-block copy: escapeHtml for any-length one-tap copy ===');
   T('escapes & < > for valid <pre>', escapeHtml('a & b < c > d') === 'a &amp; b &lt; c &gt; d');

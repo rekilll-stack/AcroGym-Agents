@@ -31,8 +31,21 @@ const BASE_DELAY_MS      = 1000;
  * @param {string} [params.model]     - модель Claude
  * @returns {Promise<string>}         - текст ответа
  */
-async function generateText({ system, user, maxTokens = DEFAULT_MAX_TOKENS, model = DEFAULT_MODEL }) {
+async function generateText({ system, user, images = null, maxTokens = DEFAULT_MAX_TOKENS, model = DEFAULT_MODEL }) {
   let lastError;
+
+  // Vision: when images are supplied, the user turn becomes a content array of
+  // image blocks (base64) followed by the text. Without images, content stays a
+  // plain string (backward compatible). images = [{ data, media_type }].
+  const content = Array.isArray(images) && images.length
+    ? [
+        ...images.map((im) => ({
+          type: 'image',
+          source: { type: 'base64', media_type: im.media_type || 'image/jpeg', data: im.data },
+        })),
+        { type: 'text', text: user },
+      ]
+    : user;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -42,7 +55,7 @@ async function generateText({ system, user, maxTokens = DEFAULT_MAX_TOKENS, mode
         model,
         max_tokens: maxTokens,
         system,
-        messages: [{ role: 'user', content: user }],
+        messages: [{ role: 'user', content }],
       });
 
       // Логируем приблизительную стоимость
