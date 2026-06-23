@@ -1,5 +1,7 @@
 node_modules/
 .env
+.env.*
+!.env.example
 config/google-service-account.json
 data/*.db
 data/*.db-shm

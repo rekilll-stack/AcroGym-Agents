@@ -42,6 +42,16 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 
 ---
 
+## ~~Secret hygiene — Content-bot token in git history?~~ ✅ CHECKED CLEAN 2026-06-23
+
+- **Context:** the Content-bot (`@AcroGym_Content_bot`) token was added to `.env`; during entry a `.env.bak.*` copy was made (plaintext secret). Question raised: could the token have leaked into git history?
+- **Checked (read-only, all refs):** `git log --all -- .env` → never committed; `git log --all -- '.env.bak*'` → never committed; `git log --all --diff-filter=A` name-only → the ONLY `.env*` file ever in git is `.env.example` (a no-secret template). **Conclusion: the token never entered git history. No revoke needed.**
+- **Hardened:** `.gitignore` now has `.env.*` + `!.env.example` (was only `.env`), so `.env`, `.env.bak.*`, and any future variants are ignored while the template stays tracked.
+- **Residual:** two local `.env.bak.20260623_*` files still hold the token in plaintext on disk (gitignored, so safe from git). Owner may `rm .env.bak.*` once comfortable — token already verified working.
+- **Fallback if ever in doubt:** @BotFather `/revoke` → reissue → put the new token on the server via `nano .env`.
+
+---
+
 ## Pre-launch checklist — BEFORE real lead flow (Aug–Sep 2026)
 
 ### 🔴 Restart nurture agent on the drip code before leads start arriving
