@@ -23,13 +23,19 @@ function backKeyboard(lang = 'en') {
 }
 
 /**
- * Persistent bottom button "☰ Main menu" — a reply keyboard that stays above the
- * input. Tapping it sends the button text, which the owner-bot maps to the menu
- * toggle (open / hide the inline console).
+ * Bottom button "☰ Main menu" — a reply keyboard. Tapping it sends the button
+ * text, which the owner-bot maps to the menu toggle (open / hide the inline
+ * console). The button persists in the chat (one tap away via the keyboard icon).
+ *
+ * NOT `is_persistent: true`: a pinned keyboard cannot be collapsed by the user,
+ * which on Android swallows the system Back button (Back can no longer dismiss
+ * the keyboard / leave the chat — felt as "Back stopped working"). Leaving it
+ * collapsible keeps Back working while the button stays available. Do not re-add
+ * the pin to "keep the menu always visible" — that re-breaks Back.
  */
 function persistentMenuKeyboard(lang = 'en') {
   const L = lang === 'ru' ? 'ru' : 'en';
-  return { keyboard: [[{ text: t('menu.persistent_btn', L) }]], resize_keyboard: true, is_persistent: true };
+  return { keyboard: [[{ text: t('menu.persistent_btn', L) }]], resize_keyboard: true };
 }
 
 /** The exact button labels (both languages) — used to recognise a tap. */
