@@ -35,6 +35,27 @@ const T = (n, c) => { console.log((c ? '  ✅ ' : '  ❌ ') + n); c ? pass++ : f
   T('empty topic → safe default, no crash', /AcroGym/.test(buildContentPrompt('post','').user));
   T('unknown format → throws', (() => { try { buildContentPrompt('bogus','x'); return false; } catch { return true; } })());
 
+  console.log('\n=== 3-level language: RU input → EN output directive + i18n keys ===');
+  const { t } = require('../shared/i18n');
+  // Output directive present in BOTH system and user message.
+  const ruPrompt = buildContentPrompt('post', 'пост про первое занятие');
+  T('system: input-may-be-Russian → always English', /written in Russian/.test(ruPrompt.system) && /write the output in English/i.test(ruPrompt.system));
+  T('user: explicit ENGLISH-regardless directive', /ENTIRELY IN ENGLISH regardless/i.test(ruPrompt.user));
+  T('user: Russian topic carried verbatim', /пост про первое занятие/.test(ruPrompt.user));
+  // i18n content.* keys exist and differ across RU/EN (interface is switchable).
+  const keys = ['menu_prompt', 'btn_post', 'btn_ideas', 'btn_plan', 'ask_topic', 'btn_copy', 'btn_regen', 'btn_menu', 'lang_prompt', 'access_denied'];
+  let allEn = true, allRu = true, allDiffer = true;
+  for (const k of keys) {
+    const en = t(`content.${k}`, 'en'), ru = t(`content.${k}`, 'ru');
+    if (!en || en === `content.${k}`) allEn = false;
+    if (!ru || ru === `content.${k}`) allRu = false;
+    if (en === ru) allDiffer = false;
+  }
+  T('content.* keys present in EN', allEn);
+  T('content.* keys present in RU', allRu);
+  T('EN and RU interface strings differ (truly localized)', allDiffer);
+  T('format labels localized (post: EN≠RU)', t('content.label_post', 'en') !== t('content.label_post', 'ru'));
+
   console.log('\n=== fallbacks: tagged offline, topic present, post has hashtags ===');
   for (const f of ['post', 'ideas', 'plan']) {
     const fb = fallbackContent(f, 'meet our coach');

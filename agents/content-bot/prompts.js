@@ -33,7 +33,8 @@ const VOICE =
   "- AVOID cheap urgency (\"Hurry! Sign up now! Discount!\"), dry corporate " +
   "lines, empty hype, and \"we're the best / #1\" claims. Confident calm, not " +
   "slogans.\n" +
-  "- English only.\n" +
+  "- English only — even if the user's topic is written in Russian or another " +
+  "language, ALWAYS understand it and write the output in English.\n" +
   "- Pre-launch: the center opens in September 2026. You may build gentle " +
   "anticipation (\"opening this September\"), but NEVER invent a specific day, " +
   "prices, schedule, or address.\n" +
@@ -113,7 +114,10 @@ function buildContentPrompt(format, topic) {
   const t = String(topic || '').trim() || 'AcroGym children\'s gymnastics in Doha';
   return {
     system: f.system,
-    user: f.instruction(t),
+    user:
+      "The user's topic may be written in Russian or any language — understand it, " +
+      'then write the output ENTIRELY IN ENGLISH regardless of the input language.\n\n' +
+      f.instruction(t),
     maxTokens: f.maxTokens,
     model: 'claude-opus-4-8', // owner choice: top quality for brand-voice content (low volume)
   };

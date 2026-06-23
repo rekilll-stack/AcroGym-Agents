@@ -17,6 +17,8 @@ const JOBS = [
   ['ideas', 'pre-launch anticipation before our September opening'],
   ['plan',  'the month before AcroGym opens in September'],
   ['plan',  'first weeks of classes — building confidence'],
+  ['post',  'пост про первое занятие ребёнка (RU input → EN output)'],
+  ['ideas', 'идеи про пользу гимнастики для детей (RU input → EN output)'],
 ];
 
 (async () => {

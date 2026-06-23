@@ -1,19 +1,23 @@
 'use strict';
 
 /**
- * Agent 4 — Content bot (C.2: text formats).
+ * Agent 4 — Content bot (C.2: text formats + 3-level language model).
  *
- * A SEPARATE Telegram bot (own token CONTENT_BOT_TOKEN, own PM2 process) that
- * DRAFTS Instagram content on demand: full post / ideas / week plan (text).
- * Photo captions (vision) are C.4 — shown as "coming soon" here.
+ * A SEPARATE Telegram bot (own token, own PM2 process) that DRAFTS Instagram
+ * content on demand: full post / ideas / week plan (text). Photo captions = C.4.
  *
- * 🔴 BOUNDARY (whole track): the bot only DRAFTS. It never posts to Instagram —
- * Kirill copies the draft and publishes by hand. There is NO Instagram/publish
- * code here by design.
+ * 🔴 BOUNDARY: drafts only — Kirill copies and publishes to Instagram by hand.
+ * NO Instagram/publish code exists, by design.
  *
- * Access: ONLY the CONTENT_CHAT_IDS allow-list (defaults to Kirill). English only.
- * Reuses shared/: claude (generation), logger, heartbeat. Own bot instance +
- * polling + a small in-memory session map (format → awaiting topic → draft).
+ * Language (3 levels):
+ *   1) INTERFACE (buttons/prompts/statuses) — switchable RU/EN via i18n +
+ *      shared preference (same getPreferredLanguage as owner-bot).
+ *   2) INPUT (the topic) — any language; the user writes in Russian if they like.
+ *   3) OUTPUT (the Instagram content) — ALWAYS English (enforced in the prompt).
+ *
+ * Access: ONLY CONTENT_CHAT_IDS (defaults to Kirill). Reuses shared/: claude,
+ * i18n, preferences, logger, heartbeat. Own bot instance + polling + in-memory
+ * session map (format → awaiting topic → draft).
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
@@ -24,7 +28,9 @@ const TelegramBot = require('node-telegram-bot-api');
 
 const { createLogger }   = require('../../shared/logger');
 const { writeHeartbeat } = require('../../shared/heartbeat');
-const { isFormat, formatLabel } = require('./prompts');
+const { t }              = require('../../shared/i18n');
+const { getPreferredLanguage, setPreferredLanguage } = require('../../shared/preferences');
+const { isFormat } = require('./prompts');
 const { generateContent } = require('./generate');
 const { planFreeText, planFormatSelect } = require('./router');
 
@@ -41,8 +47,14 @@ function isAllowed(chatId) {
   return ALLOWED.includes(String(chatId));
 }
 
-// In-memory per-chat session: { format, awaiting, lastTopic, lastDraft }.
-// Lost on restart — harmless: the user just re-picks a format.
+// Interface language for a chat — the shared preference, collapsed to a single
+// UI language ('both'/unset/unknown → en; only explicit 'ru' → ru).
+function uiLang(chatId) {
+  return getPreferredLanguage(chatId) === 'ru' ? 'ru' : 'en';
+}
+const label = (format, lang) => t(`content.label_${format}`, lang);
+
+// In-memory per-chat session: { format, awaiting, pendingTopic, lastTopic, lastDraft }.
 const sessions = new Map();
 
 // ─────────────────────────────────────────────────────────────
@@ -76,47 +88,56 @@ function releaseLock() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Keyboards (plain inline; drafts are sent as PLAIN text — no MarkdownV2 — so
-// hashtags '#', '.', '!' etc. never need escaping and copy stays clean)
+// Keyboards (labels localized; drafts sent as PLAIN text — no MarkdownV2 — so
+// hashtags '#', '.', '!' never need escaping and copy stays clean)
 // ─────────────────────────────────────────────────────────────
-function menuKeyboard() {
+function menuKeyboard(lang) {
   return {
     inline_keyboard: [
-      [{ text: '📝 Full post', callback_data: 'fmt:post' }],
-      [{ text: '💡 Ideas', callback_data: 'fmt:ideas' }, { text: '📅 Week plan', callback_data: 'fmt:plan' }],
-      [{ text: '🖼 Photo caption', callback_data: 'fmt:photo_soon' }],
+      [{ text: t('content.btn_post', lang), callback_data: 'fmt:post' }],
+      [{ text: t('content.btn_ideas', lang), callback_data: 'fmt:ideas' }, { text: t('content.btn_plan', lang), callback_data: 'fmt:plan' }],
+      [{ text: t('content.btn_photo', lang), callback_data: 'fmt:photo_soon' }],
+      [{ text: t('content.btn_lang', lang), callback_data: 'showlang' }],
     ],
   };
 }
 
-function draftKeyboard() {
+function draftKeyboard(lang) {
   return {
     inline_keyboard: [[
-      { text: '📋 Copy', callback_data: 'copy' },
-      { text: '🔄 Regenerate', callback_data: 'regen' },
-      { text: '⬅ Menu', callback_data: 'menu' },
+      { text: t('content.btn_copy', lang), callback_data: 'copy' },
+      { text: t('content.btn_regen', lang), callback_data: 'regen' },
+      { text: t('content.btn_menu', lang), callback_data: 'menu' },
     ]],
   };
 }
 
-const MENU_PROMPT = '👋 What would you like to create?';
-const topicPrompt = (format) =>
-  `📝 *${formatLabel(format)}* — what should this be about?\nSend me a topic or a few words of context.`;
+function langKeyboard() {
+  return {
+    inline_keyboard: [[
+      { text: '🇬🇧 English', callback_data: 'setlang:en' },
+      { text: '🇷🇺 Русский', callback_data: 'setlang:ru' },
+    ]],
+  };
+}
+
+const showMenu = (bot, chatId, lang) =>
+  bot.sendMessage(chatId, t('content.menu_prompt', lang), { reply_markup: menuKeyboard(lang) }).catch(() => {});
 
 // ─────────────────────────────────────────────────────────────
-// Core: generate a draft and send it (with Copy / Regenerate / Menu)
+// Core: generate a draft and send it (Copy / Regenerate / Menu)
 // ─────────────────────────────────────────────────────────────
 async function deliverDraft(bot, chatId, format, topic) {
+  const lang = uiLang(chatId);
   logger.info({ format, topicPreview: String(topic || '').slice(0, 80) }, 'generating draft');
   bot.sendChatAction(chatId, 'typing').catch(() => {});
-  const draft = await generateContent(format, topic);
+  const draft = await generateContent(format, topic); // OUTPUT is always English (prompt-enforced)
   const s = sessions.get(chatId) || {};
-  s.format = format; s.lastTopic = topic; s.lastDraft = draft; s.awaiting = null;
+  s.format = format; s.lastTopic = topic; s.lastDraft = draft; s.awaiting = null; s.pendingTopic = null;
   sessions.set(chatId, s);
-  // Plain text (no parse_mode): the draft is paste-ready and safe for any chars.
-  await bot.sendMessage(chatId, `📄 Draft — ${formatLabel(format)}\n\n${draft}`, {
-    reply_markup: draftKeyboard(),
-  }).catch((err) => logger.error({ err: err.message }, 'draft send failed'));
+  const header = t('content.draft_header', lang, { format: label(format, lang) });
+  await bot.sendMessage(chatId, `${header}\n\n${draft}`, { reply_markup: draftKeyboard(lang) })
+    .catch((err) => logger.error({ err: err.message }, 'draft send failed'));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -135,24 +156,28 @@ function start() {
     const chatId = msg.chat && msg.chat.id;
     if (!isAllowed(chatId)) {
       logger.warn({ chatId, from: msg.from && msg.from.username }, 'denied: chat_id not allow-listed');
-      await bot.sendMessage(chatId, '⛔ Access denied.').catch(() => {});
+      await bot.sendMessage(chatId, t('content.access_denied', uiLang(chatId))).catch(() => {});
       return;
     }
+    const lang = uiLang(chatId);
     const text = (msg.text || '').trim();
 
-    // Commands
     if (text === '/start' || text === '/content') {
       sessions.set(chatId, {});
-      await bot.sendMessage(chatId, MENU_PROMPT, { reply_markup: menuKeyboard() }).catch(() => {});
+      await showMenu(bot, chatId, lang);
+      return;
+    }
+    if (text === '/language' || text === '/lang') {
+      await bot.sendMessage(chatId, t('content.lang_prompt', lang), { reply_markup: langKeyboard() }).catch(() => {});
       return;
     }
     if (text.startsWith('/')) {
-      await bot.sendMessage(chatId, 'Use /content to open the menu.', { reply_markup: menuKeyboard() }).catch(() => {});
+      await showMenu(bot, chatId, lang);
       return;
     }
 
-    // Free text → router decides (flow A: awaited topic → generate;
-    // flow B: typed first → remember as pending, never drop it).
+    // Free text → router (flow A: awaited topic → generate; flow B: typed first
+    // → remember as pending, never drop). Input may be Russian; output stays EN.
     const plan = planFreeText(sessions.get(chatId), text);
     if (plan.action === 'generate') {
       await deliverDraft(bot, chatId, plan.format, plan.topic);
@@ -160,7 +185,7 @@ function start() {
       const s = sessions.get(chatId) || {};
       s.pendingTopic = plan.topic;
       sessions.set(chatId, s);
-      await bot.sendMessage(chatId, '👍 Got it. Pick a format and I\'ll write about that:', { reply_markup: menuKeyboard() }).catch(() => {});
+      await bot.sendMessage(chatId, t('content.pending_stored', lang), { reply_markup: menuKeyboard(lang) }).catch(() => {});
     }
   });
 
@@ -169,13 +194,14 @@ function start() {
     const chatId = query.message && query.message.chat && query.message.chat.id;
     const data   = query.data || '';
     if (!isAllowed(chatId)) {
-      await bot.answerCallbackQuery(query.id, { text: '⛔ Access denied' }).catch(() => {});
+      await bot.answerCallbackQuery(query.id, { text: t('content.access_denied', uiLang(chatId)) }).catch(() => {});
       return;
     }
+    const lang = uiLang(chatId);
 
     try {
       if (data === 'fmt:photo_soon') {
-        await bot.answerCallbackQuery(query.id, { text: '🖼 Photo captions are coming soon.', show_alert: true });
+        await bot.answerCallbackQuery(query.id, { text: t('content.photo_soon', lang), show_alert: true });
         return;
       }
       if (data.startsWith('fmt:')) {
@@ -183,39 +209,50 @@ function start() {
         await bot.answerCallbackQuery(query.id).catch(() => {});
         const plan = planFormatSelect(sessions.get(chatId), format);
         if (plan.action === 'generate') {
-          // Flow B: user already gave the topic before picking a format — use it.
           sessions.set(chatId, { format });
           await deliverDraft(bot, chatId, format, plan.topic);
         } else if (plan.action === 'ask') {
           sessions.set(chatId, { format, awaiting: 'topic' });
-          await bot.sendMessage(chatId, topicPrompt(format), { parse_mode: 'Markdown' }).catch(() => {});
+          await bot.sendMessage(chatId, t('content.ask_topic', lang, { format: label(format, lang) }), { parse_mode: 'Markdown' }).catch(() => {});
         }
+        return;
+      }
+      if (data === 'showlang') {
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.sendMessage(chatId, t('content.lang_prompt', lang), { reply_markup: langKeyboard() }).catch(() => {});
+        return;
+      }
+      if (data.startsWith('setlang:')) {
+        const newLang = data.slice(8) === 'ru' ? 'ru' : 'en';
+        setPreferredLanguage(chatId, newLang);
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.sendMessage(chatId, t('content.lang_set', newLang)).catch(() => {});
+        await showMenu(bot, chatId, newLang);
         return;
       }
       if (data === 'menu') {
         sessions.set(chatId, {});
         await bot.answerCallbackQuery(query.id).catch(() => {});
-        await bot.sendMessage(chatId, MENU_PROMPT, { reply_markup: menuKeyboard() }).catch(() => {});
+        await showMenu(bot, chatId, lang);
         return;
       }
       if (data === 'regen') {
         const s = sessions.get(chatId);
         if (s && isFormat(s.format) && s.lastTopic) {
-          await bot.answerCallbackQuery(query.id, { text: '🔄 Regenerating…' }).catch(() => {});
+          await bot.answerCallbackQuery(query.id, { text: t('content.regenerating', lang) }).catch(() => {});
           await deliverDraft(bot, chatId, s.format, s.lastTopic);
         } else {
-          await bot.answerCallbackQuery(query.id, { text: 'Nothing to regenerate yet.' }).catch(() => {});
+          await bot.answerCallbackQuery(query.id, { text: t('content.nothing_regen', lang) }).catch(() => {});
         }
         return;
       }
       if (data === 'copy') {
         const s = sessions.get(chatId);
         if (s && s.lastDraft) {
-          await bot.answerCallbackQuery(query.id, { text: '📋 Clean text sent below ↓' }).catch(() => {});
-          // Standalone plain message — long-press to copy, no surrounding chrome.
-          await bot.sendMessage(chatId, s.lastDraft).catch(() => {});
+          await bot.answerCallbackQuery(query.id, { text: t('content.copied', lang) }).catch(() => {});
+          await bot.sendMessage(chatId, s.lastDraft).catch(() => {}); // standalone plain text — clean to copy
         } else {
-          await bot.answerCallbackQuery(query.id, { text: 'Nothing to copy yet.' }).catch(() => {});
+          await bot.answerCallbackQuery(query.id, { text: t('content.nothing_copy', lang) }).catch(() => {});
         }
         return;
       }
@@ -242,7 +279,7 @@ function start() {
   probe();
   setInterval(probe, 60 * 1000);
 
-  logger.info('Content-bot running ✅ (C.2 text formats — post / ideas / plan)');
+  logger.info('Content-bot running ✅ (C.2 text formats — RU/EN UI, EN output)');
   return bot;
 }
 
