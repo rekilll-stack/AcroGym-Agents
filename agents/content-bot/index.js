@@ -32,7 +32,7 @@ const { t }              = require('../../shared/i18n');
 const { getPreferredLanguage, setPreferredLanguage } = require('../../shared/preferences');
 const { isFormat } = require('./prompts');
 const { generateContent } = require('./generate');
-const { planFreeText, planFormatSelect } = require('./router');
+const { planFreeText, planFormatSelect, buildCopyButton } = require('./router');
 
 const logger = createLogger('content-bot');
 
@@ -102,10 +102,10 @@ function menuKeyboard(lang) {
   };
 }
 
-function draftKeyboard(lang) {
+function draftKeyboard(lang, draft) {
   return {
     inline_keyboard: [[
-      { text: t('content.btn_copy', lang), callback_data: 'copy' },
+      buildCopyButton(t('content.btn_copy', lang), draft), // native copy_text if short, else 'copy' fallback
       { text: t('content.btn_regen', lang), callback_data: 'regen' },
       { text: t('content.btn_menu', lang), callback_data: 'menu' },
     ]],
@@ -136,7 +136,7 @@ async function deliverDraft(bot, chatId, format, topic) {
   s.format = format; s.lastTopic = topic; s.lastDraft = draft; s.awaiting = null; s.pendingTopic = null;
   sessions.set(chatId, s);
   const header = t('content.draft_header', lang, { format: label(format, lang) });
-  await bot.sendMessage(chatId, `${header}\n\n${draft}`, { reply_markup: draftKeyboard(lang) })
+  await bot.sendMessage(chatId, `${header}\n\n${draft}`, { reply_markup: draftKeyboard(lang, draft) })
     .catch((err) => logger.error({ err: err.message }, 'draft send failed'));
 }
 

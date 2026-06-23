@@ -7,7 +7,7 @@
 
 const { isFormat, formatLabel, buildContentPrompt, fallbackContent } = require('../agents/content-bot/prompts');
 const { generateContent } = require('../agents/content-bot/generate');
-const { planFreeText, planFormatSelect } = require('../agents/content-bot/router');
+const { planFreeText, planFormatSelect, buildCopyButton, COPY_TEXT_LIMIT } = require('../agents/content-bot/router');
 
 let pass = 0, fail = 0;
 const T = (n, c) => { console.log((c ? '  ✅ ' : '  ❌ ') + n); c ? pass++ : fail++; };
@@ -94,6 +94,19 @@ const T = (n, c) => { console.log((c ? '  ✅ ' : '  ❌ ') + n); c ? pass++ : f
   T('bad format → ignore', planFormatSelect({ pendingTopic: 'x' }, 'bogus').action === 'ignore');
   T('awaiting topic wins over pending (flow A precedence)',
     planFreeText({ format: 'ideas', awaiting: 'topic', pendingTopic: 'old' }, 'new topic').topic === 'new topic');
+
+  console.log('\n=== copy-to-clipboard: short → native copy_text, long → fallback callback ===');
+  const short = 'A short caption for AcroGym 🤸';
+  const longDraft = 'x'.repeat(COPY_TEXT_LIMIT + 1);
+  const bShort = buildCopyButton('📋 Copy', short);
+  const bLong  = buildCopyButton('📋 Copy', longDraft);
+  T('short draft → native copy_text button with exact text', bShort.copy_text && bShort.copy_text.text === short && !bShort.callback_data);
+  T('copy_text payload is the clean draft (no markers)', bShort.copy_text.text === short);
+  T('long draft → callback fallback (no copy_text)', bLong.callback_data === 'copy' && !bLong.copy_text);
+  T(`boundary at limit: <=${COPY_TEXT_LIMIT} native, >limit fallback`,
+    !!buildCopyButton('c', 'y'.repeat(COPY_TEXT_LIMIT)).copy_text && !buildCopyButton('c', 'y'.repeat(COPY_TEXT_LIMIT + 1)).copy_text);
+  T('empty/undefined draft → fallback (no broken copy_text)', !buildCopyButton('c', '').copy_text && !buildCopyButton('c').copy_text);
+  T('button always carries a label', bShort.text === '📋 Copy' && bLong.text === '📋 Copy');
 
   console.log('\n🔴 boundary: no Instagram-publish CODE in the bot (word "Instagram" in boundary comments is fine)');
   const fs2 = require('fs'); const p2 = require('path');
