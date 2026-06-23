@@ -61,7 +61,7 @@ const SEGS = ['3-5', '6-9', '10-14', 'neutral', 'unknown', null];
     T(`t${touch}: system reuses 10-14 SEGMENT_GUIDANCE (sport acrobatics)`, /sport acrobatics/.test(realSeg.system) && /Kristina/.test(realSeg.system));
     T(`t${touch}: system English-only + "Hi <name>"`, /English only/.test(realSeg.system) && /Hi <name>/.test(realSeg.system));
     T(`t${touch}: user names the parent + carries the exemplar`, /parent named Sara/.test(realSeg.user) && realSeg.user.includes('Hi Sara!'));
-    T(`t${touch}: model + small token budget`, realSeg.model === 'claude-sonnet-4-5' && realSeg.maxTokens <= 400);
+    T(`t${touch}: model + small token budget`, realSeg.model === 'claude-opus-4-8' && realSeg.maxTokens <= 400);
 
     const neutral = buildDripPrompt({ touch, parentName: 'Sara', ageSegment: 'unknown' });
     T(`t${touch}: unknown segment → neutral guidance (no "little one"), avoids age angle`,

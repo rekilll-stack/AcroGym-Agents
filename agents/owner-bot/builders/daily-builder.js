@@ -177,7 +177,7 @@ async function buildInsight(stats) {
         system:    systemPrompt,
         user:      JSON.stringify(stats, null, 2),
         maxTokens: 200,
-        model:     'claude-sonnet-4-5',
+        model:     'claude-opus-4-8',
       }),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Claude insight timeout (15s)')), 15000)

@@ -99,7 +99,7 @@ function buildGreetingPrompt({ parentName, childAge } = {}) {
       'signature, but rephrase it naturally in your own words (do not copy verbatim):\n\n' +
       exemplar,
     maxTokens: 400,
-    model: 'claude-sonnet-4-5',
+    model: 'claude-opus-4-8',
   };
 }
 
@@ -236,7 +236,7 @@ function buildDripPrompt({ touch, parentName, ageSegment } = {}) {
       'rephrase it naturally in your own words (do not copy verbatim):\n\n' +
       exemplar,
     maxTokens: 300,
-    model: 'claude-sonnet-4-5',
+    model: 'claude-opus-4-8',
   };
 }
 

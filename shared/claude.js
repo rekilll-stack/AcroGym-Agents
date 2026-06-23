@@ -16,7 +16,7 @@ function getClient() {
   return _client;
 }
 
-const DEFAULT_MODEL      = 'claude-sonnet-4-5';
+const DEFAULT_MODEL      = 'claude-opus-4-8';
 const DEFAULT_MAX_TOKENS = 1024;
 const MAX_RETRIES        = 3;
 const BASE_DELAY_MS      = 1000;
