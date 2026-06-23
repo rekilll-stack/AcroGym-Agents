@@ -7,7 +7,7 @@
 
 const { isFormat, formatLabel, buildContentPrompt, fallbackContent } = require('../agents/content-bot/prompts');
 const { generateContent } = require('../agents/content-bot/generate');
-const { planFreeText, planFormatSelect, buildCopyButton, COPY_TEXT_LIMIT } = require('../agents/content-bot/router');
+const { planFreeText, planFormatSelect, buildCopyButton, COPY_TEXT_LIMIT, escapeHtml } = require('../agents/content-bot/router');
 
 let pass = 0, fail = 0;
 const T = (n, c) => { console.log((c ? '  ✅ ' : '  ❌ ') + n); c ? pass++ : fail++; };
@@ -107,6 +107,15 @@ const T = (n, c) => { console.log((c ? '  ✅ ' : '  ❌ ') + n); c ? pass++ : f
     !!buildCopyButton('c', 'y'.repeat(COPY_TEXT_LIMIT)).copy_text && !buildCopyButton('c', 'y'.repeat(COPY_TEXT_LIMIT + 1)).copy_text);
   T('empty/undefined draft → fallback (no broken copy_text)', !buildCopyButton('c', '').copy_text && !buildCopyButton('c').copy_text);
   T('button always carries a label', bShort.text === '📋 Copy' && bLong.text === '📋 Copy');
+
+  console.log('\n=== <pre> code-block copy: escapeHtml for any-length one-tap copy ===');
+  T('escapes & < > for valid <pre>', escapeHtml('a & b < c > d') === 'a &amp; b &lt; c &gt; d');
+  T('leaves hashtags / emoji / apostrophes intact (clean clipboard)', escapeHtml("#AcroGym 🤸 it's") === "#AcroGym 🤸 it's");
+  T('a full-length post survives escaping (no length cap, unlike copy_text)', escapeHtml('y'.repeat(1200)).length === 1200);
+  // The draft body is delivered inside <pre>…</pre> (HTML) so Telegram shows its
+  // native one-tap copy icon for ANY length — verified in index.js wiring.
+  const idxSrc = require('fs').readFileSync(require('path').join(__dirname, '../agents/content-bot/index.js'), 'utf8');
+  T('index sends draft as <pre> HTML block with copy icon', /<pre>\$\{escapeHtml\(draft\)\}<\/pre>/.test(idxSrc) && /parse_mode: 'HTML'/.test(idxSrc));
 
   console.log('\n🔴 boundary: no Instagram-publish CODE in the bot (word "Instagram" in boundary comments is fine)');
   const fs2 = require('fs'); const p2 = require('path');

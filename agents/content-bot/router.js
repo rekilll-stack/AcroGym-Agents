@@ -49,4 +49,13 @@ function buildCopyButton(label, draft) {
   return { text: label, callback_data: 'copy' };
 }
 
-module.exports = { planFreeText, planFormatSelect, buildCopyButton, COPY_TEXT_LIMIT };
+/**
+ * Escape text for an HTML <pre> code block. Telegram renders <pre> with a
+ * native one-tap COPY icon (works for any length — unlike copy_text's 256 cap),
+ * and copies the DECODED text, so the clipboard gets the clean original.
+ */
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+module.exports = { planFreeText, planFormatSelect, buildCopyButton, COPY_TEXT_LIMIT, escapeHtml };

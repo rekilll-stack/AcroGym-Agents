@@ -32,7 +32,7 @@ const { t }              = require('../../shared/i18n');
 const { getPreferredLanguage, setPreferredLanguage } = require('../../shared/preferences');
 const { isFormat } = require('./prompts');
 const { generateContent } = require('./generate');
-const { planFreeText, planFormatSelect, buildCopyButton } = require('./router');
+const { planFreeText, planFormatSelect, escapeHtml } = require('./router');
 
 const logger = createLogger('content-bot');
 
@@ -102,10 +102,12 @@ function menuKeyboard(lang) {
   };
 }
 
-function draftKeyboard(lang, draft) {
+function draftKeyboard(lang) {
+  // No Copy button: the draft is sent as a <pre> code block, which Telegram
+  // renders with its own native one-tap copy icon (any length). Keyboard just
+  // offers Regenerate / Menu.
   return {
     inline_keyboard: [[
-      buildCopyButton(t('content.btn_copy', lang), draft), // native copy_text if short, else 'copy' fallback
       { text: t('content.btn_regen', lang), callback_data: 'regen' },
       { text: t('content.btn_menu', lang), callback_data: 'menu' },
     ]],
@@ -136,7 +138,11 @@ async function deliverDraft(bot, chatId, format, topic) {
   s.format = format; s.lastTopic = topic; s.lastDraft = draft; s.awaiting = null; s.pendingTopic = null;
   sessions.set(chatId, s);
   const header = t('content.draft_header', lang, { format: label(format, lang) });
-  await bot.sendMessage(chatId, `${header}\n\n${draft}`, { reply_markup: draftKeyboard(lang, draft) })
+  const hint   = t('content.copy_hint', lang);
+  // Body in a <pre> code block → Telegram shows a native one-tap copy icon that
+  // copies the WHOLE post (any length) as clean text. parse_mode HTML; escape <pre>.
+  const body = `${header}\n${hint}\n\n<pre>${escapeHtml(draft)}</pre>`;
+  await bot.sendMessage(chatId, body, { parse_mode: 'HTML', reply_markup: draftKeyboard(lang) })
     .catch((err) => logger.error({ err: err.message }, 'draft send failed'));
 }
 
@@ -243,16 +249,6 @@ function start() {
           await deliverDraft(bot, chatId, s.format, s.lastTopic);
         } else {
           await bot.answerCallbackQuery(query.id, { text: t('content.nothing_regen', lang) }).catch(() => {});
-        }
-        return;
-      }
-      if (data === 'copy') {
-        const s = sessions.get(chatId);
-        if (s && s.lastDraft) {
-          await bot.answerCallbackQuery(query.id, { text: t('content.copied', lang) }).catch(() => {});
-          await bot.sendMessage(chatId, s.lastDraft).catch(() => {}); // standalone plain text — clean to copy
-        } else {
-          await bot.answerCallbackQuery(query.id, { text: t('content.nothing_copy', lang) }).catch(() => {});
         }
         return;
       }
