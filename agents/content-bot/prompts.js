@@ -115,7 +115,7 @@ function buildContentPrompt(format, topic) {
     system: f.system,
     user: f.instruction(t),
     maxTokens: f.maxTokens,
-    model: 'claude-sonnet-4-5',
+    model: 'claude-opus-4-8', // owner choice: top quality for brand-voice content (low volume)
   };
 }
 

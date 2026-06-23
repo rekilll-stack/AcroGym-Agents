@@ -26,7 +26,7 @@ const T = (n, c) => { console.log((c ? '  ✅ ' : '  ❌ ') + n); c ? pass++ : f
     T(`${f}: avoids cheap urgency (guardrail present)`, /Hurry! Sign up now/.test(p.system) && /AVOID/.test(p.system));
     T(`${f}: no-invent-facts guard`, /Never invent facts/.test(p.system) && /September 2026/.test(p.system));
     T(`${f}: topic carried into user msg`, /first gymnastics class/.test(p.user));
-    T(`${f}: model + token budget`, p.model === 'claude-sonnet-4-5' && p.maxTokens >= 500);
+    T(`${f}: model + token budget`, p.model === 'claude-opus-4-8' && p.maxTokens >= 500);
   }
   // post-specific: hashtag instruction present
   T('post: asks for 8-15 hashtags from pool', /8-15 relevant hashtags/.test(buildContentPrompt('post','x').system) && /#AcroGym/.test(buildContentPrompt('post','x').system));
