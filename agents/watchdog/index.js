@@ -37,6 +37,7 @@ const lastAutoRestart = new Map(); // agent name → timestamp (in-memory; reset
 const WATCHED = [
   { name: 'lead-helper', thresholdMs: 5 * 60 * 1000, kind: 'sheets' },
   { name: 'owner-bot',   thresholdMs: 5 * 60 * 1000, kind: 'telegram' },
+  { name: 'content-bot', thresholdMs: 5 * 60 * 1000, kind: 'telegram' },
   // Cron agent (no pm2 process): judged by heartbeat freshness only. 30-min
   // cron → 70-min threshold tolerates one transient miss, catches a real
   // stall within the hour. pm2:false → no auto-restart (cron re-runs itself).

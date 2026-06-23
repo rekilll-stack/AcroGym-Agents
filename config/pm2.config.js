@@ -60,6 +60,23 @@ module.exports = {
     },
 
     // ─────────────────────────────
+    // Агент 4: Content bot (Instagram drafts — separate bot, own token)
+    // ─────────────────────────────
+    {
+      name: 'content-bot',
+      script: 'agents/content-bot/index.js',
+      cwd: '/home/admin/acrogym',
+      autorestart: true,
+      max_restarts: 10,
+      restart_delay: 5000,
+      watch: false,
+      error_file: 'logs/content-bot-error.log',
+      out_file:   'logs/content-bot-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      env: { NODE_ENV: 'production', TZ: 'Asia/Qatar' },
+    },
+
+    // ─────────────────────────────
     // Агент 3: Pre-launch Nurture (следующий)
     // ─────────────────────────────
     // {
