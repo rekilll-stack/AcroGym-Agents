@@ -52,6 +52,14 @@ Engineering backlog. Items here have been consciously deferred — they are trac
 
 ---
 
+## 🔴 INVARIANT — Content-bot photo-caption child safety (C.4)
+
+- **File:** `agents/content-bot/prompts.js` → `CAPTION_SYSTEM`.
+- **Rule (critical, do NOT weaken):** photo captions describe the ACTIVITY / movement / joy / environment — NEVER an individual child's appearance, body, face, clothing, age, or name; no singling-out; if in doubt, stay general. Marked "STRICT, NON-NEGOTIABLE" in the prompt; asserted in `test-content-bot.js`.
+- **On ANY future change to vision / CAPTION_SYSTEM:** re-verify on a REAL photo of children (several generations), confirm no child is described individually, and keep the safety block intact. This is a standing invariant — not "done and forgotten". Owner confirmed it live before the C.4 commit (98fba82).
+
+---
+
 ## Pre-launch checklist — BEFORE real lead flow (Aug–Sep 2026)
 
 ### 🔴 Restart nurture agent on the drip code before leads start arriving
