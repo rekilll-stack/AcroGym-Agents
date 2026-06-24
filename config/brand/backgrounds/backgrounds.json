@@ -1,0 +1,11 @@
+{
+  "_comment": "Track D — branded image backgrounds. Each entry: file (PNG in this dir, 1080x1080), label (button text, en/ru), textZone (where the empty area for text is: bottom|center|band). Files prefixed with '_' (e.g. _test) are dev-only and hidden from the bot menu. Kirill drops real Canva PNGs here (no logo — the bot overlays logo.png).",
+  "backgrounds": [
+    {
+      "file": "_test.png",
+      "label": { "en": "Test background", "ru": "Тестовый фон" },
+      "textZone": "bottom",
+      "dev": true
+    }
+  ]
+}
