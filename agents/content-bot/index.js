@@ -33,6 +33,7 @@ const { getPreferredLanguage, setPreferredLanguage } = require('../../shared/pre
 const { isFormat } = require('./prompts');
 const { generateContent, generateCaption } = require('./generate');
 const { planFreeText, planFormatSelect, escapeHtml } = require('./router');
+const { composeBrandedImage, loadManifest } = require('./image');
 
 const logger = createLogger('content-bot');
 
@@ -97,8 +98,39 @@ function menuKeyboard(lang) {
       [{ text: t('content.btn_post', lang), callback_data: 'fmt:post' }],
       [{ text: t('content.btn_ideas', lang), callback_data: 'fmt:ideas' }, { text: t('content.btn_plan', lang), callback_data: 'fmt:plan' }],
       [{ text: t('content.btn_photo', lang), callback_data: 'fmt:photo' }],
+      [{ text: t('content.btn_branded', lang), callback_data: 'branded' }],
       [{ text: t('content.btn_lang', lang), callback_data: 'showlang' }],
     ],
+  };
+}
+
+// Track D — backgrounds the user may pick. Real (non-dev) entries normally; if
+// none exist yet, fall back to dev entries (e.g. _test.png) so the 🎨 flow is
+// usable until Kirill drops real Canva backgrounds. Returns { list, devOnly }.
+function selectableBackgrounds() {
+  const all = loadManifest();
+  const real = all.filter((b) => b && b.file && !b.dev);
+  if (real.length) return { list: real, devOnly: false };
+  return { list: all.filter((b) => b && b.file), devOnly: true };
+}
+
+// Keyboard of background choices (one per row) + Menu.
+function bgKeyboard(lang, list) {
+  const rows = list.map((b) => [{
+    text: (b.label && (b.label[lang] || b.label.en)) || b.file,
+    callback_data: `bg:${b.file}`,
+  }]);
+  rows.push([{ text: t('content.btn_menu', lang), callback_data: 'menu' }]);
+  return { inline_keyboard: rows };
+}
+
+// After a branded image is sent: Redo (re-enter headline, same background) / Menu.
+function brandedDraftKeyboard(lang) {
+  return {
+    inline_keyboard: [[
+      { text: t('content.btn_regen', lang), callback_data: 'branded_redo' },
+      { text: t('content.btn_menu', lang), callback_data: 'menu' },
+    ]],
   };
 }
 
@@ -173,6 +205,30 @@ async function deliverCaption(bot, chatId, base64, mediaType, context) {
     .catch((err) => logger.error({ err: err.message }, 'caption send failed'));
 }
 
+// Track D — compose a branded image from a chosen background + a SHORT headline
+// (Kirill's own text — NO AI text generation here) and send it as a DRAFT photo.
+// 🔴 BOUNDARY: nothing is published — the photo goes to the chat; Kirill posts
+// to Instagram by hand. No Instagram/publish code exists here.
+async function deliverBrandedImage(bot, chatId, bgFile, textZone, headline) {
+  const lang = uiLang(chatId);
+  logger.info({ bgFile, textZone, headlinePreview: String(headline || '').slice(0, 60) }, 'composing branded image');
+  bot.sendChatAction(chatId, 'upload_photo').catch(() => {});
+  // scrim 'blue-gradient' (variant A) is the engine default; left configurable.
+  const buffer = await composeBrandedImage({
+    backgroundPath: path.join('config/brand/backgrounds', bgFile),
+    text: headline,
+    textZone: textZone || 'bottom',
+  });
+  const s = sessions.get(chatId) || {};
+  s.format = 'branded'; s.bg = bgFile; s.textZone = textZone || 'bottom';
+  s.lastHeadline = headline; s.awaiting = null;
+  sessions.set(chatId, s);
+  await bot.sendPhoto(chatId, buffer, {
+    caption: t('content.branded_caption', lang),
+    reply_markup: brandedDraftKeyboard(lang),
+  }).catch((err) => logger.error({ err: err.message }, 'branded image send failed'));
+}
+
 // ─────────────────────────────────────────────────────────────
 // Entry point
 // ─────────────────────────────────────────────────────────────
@@ -231,6 +287,18 @@ function start() {
       return;
     }
 
+    // Track D: waiting for the branded-image headline → this text IS the headline.
+    if (cur && cur.awaiting === 'headline' && cur.bg) {
+      if (!text) { await bot.sendMessage(chatId, t('content.branded_ask_headline', lang)).catch(() => {}); return; }
+      try {
+        await deliverBrandedImage(bot, chatId, cur.bg, cur.textZone, text);
+      } catch (err) {
+        logger.error({ err: err.message }, 'branded compose failed');
+        await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {});
+      }
+      return;
+    }
+
     // Free text → router (flow A: awaited topic → generate; flow B: typed first
     // → remember as pending, never drop). Input may be Russian; output stays EN.
     const plan = planFreeText(sessions.get(chatId), text);
@@ -259,6 +327,41 @@ function start() {
         sessions.set(chatId, { format: 'photo_caption', awaiting: 'photo' });
         await bot.answerCallbackQuery(query.id).catch(() => {});
         await bot.sendMessage(chatId, t('content.ask_photo', lang)).catch(() => {});
+        return;
+      }
+      // Track D — 🎨 branded image: start the flow (choose a background).
+      if (data === 'branded') {
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        const { list, devOnly } = selectableBackgrounds();
+        if (!list.length) {
+          await bot.sendMessage(chatId, t('content.branded_no_bg', lang), { reply_markup: menuKeyboard(lang) }).catch(() => {});
+          return;
+        }
+        sessions.set(chatId, { format: 'branded', awaiting: 'bg' });
+        if (devOnly) await bot.sendMessage(chatId, t('content.branded_dev_note', lang)).catch(() => {});
+        await bot.sendMessage(chatId, t('content.branded_choose_bg', lang), { reply_markup: bgKeyboard(lang, list) }).catch(() => {});
+        return;
+      }
+      // Background chosen → ask for the short headline.
+      if (data.startsWith('bg:')) {
+        const file = data.slice(3);
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        const entry = loadManifest().find((b) => b && b.file === file);
+        if (!entry) { await bot.sendMessage(chatId, t('content.branded_no_bg', lang)).catch(() => {}); return; }
+        sessions.set(chatId, { format: 'branded', bg: file, textZone: entry.textZone || 'bottom', awaiting: 'headline' });
+        await bot.sendMessage(chatId, t('content.branded_ask_headline', lang)).catch(() => {});
+        return;
+      }
+      // 🔄 Заново for a branded image → re-enter the headline on the same background.
+      if (data === 'branded_redo') {
+        const s = sessions.get(chatId);
+        if (s && s.bg) {
+          s.awaiting = 'headline'; sessions.set(chatId, s);
+          await bot.answerCallbackQuery(query.id).catch(() => {});
+          await bot.sendMessage(chatId, t('content.branded_ask_headline', lang)).catch(() => {});
+        } else {
+          await bot.answerCallbackQuery(query.id, { text: t('content.nothing_regen', lang) }).catch(() => {});
+        }
         return;
       }
       if (data.startsWith('fmt:')) {
