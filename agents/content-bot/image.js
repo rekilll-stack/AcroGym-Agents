@@ -101,18 +101,40 @@ function drawScrim(ctx, variant, textZone) {
   ctx.fillRect(0, textZone === 'band' ? 380 : 520, SIZE, SIZE);
 }
 
+// Average relative luminance (0..1) of a canvas region. Used to auto-pick the
+// logo variant so it never blends into the background.
+function regionLuminance(ctx, x, y, w, h) {
+  const sx = Math.max(0, Math.floor(x)), sy = Math.max(0, Math.floor(y));
+  const sw = Math.max(1, Math.min(SIZE - sx, Math.ceil(w)));
+  const sh = Math.max(1, Math.min(SIZE - sy, Math.ceil(h)));
+  const data = ctx.getImageData(sx, sy, sw, sh).data;
+  let sum = 0, n = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    sum += (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+    n++;
+  }
+  return n ? sum / n : 1;
+}
+
 // ── Logo overlay ──────────────────────────────────────────────
-async function drawLogo(ctx, { useWhite = true } = {}) {
-  const p = useWhite && fs.existsSync(LOGO_WHITE_PATH) ? LOGO_WHITE_PATH : LOGO_PATH;
-  if (!fs.existsSync(p)) return;
-  const logo = await loadImage(p);
-  const target = 150; // px
-  const scale = target / Math.max(logo.width, logo.height);
-  const w = logo.width * scale, h = logo.height * scale;
+// Auto-picks the logo variant by sampling the brightness UNDER the logo:
+//   bright corner → COLOURED logo.png (visible on light backgrounds)
+//   dark corner   → logo-white.png    (visible on dark backgrounds)
+async function drawLogo(ctx) {
+  if (!fs.existsSync(LOGO_PATH)) return;
+  const colored = await loadImage(LOGO_PATH);
+  const target = 150; // px (long edge)
+  const scale = target / Math.max(colored.width, colored.height);
+  const w = colored.width * scale, h = colored.height * scale;
   const margin = 48;
-  ctx.globalAlpha = 0.95;
-  ctx.drawImage(logo, SIZE - w - margin, margin, w, h); // top-right
-  ctx.globalAlpha = 1;
+  const x = SIZE - w - margin, y = margin; // top-right
+
+  const lum = regionLuminance(ctx, x, y, w, h);
+  let logo = colored;
+  if (lum < 0.5 && fs.existsSync(LOGO_WHITE_PATH)) logo = await loadImage(LOGO_WHITE_PATH);
+
+  ctx.globalAlpha = 1; // crisp, not faded
+  ctx.drawImage(logo, x, y, w, h);
 }
 
 // ── Main composite ────────────────────────────────────────────
@@ -140,8 +162,8 @@ async function composeBrandedImage({ backgroundPath, text, textZone = 'bottom', 
   // 2) scrim
   drawScrim(ctx, scrim, textZone);
 
-  // 3) logo
-  if (logo) await drawLogo(ctx, { useWhite: scrim !== 'none' });
+  // 3) logo (variant auto-selected by brightness under it)
+  if (logo) await drawLogo(ctx);
 
   // 4) text — auto-fit + wrap, white with a soft contour/shadow for any background
   const z = zoneFor(textZone);

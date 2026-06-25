@@ -290,6 +290,8 @@ function start() {
     // Track D: waiting for the branded-image headline → this text IS the headline.
     if (cur && cur.awaiting === 'headline' && cur.bg) {
       if (!text) { await bot.sendMessage(chatId, t('content.branded_ask_headline', lang)).catch(() => {}); return; }
+      // soft length guard: short hooks render best; warn but still proceed
+      if (text.length > 50) await bot.sendMessage(chatId, t('content.branded_long_note', lang)).catch(() => {});
       try {
         await deliverBrandedImage(bot, chatId, cur.bg, cur.textZone, text);
       } catch (err) {

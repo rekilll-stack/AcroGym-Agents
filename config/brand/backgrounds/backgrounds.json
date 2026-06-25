@@ -3,7 +3,13 @@
   "backgrounds": [
     {
       "file": "_test.png",
-      "label": { "en": "Test background", "ru": "Тестовый фон" },
+      "label": { "en": "Test background (light)", "ru": "Тестовый фон (светлый)" },
+      "textZone": "bottom",
+      "dev": true
+    },
+    {
+      "file": "_test_dark.png",
+      "label": { "en": "Test background (dark)", "ru": "Тестовый фон (тёмный)" },
       "textZone": "bottom",
       "dev": true
     }
