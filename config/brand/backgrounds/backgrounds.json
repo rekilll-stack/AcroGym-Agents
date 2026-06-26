@@ -1,6 +1,41 @@
 {
-  "_comment": "Track D — branded image backgrounds. Each entry: file (PNG in this dir, 1080x1080), label (button text, en/ru), textZone (where the empty area for text is: bottom|center|band). Files prefixed with '_' (e.g. _test) are dev-only and hidden from the bot menu. Kirill drops real Canva PNGs here (no logo — the bot overlays logo.png).",
+  "_comment": "Track D — branded image backgrounds. Each entry: file (image in this dir, square 1080x1080), label (button text, en/ru), textZone (empty area for text in the CLEAN style: bottom|center|band; the IG style always uses bottom). Files prefixed with '_' (e.g. _test) are dev-only and hidden from the bot menu. The bg-*.jpg entries are squared from AcroGym's own gym photos (public on acrogym.org) so the 🎨 flow has ready backgrounds — Kirill doesn't have to drop anything.",
   "backgrounds": [
+    {
+      "file": "bg-kids-motion.jpg",
+      "label": { "en": "Kids in motion", "ru": "Дети в движении" },
+      "textZone": "bottom"
+    },
+    {
+      "file": "bg-stretch.jpg",
+      "label": { "en": "Stretching at the barre", "ru": "Растяжка у станка" },
+      "textZone": "bottom"
+    },
+    {
+      "file": "bg-floor.jpg",
+      "label": { "en": "Floor routine", "ru": "Гимнастка на ковре" },
+      "textZone": "bottom"
+    },
+    {
+      "file": "bg-competition.jpg",
+      "label": { "en": "Competition", "ru": "Соревнования" },
+      "textZone": "bottom"
+    },
+    {
+      "file": "bg-young.jpg",
+      "label": { "en": "Young gymnasts", "ru": "Юные гимнастки" },
+      "textZone": "bottom"
+    },
+    {
+      "file": "bg-coach.jpg",
+      "label": { "en": "Coach & student", "ru": "Тренер и ученица" },
+      "textZone": "bottom"
+    },
+    {
+      "file": "bg-show.jpg",
+      "label": { "en": "Show & audience", "ru": "Выступление и зрители" },
+      "textZone": "bottom"
+    },
     {
       "file": "_test.png",
       "label": { "en": "Test background (light)", "ru": "Тестовый фон (светлый)" },
