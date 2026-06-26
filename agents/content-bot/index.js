@@ -31,7 +31,7 @@ const { writeHeartbeat } = require('../../shared/heartbeat');
 const { t }              = require('../../shared/i18n');
 const { getPreferredLanguage, setPreferredLanguage } = require('../../shared/preferences');
 const { isFormat } = require('./prompts');
-const { generateContent, generateCaption } = require('./generate');
+const { generateContent, generateCaption, generateHeadlines } = require('./generate');
 const { planFreeText, planFormatSelect, escapeHtml } = require('./router');
 const { composeBrandedImage, loadManifest } = require('./image');
 
@@ -134,6 +134,19 @@ function brandedDraftKeyboard(lang) {
   };
 }
 
+// When asking for the headline: offer ✨ generate (D.3) alongside manual typing.
+function headlineAskKeyboard(lang) {
+  return { inline_keyboard: [[{ text: t('content.btn_gen_headline', lang), callback_data: 'gen_headline' }]] };
+}
+
+// Generated headline options as pick-buttons + "3 more". The options live in the
+// session (callback_data only carries the index — Telegram's 64-byte limit).
+function headlineOptionsKeyboard(lang, opts) {
+  const rows = opts.map((o, i) => [{ text: o.slice(0, 60), callback_data: `pick_h:${i}` }]);
+  rows.push([{ text: t('content.btn_gen_more', lang), callback_data: 'gen_more' }]);
+  return { inline_keyboard: rows };
+}
+
 function draftKeyboard(lang) {
   // No Copy button: the draft is sent as a <pre> code block, which Telegram
   // renders with its own native one-tap copy icon (any length). Keyboard just
@@ -229,6 +242,22 @@ async function deliverBrandedImage(bot, chatId, bgFile, textZone, headline) {
   }).catch((err) => logger.error({ err: err.message }, 'branded image send failed'));
 }
 
+// D.3 — generate 3 English headline options for a theme and show them as pick
+// buttons. 🔴 The owner PICKS one (or types own / taps "3 more") — nothing is
+// auto-applied; the picked text then goes onto the image.
+async function deliverHeadlineOptions(bot, chatId, topic) {
+  const lang = uiLang(chatId);
+  bot.sendChatAction(chatId, 'typing').catch(() => {});
+  await bot.sendMessage(chatId, t('content.branded_generating', lang)).catch(() => {});
+  const opts = await generateHeadlines(topic); // English, brand voice; safe fallback
+  const s = sessions.get(chatId) || {};
+  s.genTopic = topic; s.genOptions = opts; s.awaiting = 'headline'; // typed text → manual headline
+  sessions.set(chatId, s);
+  await bot.sendMessage(chatId, t('content.branded_pick', lang), {
+    reply_markup: headlineOptionsKeyboard(lang, opts),
+  }).catch((err) => logger.error({ err: err.message }, 'headline options send failed'));
+}
+
 // ─────────────────────────────────────────────────────────────
 // Entry point
 // ─────────────────────────────────────────────────────────────
@@ -284,6 +313,18 @@ function start() {
     const cur = sessions.get(chatId);
     if (cur && cur.awaiting === 'photo') {
       await bot.sendMessage(chatId, t('content.expecting_photo', lang)).catch(() => {});
+      return;
+    }
+
+    // Track D (D.3): waiting for the headline-generation theme → generate 3 options.
+    if (cur && cur.awaiting === 'gen_topic' && cur.bg) {
+      const topic = (text === '-' || text === '—') ? '' : text;
+      try {
+        await deliverHeadlineOptions(bot, chatId, topic);
+      } catch (err) {
+        logger.error({ err: err.message }, 'headline generation failed');
+        await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {});
+      }
       return;
     }
 
@@ -351,7 +392,36 @@ function start() {
         const entry = loadManifest().find((b) => b && b.file === file);
         if (!entry) { await bot.sendMessage(chatId, t('content.branded_no_bg', lang)).catch(() => {}); return; }
         sessions.set(chatId, { format: 'branded', bg: file, textZone: entry.textZone || 'bottom', awaiting: 'headline' });
-        await bot.sendMessage(chatId, t('content.branded_ask_headline', lang)).catch(() => {});
+        await bot.sendMessage(chatId, t('content.branded_ask_headline', lang), { reply_markup: headlineAskKeyboard(lang) }).catch(() => {});
+        return;
+      }
+      // ✨ Generate headline (D.3) → ask for a theme (optional).
+      if (data === 'gen_headline') {
+        const s = sessions.get(chatId);
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        if (!s || !s.bg) { await bot.sendMessage(chatId, t('content.branded_no_bg', lang)).catch(() => {}); return; }
+        s.awaiting = 'gen_topic'; sessions.set(chatId, s);
+        await bot.sendMessage(chatId, t('content.branded_ask_theme', lang)).catch(() => {});
+        return;
+      }
+      // 🔄 3 more — regenerate options for the same theme.
+      if (data === 'gen_more') {
+        const s = sessions.get(chatId);
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        if (!s || !s.bg) { await bot.sendMessage(chatId, t('content.branded_no_bg', lang)).catch(() => {}); return; }
+        try { await deliverHeadlineOptions(bot, chatId, s.genTopic || ''); }
+        catch (err) { logger.error({ err: err.message }, 'headline regen failed'); await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {}); }
+        return;
+      }
+      // Picked one of the 3 generated headlines → compose with it.
+      if (data.startsWith('pick_h:')) {
+        const s = sessions.get(chatId);
+        const i = parseInt(data.slice(7), 10);
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        const headline = s && s.genOptions && s.genOptions[i];
+        if (!s || !s.bg || !headline) { await bot.sendMessage(chatId, t('content.nothing_regen', lang)).catch(() => {}); return; }
+        try { await deliverBrandedImage(bot, chatId, s.bg, s.textZone, headline); }
+        catch (err) { logger.error({ err: err.message }, 'branded compose failed'); await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {}); }
         return;
       }
       // 🔄 Заново for a branded image → re-enter the headline on the same background.
@@ -360,7 +430,7 @@ function start() {
         if (s && s.bg) {
           s.awaiting = 'headline'; sessions.set(chatId, s);
           await bot.answerCallbackQuery(query.id).catch(() => {});
-          await bot.sendMessage(chatId, t('content.branded_ask_headline', lang)).catch(() => {});
+          await bot.sendMessage(chatId, t('content.branded_ask_headline', lang), { reply_markup: headlineAskKeyboard(lang) }).catch(() => {});
         } else {
           await bot.answerCallbackQuery(query.id, { text: t('content.nothing_regen', lang) }).catch(() => {});
         }

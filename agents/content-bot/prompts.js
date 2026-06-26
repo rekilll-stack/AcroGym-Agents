@@ -210,8 +210,62 @@ function fallbackCaption() {
     `#AcroGym #DohaKids #KidsGymnastics #DohaFamily #ThePearlQatar #QatarKids #GymnasticsForKids #ActiveKids`;
 }
 
+// ─────────────────────────────────────────────────────────────
+// D.3 — SHORT image headlines (text overlaid on a branded image). English,
+// 3 options, brand voice. Owner-approved prompt. The headline is a draft the
+// owner PICKS from 3 — nothing is auto-applied or published.
+// ─────────────────────────────────────────────────────────────
+const HEADLINE_SYSTEM =
+  `${COMMON}\n\n` +
+  'TASK: Write SHORT punchy headlines for AcroGym Instagram IMAGES (text overlaid on a photo).\n' +
+  '- ENGLISH ONLY. Each headline 3-8 words, about 40 characters or fewer.\n' +
+  '- Voice: warm & family-first with a quiet premium undertone. Joyful and ' +
+  'confident — never cheap hype ("#1", "best ever", "!!!").\n' +
+  '- Themes: children growing through movement, confidence and joy; ' +
+  'developmental gymnastics & acrobatics; opening this September.\n' +
+  '- NEVER invent prices, exact dates/address, or guarantees. ' +
+  '"Opening this September" is allowed (anticipation only).\n' +
+  '- No emojis, no hashtags, no quotation marks.\n' +
+  'Return EXACTLY 3 distinct options, ONE PER LINE, with NO numbering and NO preamble.';
+
+function buildHeadlinePrompt(topic) {
+  const t = String(topic || '').trim() || 'AcroGym — opening this September';
+  return {
+    system: HEADLINE_SYSTEM,
+    user:
+      "The user's theme may be in Russian or any language — understand it, then " +
+      'write the 3 headlines ENTIRELY IN ENGLISH.\n\nTheme: ' + t,
+    maxTokens: 150,
+    model: 'claude-opus-4-8',
+  };
+}
+
+/**
+ * Robustly pull up to 3 headlines from the model output: strip bullets/numbering/
+ * quotes, drop preamble-ish lines, dedupe. Never throws on odd formatting.
+ */
+function parseHeadlines(text) {
+  const seen = new Set();
+  return String(text || '')
+    .split('\n')
+    .map((l) => l
+      .replace(/^\s*[-*•·]\s+/, '')         // bullets
+      .replace(/^\s*\d+[.)]\s*/, '')        // "1." / "1)"
+      .replace(/^["'“”«»]+|["'“”«»]+$/g, '') // surrounding quotes
+      .trim())
+    .filter((l) => l && l.length <= 80 && !/[:：]$/.test(l) && !/^(here are|options?\b|sure[,!]?)/i.test(l))
+    .filter((l) => { const k = l.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 3);
+}
+
+// Offline fallback — 3 brand-safe English hooks if the generator is unavailable.
+function fallbackHeadlines() {
+  return ['Opening this September', 'Grow through movement & joy', 'Where confidence begins'];
+}
+
 module.exports = {
   FORMATS, isFormat, formatLabel, buildContentPrompt, fallbackContent,
   buildCaptionPrompt, fallbackCaption, CAPTION_SYSTEM,
+  buildHeadlinePrompt, parseHeadlines, fallbackHeadlines, HEADLINE_SYSTEM,
   BRAND_CONTEXT, VOICE, HASHTAG_POOL,
 };

@@ -6,7 +6,8 @@
 
 const { generateText } = require('../../shared/claude');
 const { createLogger }  = require('../../shared/logger');
-const { buildContentPrompt, fallbackContent, buildCaptionPrompt, fallbackCaption } = require('./prompts');
+const { buildContentPrompt, fallbackContent, buildCaptionPrompt, fallbackCaption,
+        buildHeadlinePrompt, parseHeadlines, fallbackHeadlines } = require('./prompts');
 
 const logger = createLogger('content-bot');
 
@@ -46,4 +47,24 @@ async function generateCaption({ imageBase64, mediaType = 'image/jpeg', context 
   return fallbackCaption();
 }
 
-module.exports = { generateContent, generateCaption };
+/**
+ * D.3 — generate 3 SHORT English image headlines for a theme (any language in).
+ * Returns string[] (1-3). Falls back to brand-safe defaults if Claude is down.
+ * 🔴 The owner PICKS one from these — nothing is auto-applied.
+ * @param {string} topic
+ * @param {object} [deps] { generate }
+ * @returns {Promise<string[]>}
+ */
+async function generateHeadlines(topic, { generate = generateText } = {}) {
+  try {
+    const text = await generate(buildHeadlinePrompt(topic));
+    const opts = parseHeadlines(text);
+    if (opts.length) return opts;
+    logger.warn('empty headline generation — using fallback');
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Claude unavailable — using headline fallback');
+  }
+  return fallbackHeadlines();
+}
+
+module.exports = { generateContent, generateCaption, generateHeadlines };
