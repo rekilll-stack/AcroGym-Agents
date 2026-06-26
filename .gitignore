@@ -3,6 +3,8 @@ node_modules/
 .env.*
 !.env.example
 config/google-service-account.json
+data/canva-tokens.json
+data/canva-pkce.json
 data/*.db
 data/*.db-shm
 data/*.db-wal

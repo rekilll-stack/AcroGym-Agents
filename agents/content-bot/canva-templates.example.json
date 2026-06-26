@@ -1,0 +1,19 @@
+{
+  "_comment": "Track D — map each style to a Canva brand template + its autofill field names. Get field names from GET /brand-templates/{id}/dataset (or scripts/canva-auth.js once authorized). Copy this to canva-templates.json and fill real ids/names after creating the templates in Canva. Logical keys (headline/photo/body/cta) are how the bot refers to them; values are the EXACT field names inside your Canva template.",
+  "cover": {
+    "templateId": "PASTE_COVER_TEMPLATE_ID",
+    "fields": {
+      "headline": "PASTE_TEXT_FIELD_NAME",
+      "photo": "PASTE_IMAGE_FIELD_NAME",
+      "cta": "PASTE_CTA_TEXT_FIELD_NAME_OR_REMOVE"
+    }
+  },
+  "content": {
+    "templateId": "PASTE_CONTENT_TEMPLATE_ID",
+    "fields": {
+      "headline": "PASTE_TEXT_FIELD_NAME",
+      "photo": "PASTE_IMAGE_FIELD_NAME",
+      "body": "PASTE_BODY_TEXT_FIELD_NAME"
+    }
+  }
+}
