@@ -19,19 +19,23 @@ const { createCanvas, loadImage, registerFont } = require('canvas');
 const BLUE = '#28347F';
 const ORANGE = '#F37021';
 const WHITE = '#FFFFFF';
+const CREAM = '#FBF1DF'; // off-white used for the IG-style headline + pill text
 const SIZE = 1080;
 
 const ROOT = path.join(__dirname, '../..');
 const LOGO_PATH = path.join(ROOT, 'config/brand/logo.png');
 const LOGO_WHITE_PATH = path.join(ROOT, 'config/brand/logo-white.png');
 const FONT_BLACK = '/usr/share/fonts/truetype/montserrat/Montserrat-Black.ttf';
+// Display font for the IG-style layout — Lilita One (OFL, bundled in the repo).
+const FONT_LILITA = path.join(ROOT, 'config/brand/fonts/LilitaOne.ttf');
 
-// Register the brand display font once.
+// Register the brand display fonts once.
 let _fontReady = false;
 function ensureFont() {
   if (_fontReady) return;
-  try { registerFont(FONT_BLACK, { family: 'Montserrat Black' }); _fontReady = true; }
-  catch { /* fall back to a generic bold if the file is missing */ }
+  try { registerFont(FONT_BLACK, { family: 'Montserrat Black' }); } catch { /* generic bold fallback */ }
+  try { registerFont(FONT_LILITA, { family: 'Lilita One' }); } catch { /* IG style falls back to bold */ }
+  _fontReady = true;
 }
 
 // ── Text helpers ──────────────────────────────────────────────
@@ -137,7 +141,7 @@ async function drawLogo(ctx) {
   ctx.drawImage(logo, x, y, w, h);
 }
 
-// ── Main composite ────────────────────────────────────────────
+// ── Main composite (clean / default style) ────────────────────
 /**
  * @param {object} p
  * @param {string} p.backgroundPath  absolute or repo-relative PNG path
@@ -145,9 +149,12 @@ async function drawLogo(ctx) {
  * @param {string} [p.textZone]      'bottom'|'center'|'band'
  * @param {string} [p.scrim]         'blue-gradient'|'dark-band'|'none'
  * @param {boolean} [p.logo]         overlay logo (default true)
+ * @param {string} [p.style]         'clean' (default) | 'ig' (Instagram-style)
  * @returns {Promise<Buffer>} PNG
  */
-async function composeBrandedImage({ backgroundPath, text, textZone = 'bottom', scrim = 'blue-gradient', logo = true } = {}) {
+async function composeBrandedImage({ backgroundPath, text, textZone = 'bottom', scrim = 'blue-gradient', logo = true, style = 'clean' } = {}) {
+  if (style === 'ig') return composeIgImage({ backgroundPath, text, logo });
+
   ensureFont();
   const canvas = createCanvas(SIZE, SIZE);
   const ctx = canvas.getContext('2d');
@@ -188,6 +195,159 @@ async function composeBrandedImage({ backgroundPath, text, textZone = 'bottom', 
   return canvas.toBuffer('image/png');
 }
 
+// ── IG-style composite ────────────────────────────────────────
+// Funky Instagram look matching Kirill's feed: cream headline, left-aligned in
+// the lower third (Lilita One), an orange asterisk accent, and an orange pill
+// "Building skills together →" beneath it. Logo top-right.
+
+/** Word-wrap at the current ctx.font, left-aligned. Returns lines. */
+function wrapLinesLeft(ctx, text, maxWidth) {
+  const words = String(text).trim().split(/\s+/);
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const test = cur ? `${cur} ${w}` : w;
+    if (ctx.measureText(test).width <= maxWidth || !cur) cur = test;
+    else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/** Auto-fit Lilita One headline into maxWidth × maxHeight. */
+function fitTextLilita(ctx, text, maxWidth, maxHeight, { max = 132, min = 56, lineGap = 1.02 } = {}) {
+  for (let size = max; size >= min; size -= 2) {
+    ctx.font = `${size}px "Lilita One"`;
+    const lines = wrapLinesLeft(ctx, text, maxWidth);
+    const h = lines.length * size * lineGap;
+    if (h <= maxHeight) return { size, lines, lineGap };
+  }
+  ctx.font = `${min}px "Lilita One"`;
+  return { size: min, lines: wrapLinesLeft(ctx, text, maxWidth), lineGap };
+}
+
+/** Rounded-rectangle path helper. */
+function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, h / 2, w / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+/** Draw a small five-point orange asterisk/star at (cx, cy). */
+function drawAsterisk(ctx, cx, cy, r, color = ORANGE) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(8, r * 0.34);
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 5; i++) {
+    const a = (Math.PI / 2) + (i * 2 * Math.PI / 5); // start at top, 5 spokes
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(a) * r, cy - Math.sin(a) * r);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * @param {object} p
+ * @param {string} p.backgroundPath  absolute or repo-relative PNG path
+ * @param {string} p.text            short headline (3-8 words)
+ * @param {string} [p.pill]          pill caption (default brand line)
+ * @param {boolean} [p.logo]         overlay logo (default true)
+ * @returns {Promise<Buffer>} PNG
+ */
+async function composeIgImage({ backgroundPath, text, pill = 'Building skills together', logo = true } = {}) {
+  ensureFont();
+  const canvas = createCanvas(SIZE, SIZE);
+  const ctx = canvas.getContext('2d');
+
+  // 1) background (cover-fit)
+  const bgAbs = path.isAbsolute(backgroundPath) ? backgroundPath : path.join(ROOT, backgroundPath);
+  const bg = await loadImage(bgAbs);
+  const bgScale = Math.max(SIZE / bg.width, SIZE / bg.height);
+  const bw = bg.width * bgScale, bh = bg.height * bgScale;
+  ctx.drawImage(bg, (SIZE - bw) / 2, (SIZE - bh) / 2, bw, bh);
+
+  // 2) readability scrim — soft dark fade rising from the bottom-left third
+  const g = ctx.createLinearGradient(0, 470, 0, SIZE);
+  g.addColorStop(0, 'rgba(20,24,55,0)');
+  g.addColorStop(1, 'rgba(20,24,55,0.72)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 470, SIZE, SIZE - 470);
+
+  // 3) logo (variant auto-selected by brightness under it)
+  if (logo) await drawLogo(ctx);
+
+  // Layout geometry
+  const marginL = 72;
+  const pillH = 64;
+  const pillBottom = SIZE - 96;          // pill sits near the bottom
+  const blockMaxW = SIZE - marginL - 96; // headline wrap width
+
+  // 4) headline — cream, left-aligned, sitting just above the pill
+  const headMaxH = 460;
+  const { size, lines, lineGap } = fitTextLilita(ctx, text, blockMaxW, headMaxH);
+  ctx.font = `${size}px "Lilita One"`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = CREAM;
+  ctx.shadowColor = 'rgba(0,0,0,0.45)';
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 3;
+  const lineH = size * lineGap;
+  const blockH = lines.length * lineH;
+  const headBaselineTop = pillBottom - pillH - 36; // gap above the pill
+  let by = headBaselineTop - blockH + size;        // first baseline
+  // remember the top of the headline block for the asterisk
+  const blockTopY = by - size;
+  for (const line of lines) { ctx.fillText(line, marginL, by); by += lineH; }
+  ctx.shadowColor = 'transparent';
+
+  // 5) orange asterisk accent — top-right of the headline block
+  const astR = Math.min(46, size * 0.42);
+  drawAsterisk(ctx, SIZE - 110, blockTopY + astR + 6, astR);
+
+  // 6) orange pill with cream caption + arrow
+  ctx.font = '30px "Lilita One"';
+  const label = String(pill).toUpperCase();
+  const labelW = ctx.measureText(label).width;
+  const padX = 30;
+  const arrowGap = 22;
+  const arrowLen = 34;
+  const pillW = padX * 2 + labelW + arrowGap + arrowLen;
+  const pillY = pillBottom - pillH;
+  roundRect(ctx, marginL, pillY, pillW, pillH, pillH / 2);
+  ctx.fillStyle = ORANGE;
+  ctx.fill();
+  // caption
+  ctx.fillStyle = CREAM;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, marginL + padX, pillY + pillH / 2 + 2);
+  // arrow
+  const ax = marginL + padX + labelW + arrowGap;
+  const ayc = pillY + pillH / 2;
+  ctx.strokeStyle = CREAM;
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(ax, ayc);
+  ctx.lineTo(ax + arrowLen, ayc);
+  ctx.moveTo(ax + arrowLen - 12, ayc - 10);
+  ctx.lineTo(ax + arrowLen, ayc);
+  ctx.lineTo(ax + arrowLen - 12, ayc + 10);
+  ctx.stroke();
+
+  return canvas.toBuffer('image/png');
+}
+
 // Read the backgrounds manifest (non-dev entries are user-selectable).
 function loadManifest() {
   const p = path.join(ROOT, 'config/brand/backgrounds/backgrounds.json');
@@ -197,4 +357,4 @@ function loadManifest() {
   } catch { return []; }
 }
 
-module.exports = { composeBrandedImage, loadManifest, zoneFor, wrapLines, fitText, SIZE };
+module.exports = { composeBrandedImage, composeIgImage, loadManifest, zoneFor, wrapLines, fitText, SIZE };

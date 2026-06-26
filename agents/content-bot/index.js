@@ -134,6 +134,18 @@ function brandedDraftKeyboard(lang) {
   };
 }
 
+// Style picker shown after a background is chosen: "Clean" (default engine) or
+// "IG-style" (funky Instagram look — cream Lilita One + orange pill). The owner
+// picks by mood; both produce a draft, nothing is published.
+function styleKeyboard(lang) {
+  return {
+    inline_keyboard: [[
+      { text: t('content.btn_style_clean', lang), callback_data: 'style:clean' },
+      { text: t('content.btn_style_ig', lang), callback_data: 'style:ig' },
+    ]],
+  };
+}
+
 // When asking for the headline: offer ✨ generate (D.3) alongside manual typing.
 function headlineAskKeyboard(lang) {
   return { inline_keyboard: [[{ text: t('content.btn_gen_headline', lang), callback_data: 'gen_headline' }]] };
@@ -224,16 +236,19 @@ async function deliverCaption(bot, chatId, base64, mediaType, context) {
 // to Instagram by hand. No Instagram/publish code exists here.
 async function deliverBrandedImage(bot, chatId, bgFile, textZone, headline) {
   const lang = uiLang(chatId);
-  logger.info({ bgFile, textZone, headlinePreview: String(headline || '').slice(0, 60) }, 'composing branded image');
+  const sess = sessions.get(chatId) || {};
+  const style = sess.style === 'ig' ? 'ig' : 'clean';
+  logger.info({ bgFile, textZone, style, headlinePreview: String(headline || '').slice(0, 60) }, 'composing branded image');
   bot.sendChatAction(chatId, 'upload_photo').catch(() => {});
-  // scrim 'blue-gradient' (variant A) is the engine default; left configurable.
+  // 'clean' = default engine (Montserrat Black, centered); 'ig' = funky layout.
   const buffer = await composeBrandedImage({
     backgroundPath: path.join('config/brand/backgrounds', bgFile),
     text: headline,
     textZone: textZone || 'bottom',
+    style,
   });
   const s = sessions.get(chatId) || {};
-  s.format = 'branded'; s.bg = bgFile; s.textZone = textZone || 'bottom';
+  s.format = 'branded'; s.bg = bgFile; s.textZone = textZone || 'bottom'; s.style = style;
   s.lastHeadline = headline; s.awaiting = null;
   sessions.set(chatId, s);
   await bot.sendPhoto(chatId, buffer, {
@@ -385,13 +400,24 @@ function start() {
         await bot.sendMessage(chatId, t('content.branded_choose_bg', lang), { reply_markup: bgKeyboard(lang, list) }).catch(() => {});
         return;
       }
-      // Background chosen → ask for the short headline.
+      // Background chosen → ask which style (clean / IG) before the headline.
       if (data.startsWith('bg:')) {
         const file = data.slice(3);
         await bot.answerCallbackQuery(query.id).catch(() => {});
         const entry = loadManifest().find((b) => b && b.file === file);
         if (!entry) { await bot.sendMessage(chatId, t('content.branded_no_bg', lang)).catch(() => {}); return; }
-        sessions.set(chatId, { format: 'branded', bg: file, textZone: entry.textZone || 'bottom', awaiting: 'headline' });
+        sessions.set(chatId, { format: 'branded', bg: file, textZone: entry.textZone || 'bottom', awaiting: 'style' });
+        await bot.sendMessage(chatId, t('content.branded_choose_style', lang), { reply_markup: styleKeyboard(lang) }).catch(() => {});
+        return;
+      }
+      // Style chosen → ask for the short headline.
+      if (data.startsWith('style:')) {
+        const s = sessions.get(chatId);
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        if (!s || !s.bg) { await bot.sendMessage(chatId, t('content.branded_no_bg', lang)).catch(() => {}); return; }
+        s.style = data.slice(6) === 'ig' ? 'ig' : 'clean';
+        s.awaiting = 'headline';
+        sessions.set(chatId, s);
         await bot.sendMessage(chatId, t('content.branded_ask_headline', lang), { reply_markup: headlineAskKeyboard(lang) }).catch(() => {});
         return;
       }
