@@ -123,4 +123,63 @@ async function buildCarousel({ templateDesignId, slides }) {
   return { ok: true, designId: parsed.designId, slides: parsed.slides, costUsd: run.costUsd, turns: run.turns, overBudget };
 }
 
-module.exports = { buildCarousel, runCli, MODEL, MAX_COST_USD };
+// Local datetime string (no offset) in the brand timezone, for Metricool.
+function localDateTime(when = new Date(), tz = process.env.TIMEZONE || 'Asia/Qatar') {
+  const d = new Date(when.toLocaleString('en-US', { timeZone: tz }));
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// Is the headless publish path usable? (CLI present → Metricool connector path.)
+function canPublish() {
+  try { return require('fs').existsSync(CLI); } catch { return true; }
+}
+
+/**
+ * Publish ONE Instagram post via the Metricool MCP connector (no REST token /
+ * paid API needed). The BOT decides when to call this (after the approval gate);
+ * the agent only executes.
+ * @param {object} p
+ * @param {string[]} p.media        PUBLIC media URLs in slide order
+ * @param {string}   p.caption      verbatim caption
+ * @param {string[]} [p.altTexts]
+ * @param {'POST'|'STORY'|'REEL'} [p.igType]
+ * @param {Date}     [p.when]       schedule time (default ~now+2min)
+ * @param {boolean}  [p.bestTime]   ask Metricool for the best upcoming slot
+ * @param {boolean}  [p.autoPublish]
+ * @returns {Promise<{ok, postId?, error?, costUsd, overBudget}>}
+ */
+async function publishPost({ media, caption, altTexts = [], igType = 'POST', when = new Date(Date.now() + 2 * 60000), bestTime = false, autoPublish = true }) {
+  const blogId = process.env.METRICOOL_BLOG_ID || '6469959';
+  const tz = process.env.TIMEZONE || 'Asia/Qatar';
+  const dt = localDateTime(when, tz);
+  const prompt = [
+    'You are a Metricool publishing assistant. Use ONLY the Metricool tools. Do NOT alter the caption text.',
+    'Create ONE Instagram post with EXACTLY these values:',
+    `- blogId: ${blogId}`,
+    `- network/provider: instagram; instagramData type: ${igType}`,
+    bestTime
+      ? `- timing: first call the Metricool best-time tool for instagram on this blog, pick the soonest high-value upcoming slot, and schedule at it (timezone ${tz}). If unavailable, use ${dt} ${tz}.`
+      : `- publicationDate: ${dt} timezone ${tz}`,
+    `- autoPublish: ${autoPublish}; draft: false`,
+    `- media (this exact order): ${JSON.stringify(media)}`,
+    altTexts.length ? `- mediaAltText: ${JSON.stringify(altTexts)}` : '',
+    '- text (caption, VERBATIM, between the markers):',
+    '<<<CAPTION',
+    String(caption || ''),
+    'CAPTION>>>',
+    '',
+    'After it is created, reply with STRICT JSON ONLY: {"ok":true,"postId":"<id>"} or {"ok":false,"error":"<why>"}.',
+  ].filter(Boolean).join('\n');
+
+  logger.info({ igType, media: (media || []).length, bestTime, model: MODEL }, 'designer agent: publishing via Metricool MCP');
+  const run = await runCli(prompt);
+  const overBudget = run.costUsd > MAX_COST_USD;
+  if (!run.ok) return { ok: false, error: run.error || 'agent error', costUsd: run.costUsd, overBudget };
+  const parsed = parseStrictJson(run.result) || {};
+  if (parsed.ok !== true) return { ok: false, error: parsed.error || 'agent did not confirm publish', costUsd: run.costUsd, overBudget };
+  logger.info({ postId: parsed.postId, costUsd: run.costUsd, turns: run.turns }, 'designer agent: published');
+  return { ok: true, postId: parsed.postId, costUsd: run.costUsd, overBudget, turns: run.turns };
+}
+
+module.exports = { buildCarousel, publishPost, canPublish, runCli, localDateTime, MODEL, MAX_COST_USD };

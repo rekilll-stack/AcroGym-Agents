@@ -20,9 +20,16 @@
 
 const crypto = require('crypto');
 const metricool = require('./metricool');
+const agent = require('./agent');
 const { createLogger } = require('../../shared/logger');
 
 const logger = createLogger('content-bot');
+
+// Publishing is available via the Metricool REST token OR (no token / no paid
+// API needed) via the Metricool MCP connector through the headless agent.
+function canPublish() {
+  return metricool.isConfigured() || agent.canPublish();
+}
 
 // Pending drafts awaiting approval: id → draft. In-memory (matches the bot's
 // existing session model); a restart drops un-acted drafts, which is safe.
@@ -91,12 +98,12 @@ async function sendApprovalCard(bot, chatId, draft) {
   const header = `📝 <b>Draft ${draft.id}</b> — ${draft.kind}/${draft.igType}` +
     (draft.source ? `\n<i>${draft.source}</i>` : '') +
     (verifyLine ? `\n${verifyLine}` : '') +
-    (metricool.isConfigured() ? '' : '\n⚠️ Metricool не настроен — публикация недоступна, это только превью.');
+    (canPublish() ? '' : '\n⚠️ Публикация недоступна — это только превью.');
   const body = `${header}\n\n<pre>${escapeHtml(draft.caption || '')}</pre>`;
 
   return bot.sendMessage(chatId, body, {
     parse_mode: 'HTML',
-    reply_markup: metricool.isConfigured() ? approvalKeyboard(draft.id) : undefined,
+    reply_markup: canPublish() ? approvalKeyboard(draft.id) : undefined,
   }).catch((err) => logger.error({ err: err.message }, 'approval card send failed'));
 }
 
@@ -109,24 +116,30 @@ function escapeHtml(s) {
  * 🔴 Caller must have verified authorization (routine OR approval tap).
  */
 async function publishDraft(draft, { mode = 'now' } = {}) {
-  if (!metricool.isConfigured()) throw new Error('metricool not configured');
-  let when = new Date();
-  if (mode === 'best') {
-    when = await pickBestTime().catch(() => new Date());
-  } else if (mode instanceof Date) {
-    when = mode;
+  const media = mediaUrls(draft);
+  const altTexts = mediaAlts(draft);
+
+  // Preferred when a REST token exists (cheaper, deterministic).
+  if (metricool.isConfigured()) {
+    let when = new Date();
+    if (mode === 'best') when = await pickBestTime().catch(() => new Date());
+    else if (mode instanceof Date) when = mode;
+    const result = await metricool.schedulePost({ text: draft.caption, media, altTexts, igType: draft.igType, autoPublish: true, draft: false, when });
+    logger.info({ id: draft.id, kind: draft.kind, mode: mode instanceof Date ? 'date' : mode, via: 'rest' }, 'draft published via metricool REST');
+    return result;
   }
-  const result = await metricool.schedulePost({
-    text: draft.caption,
-    media: mediaUrls(draft),
-    altTexts: mediaAlts(draft),
-    igType: draft.igType,
+
+  // No token → publish via the Metricool MCP connector through the agent (free).
+  if (!agent.canPublish()) throw new Error('no publish path available (no Metricool token and no agent CLI)');
+  const res = await agent.publishPost({
+    media, caption: draft.caption, altTexts, igType: draft.igType,
+    when: mode instanceof Date ? mode : new Date(Date.now() + 2 * 60000),
+    bestTime: mode === 'best',
     autoPublish: true,
-    draft: false,
-    when,
   });
-  logger.info({ id: draft.id, kind: draft.kind, mode: mode instanceof Date ? 'date' : mode }, 'draft published via metricool');
-  return result;
+  if (!res.ok) throw new Error(res.error || 'publish failed');
+  logger.info({ id: draft.id, kind: draft.kind, postId: res.postId, via: 'agent-mcp', costUsd: res.costUsd }, 'draft published via Metricool MCP');
+  return res;
 }
 
 // Pick the next best Instagram time in the coming week; fall back to now+5min.
@@ -161,7 +174,7 @@ function extractBestSlot(heat) {
  */
 async function route(bot, ownerChatId, draft) {
   pending.set(draft.id, draft);
-  const canAuto = draft.routine && draft.verify && draft.verify.ok && metricool.isConfigured();
+  const canAuto = draft.routine && draft.verify && draft.verify.ok && canPublish();
   if (canAuto) {
     try {
       await publishDraft(draft, { mode: 'best' });
@@ -201,6 +214,6 @@ async function handleCallback(bot, chatId, data) {
 
 module.exports = {
   newDraft, getDraft, dropDraft, route, sendApprovalCard,
-  publishDraft, handleCallback, approvalKeyboard, pickBestTime,
+  publishDraft, handleCallback, approvalKeyboard, pickBestTime, canPublish,
   _pending: pending,
 };

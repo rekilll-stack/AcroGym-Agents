@@ -345,7 +345,7 @@ function start() {
         '🤖 <b>Autopilot</b>',
         `Canva (agent path): ${assemble.isConfigured() ? '✅' : '❌ (нужен canva-auth + carousel.templateDesignId)'}`,
         `Yandex.Disk: ${yandex.isConfigured() ? '✅' : '❌ (нужен YANDEX_DISK_TOKEN)'}`,
-        `Metricool: ${metricool.isConfigured() ? '✅ публикация активна' : '❌ только превью (нужен METRICOOL_USER_TOKEN/USER_ID)'}`,
+        `Публикация: ${publish.canPublish() ? (metricool.isConfigured() ? '✅ Metricool REST' : '✅ через Metricool-коннектор (без токена)') : '❌ только превью'}`,
         '',
         `Designer-модель: <code>${agent.MODEL}</code> · лимит/пост: $${agent.MAX_COST_USD}`,
         '• <code>/post &lt;тема&gt;</code> — собрать пост на согласование',
