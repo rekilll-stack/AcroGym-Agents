@@ -36,11 +36,16 @@ function sample(arr, n) {
   return out;
 }
 
-const SELECT_SYSTEM = `You curate photos for AcroGym Qatar (kids' gymnastics) Instagram carousels. Each chosen photo becomes a FULL-BLEED 4:5 slide with brand TEXT overlaid across the BOTTOM third.
-You are shown numbered candidate thumbnails. Pick and RANK the best ones.
-Prefer: sharp/in-focus; joyful, lively kids or coaches; clear faces that are fully visible and roughly CENTRED (not touching the top/bottom/left/right edges — the crop and bottom text must not cut a face); good lighting; on-brand (gym, training, competition, smiles).
-Avoid: blurry, dark, backs of heads, faces at the very edges, empty/cluttered frames, adults-only, near-duplicates.
-Reply STRICT JSON ONLY: {"order":[best index, next, ...]} listing the indices (0-based) of GOOD photos, best first. Omit bad ones.`;
+const SELECT_SYSTEM = `You curate photos for AcroGym Qatar (kids' gymnastics & acrobatics, Doha) Instagram carousels. Each chosen photo becomes a FULL-BLEED 4:5 slide with brand TEXT overlaid across the BOTTOM third.
+You are shown a POST TOPIC and numbered candidate thumbnails. Pick and RANK the photos that best fit THIS topic.
+
+Ranking priority:
+1. RELEVANCE to the topic FIRST. Whatever the topic is about IS the subject to look for — e.g. a topic about the gym/facility → wide shots of the hall, equipment, mats, the space; about competition → competition/medals/podium moments; about a coach → the coach; about a class/kids → children training. Don't force faces/kids into a topic that isn't about them.
+2. Then QUALITY: sharp/in-focus, well-lit, clean composition, on-brand, lively.
+3. Then FRAMING for the 4:5 + bottom-text layout: the main subject is fully visible and not awkwardly cut by the crop or hidden behind the bottom text band. When PEOPLE are the subject, their faces should be uncropped and not jammed against the very edges; for a room/equipment topic, faces don't matter — judge the space.
+
+Avoid: off-topic shots, blurry, dark, cluttered/empty, near-duplicates.
+Reply with ONLY a raw JSON object — NO analysis, NO commentary, NO markdown, nothing before or after it. Your entire response must start with { and be exactly: {"order":[best index, next, ...]} listing the indices (0-based) of GOOD on-topic photos, best first, omitting the rest.`;
 
 function parseJson(text) { try { const m = String(text).match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } catch { return null; } }
 
@@ -49,7 +54,7 @@ function parseJson(text) { try { const m = String(text).match(/\{[\s\S]*\}/); re
  * { photos:[{buffer,name,path}], backups:[...], ranked:[paths] }.
  * On any failure, falls back to a spread sample (still downloads full-res).
  */
-async function selectBest(count, { folder, exclude = [] } = {}) {
+async function selectBest(count, { folder, exclude = [], topic = '' } = {}) {
   const folders = [folder, ...CANDIDATE_FOLDERS].filter(Boolean);
   let candidates = [];
   for (const f of folders) {
@@ -72,8 +77,8 @@ async function selectBest(count, { folder, exclude = [] } = {}) {
       }
       const valid = shortlist.filter((_, i) => images[i]);
       const validImgs = images.filter(Boolean);
-      const user = `Here are ${validImgs.length} candidate photos (index 0..${validImgs.length - 1}). Rank the best for the carousel.`;
-      const raw = await generateText({ system: SELECT_SYSTEM, user, images: validImgs, maxTokens: 300, model: SELECT_MODEL });
+      const user = `POST TOPIC: ${topic || 'general AcroGym life'}\n\nHere are ${validImgs.length} candidate photos (index 0..${validImgs.length - 1}). Rank the ones that best fit this topic, best first.`;
+      const raw = await generateText({ system: SELECT_SYSTEM, user, images: validImgs, maxTokens: 400, model: SELECT_MODEL });
       const parsed = parseJson(raw);
       if (parsed && Array.isArray(parsed.order)) {
         order = parsed.order.map((i) => valid[i]).filter(Boolean);

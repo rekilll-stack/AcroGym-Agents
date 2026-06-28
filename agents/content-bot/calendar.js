@@ -91,7 +91,7 @@ async function pickPhotos(n, folder) {
 async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = false, folder } = {}) {
   logger.info({ theme, slides, routine }, 'calendar: building carousel');
   const plan = await generatePlan(theme, slides);
-  const sel = await photos.selectBest(slides, { folder });
+  const sel = await photos.selectBest(slides, { folder, topic: theme });
 
   const assembled = await assemble.assembleCarousel({
     topic: theme,
