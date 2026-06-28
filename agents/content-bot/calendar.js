@@ -16,6 +16,7 @@
 const cron = require('node-cron');
 const yandex = require('./yandex');
 const assemble = require('./assemble');
+const agent = require('./agent');
 const publish = require('./publish');
 const { verifyCarousel, verifyCaption } = require('./verify');
 const { generateText } = require('../../shared/claude');
@@ -108,16 +109,24 @@ async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = fa
     ...vr.carousel.map((x) => `carousel:${x}`),
     ...cap.issues.map((x) => `caption:${x}`),
   ];
+  if (assembled.overBudget) issues.push(`cost:over budget ($${(assembled.costUsd || 0).toFixed(2)})`);
   const verifyOk = vr.ok && cap.ok;
 
+  const cost = typeof assembled.costUsd === 'number' ? ` · $${assembled.costUsd.toFixed(2)}` : '';
   const draft = publish.newDraft({
     kind: 'post', igType: 'POST',
     caption: assembled.caption,
     slides: assembled.slides,
-    routine: routine && verifyOk, // routine only stays auto-eligible if ALL checks pass
-    verify: { ok: verifyOk, issues },
-    source: `${routine ? 'calendar' : 'on-demand'}: ${theme}`,
+    // Over-budget runs never auto-publish — route to manual review.
+    routine: routine && verifyOk && !assembled.overBudget,
+    verify: { ok: verifyOk && !assembled.overBudget, issues },
+    source: `${routine ? 'calendar' : 'on-demand'}: ${theme}${cost}`,
   });
+
+  if (assembled.overBudget) {
+    await bot.sendMessage(ownerChatId,
+      `⚠️ Пост собрался дороже лимита ($${(assembled.costUsd || 0).toFixed(2)} > $${agent.MAX_COST_USD}). Автопост отключён — проверь вручную.`).catch(() => {});
+  }
 
   return publish.route(bot, ownerChatId, draft);
 }

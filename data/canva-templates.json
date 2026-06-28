@@ -1,0 +1,6 @@
+{
+  "_comment": "Autopilot carousel template. The designer agent COPIES this design per post, then update_fills each page's background photo + text. Page 1 = cover (headline + CTA pill), pages 2+ = inner (one-word headline + body, orange duotone). Change templateDesignId to a different brand carousel design any time.",
+  "carousel": {
+    "templateDesignId": "DAHN3K_RhAo"
+  }
+}

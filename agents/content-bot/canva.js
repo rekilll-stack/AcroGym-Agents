@@ -154,7 +154,9 @@ async function poll(pathname, pick, { tries = 30, delayMs = 1500 } = {}) {
 // Upload an image buffer → returns asset id.
 async function uploadAsset(buffer, name = 'photo.jpg') {
   const token = await getAccessToken();
-  const meta = Buffer.from(JSON.stringify({ name_base64: Buffer.from(name).toString('base64') })).toString('base64');
+  // Canva wants the metadata as a JSON string header (name_base64 = base64 of
+  // the asset name) — NOT base64 of the whole object. Verified live 2026-06-28.
+  const meta = JSON.stringify({ name_base64: Buffer.from(name).toString('base64') });
   const res = await fetch(`${API}/asset-uploads`, {
     method: 'POST',
     headers: {

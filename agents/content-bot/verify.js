@@ -32,6 +32,8 @@ const MIN_BYTES = 20 * 1024;          // < 20 KB at 1080px ⇒ almost certainly 
 const MAX_BYTES = 25 * 1024 * 1024;   // 25 MB guard
 const MIN_SLIDES = 1;                 // single image allowed; carousel ≥ 2
 const MAX_SLIDES = 10;                // IG carousel hard limit
+// Vision QA is mechanical pass/fail — run it on Haiku to keep per-post cost low.
+const VISION_MODEL = process.env.CONTENT_VERIFY_MODEL || 'claude-haiku-4-5-20251001';
 const PLACEHOLDER_RE = /\b(lorem ipsum|paste_|your text here|headline here|body here|xxxx+)\b/i;
 
 // ── layer 1: structure ───────────────────────────────────────────
@@ -108,7 +110,7 @@ async function checkVisual(buffer, { context = '' } = {}) {
   const user = `Review this Instagram slide.${context ? ` Context: ${context}.` : ''} Return the JSON verdict.`;
   let raw;
   try {
-    raw = await generateText({ system: VISION_SYSTEM, user, images: [{ data: base64, media_type: 'image/png' }], maxTokens: 400 });
+    raw = await generateText({ system: VISION_SYSTEM, user, images: [{ data: base64, media_type: 'image/png' }], maxTokens: 400, model: VISION_MODEL });
   } catch (err) {
     return { ok: false, issues: [`vision check unavailable: ${err.message}`], degraded: true };
   }

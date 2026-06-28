@@ -340,12 +340,14 @@ function start() {
       return;
     }
     if (text === '/autopilot') {
+      const agent = require('./agent');
       const lines = [
         '🤖 <b>Autopilot</b>',
-        `Canva: ${assemble.isConfigured() ? '✅' : '❌ (нужен canva-auth + data/canva-templates.json)'}`,
+        `Canva (agent path): ${assemble.isConfigured() ? '✅' : '❌ (нужен canva-auth + carousel.templateDesignId)'}`,
         `Yandex.Disk: ${yandex.isConfigured() ? '✅' : '❌ (нужен YANDEX_DISK_TOKEN)'}`,
         `Metricool: ${metricool.isConfigured() ? '✅ публикация активна' : '❌ только превью (нужен METRICOOL_USER_TOKEN/USER_ID)'}`,
         '',
+        `Designer-модель: <code>${agent.MODEL}</code> · лимит/пост: $${agent.MAX_COST_USD}`,
         '• <code>/post &lt;тема&gt;</code> — собрать пост на согласование',
         '• Расписание: ' + calendar.PLAN.map((p) => `${p.name} (${p.cron})`).join(', '),
       ];
