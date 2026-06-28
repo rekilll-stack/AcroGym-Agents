@@ -113,7 +113,7 @@ Reply with STRICT JSON ONLY (no prose), every field present:
 {
  "single_photo": true|false,            // false if the slide shows 2+ different photos stitched/stacked/collaged
  "upright": true|false,                 // false if rotated/sideways/upside-down
- "faces_uncropped": true|false,         // false if any person's face is cut off by the frame edge
+ "faces_uncropped": true|false,         // false ONLY if the MAIN / foreground subject's face is cut off by the frame edge. In a WIDE establishing or action shot it is NORMAL for incidental people in the background or at the very edges to be clipped — do NOT fail for those; judge only the main subject(s) the slide is about.
  "text_not_on_face": true|false,        // false if overlay text covers a face
  "text_legible": true|false,            // false if low contrast / hard to read
  "text_complete": true|false,           // false if text is clipped or broken mid-word
@@ -121,9 +121,9 @@ Reply with STRICT JSON ONLY (no prose), every field present:
  "cta_ok": true|false,                  // the CTA button text is a real short CTA, fits the pill (true if no CTA expected)
  "no_template_leftover": true|false,    // false if leftover template text remains (e.g. "meet the coach", "building skills together", "PASTE", lorem)
  "headline_present": true|false,
- "on_brand": true|false,                // AcroGym look: cream headline + orange accents
- "brand_colors_present": true|false,    // cream / orange / navy present
- "asterisk_present": true|false,        // the orange star/asterisk mark
+ "on_brand": true|false,                // true unless the slide is CLEARLY off-brand (totally wrong colour scheme / not the AcroGym look). Do NOT fail for subtle shade differences (e.g. cream looking slightly pale) — only obvious mismatches.
+ "brand_colors_present": true|false,    // true if cream OR orange OR navy accents appear. Only false if NONE of the brand colours are present at all. Don't nitpick exact tones or a missing single colour.
+ "asterisk_present": true|false,        // the orange star/asterisk mark is visible somewhere on the slide
  "child_safe": true|false,              // appropriate for a kids' brand
  "appropriate": true|false,             // nothing embarrassing/inappropriate in the photo
  "spelling_ok": true|false,
@@ -138,7 +138,7 @@ Reply with STRICT JSON ONLY (no prose), every field present:
 const VISION_FIELD_MSG = {
   single_photo: 'slide shows two different photos stitched together',
   upright: 'photo rotated/sideways',
-  faces_uncropped: 'a face is cropped by the frame',
+  faces_uncropped: "the main subject's face is cropped by the frame",
   text_not_on_face: 'text covers a face',
   text_legible: 'text low-contrast / unreadable',
   text_complete: 'text clipped or broken mid-word',
