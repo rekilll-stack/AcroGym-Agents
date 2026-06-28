@@ -109,7 +109,8 @@ function menuKeyboard(lang) {
       [{ text: t('content.btn_post', lang), callback_data: 'fmt:post' }],
       [{ text: t('content.btn_ideas', lang), callback_data: 'fmt:ideas' }, { text: t('content.btn_plan', lang), callback_data: 'fmt:plan' }],
       [{ text: t('content.btn_photo', lang), callback_data: 'fmt:photo' }],
-      [{ text: t('content.btn_branded', lang), callback_data: 'branded' }],
+      // 🎨 Branded image (node-canvas engine) retired 2026-06-28 — superseded by
+      // ✨ Auto-post (exact Canva look). Handlers left dormant; can be stripped later.
       [{ text: t('content.btn_lang', lang), callback_data: 'showlang' }],
     ],
   };
