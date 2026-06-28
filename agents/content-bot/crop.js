@@ -214,13 +214,20 @@ function letterbox(src) {
   const W = src.width, H = src.height;
   const out = createCanvas(TARGET_W, TARGET_H);
   const ctx = out.getContext('2d');
-  // blurred background: scale to COVER (fills the frame), blur, darken a touch
-  const cover = Math.max(TARGET_W / W, TARGET_H / H);
-  const bw = W * cover, bh = H * cover;
-  ctx.filter = 'blur(28px)';
-  ctx.drawImage(src, (TARGET_W - bw) / 2, (TARGET_H - bh) / 2, bw, bh);
+  // Background = the photo crushed to a tiny canvas then smoothly upscaled (a
+  // guaranteed-abstract colour wash — node-canvas blur alone is too weak and left
+  // a recognisable "stitched" copy). Plus a light blur + brand-navy darken.
+  const tinyW = 36, tinyH = 45;
+  const tiny = createCanvas(tinyW, tinyH);
+  const tctx = tiny.getContext('2d');
+  const tcover = Math.max(tinyW / W, tinyH / H);
+  tctx.drawImage(src, (tinyW - W * tcover) / 2, (tinyH - H * tcover) / 2, W * tcover, H * tcover);
+  ctx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+  ctx.filter = 'blur(24px)';
+  ctx.drawImage(tiny, 0, 0, tinyW, tinyH, 0, 0, TARGET_W, TARGET_H);
   ctx.filter = 'none';
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillStyle = 'rgba(20,24,55,0.40)'; // brand-navy wash for contrast/cohesion
   ctx.fillRect(0, 0, TARGET_W, TARGET_H);
   // foreground: scale to CONTAIN (whole photo visible, no crop), centred
   const fit = Math.min(TARGET_W / W, TARGET_H / H);
