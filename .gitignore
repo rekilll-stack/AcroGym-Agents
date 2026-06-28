@@ -32,3 +32,4 @@ font-test-*.pdf
 exports/*.pdf
 exports/*.pptx
 !exports/.gitkeep
+data/recent-photos.json

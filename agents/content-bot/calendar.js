@@ -151,6 +151,23 @@ function start(bot, ownerChatId) {
     jobs.push(job);
     logger.info({ name: item.name, cron: item.cron }, 'calendar job scheduled');
   }
+
+  // Monthly photo-catalog refresh: picks up any NEW photos the owner added (the
+  // builder is resume-safe — it only analyses paths not already catalogued, so
+  // this is cheap unless lots were added). Runs as a detached child so it never
+  // blocks or crashes the bot.
+  const refresh = cron.schedule('30 4 1 * *', () => {
+    try {
+      const { spawn } = require('child_process');
+      const script = require('path').join(__dirname, '../../scripts/build-photo-catalog.js');
+      const out = require('fs').openSync(require('path').join(__dirname, '../../logs/catalog-refresh.log'), 'a');
+      const child = spawn('node', [script], { detached: true, stdio: ['ignore', out, out] });
+      child.unref();
+      logger.info('photo-catalog monthly refresh started');
+    } catch (err) { logger.error({ err: err.message }, 'catalog refresh spawn failed'); }
+  }, { timezone: TZ });
+  jobs.push(refresh);
+
   return jobs;
 }
 
