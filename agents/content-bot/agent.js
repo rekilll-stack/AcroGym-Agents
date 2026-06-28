@@ -98,6 +98,7 @@ async function buildCarousel({ templateDesignId, slides }) {
     `1. Copy the design ${templateDesignId} to a new design (copy-design).`,
     '2. Start an editing transaction on the NEW design.',
     '3. For EACH item below, on its page: set the full-bleed BACKGROUND photo to the given asset_id using update_fill on that page\'s main background image element, then replace the headline text (and body / cta text if given) with the EXACT strings provided. Keep layer order — only swap fills and text, never move elements.',
+    '   IMPORTANT: after replacing a headline, make sure it FITS — if the text overflows its box or wraps badly, REDUCE its font size (format_text) until it sits cleanly on at most two lines with no characters clipped. Never let letters get cut off.',
     '4. Commit the transaction.',
     `5. Export pages ${JSON.stringify(pages)} of the new design as PNG (export-design), width 1080 height 1350.`,
     '6. Reply with STRICT JSON ONLY, no prose:',

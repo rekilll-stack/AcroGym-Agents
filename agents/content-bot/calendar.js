@@ -34,8 +34,8 @@ const PLAN = [
 
 const PLAN_SYSTEM = `You write Instagram carousel copy for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional. Output language: ENGLISH only.
 Given a THEME and a slide count N, return STRICT JSON (no prose):
-{"cover":{"headline":"<max 3 words, punchy>","cta":"<short CTA, e.g. BOOK A TRIAL>"},
- "inner":[{"headline":"<ONE word, uppercase>","body":"<1-2 sentences, <140 chars>"}, ... exactly N-1 items],
+{"cover":{"headline":"<1-2 SHORT words only, ≤14 characters total — it must fit one line>","cta":"<short CTA, e.g. BOOK A TRIAL>"},
+ "inner":[{"headline":"<ONE short word, uppercase, ≤11 chars>","body":"<1-2 sentences, <140 chars>"}, ... exactly N-1 items],
  "caption":"<full IG caption with 1-2 emojis and 6-8 relevant hashtags>"}
 Keep it child-safe and on-brand. Never invent specific results or medical claims.`;
 
