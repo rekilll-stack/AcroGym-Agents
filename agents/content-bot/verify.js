@@ -31,8 +31,9 @@ const MIN_BYTES = 20 * 1024;
 const MAX_BYTES = 25 * 1024 * 1024;
 const MIN_SLIDES = 1;
 const MAX_SLIDES = 10;
-// Smarter QA model by default (the cheap check missed a split photo). Configurable.
-const VISION_MODEL = process.env.CONTENT_VERIFY_MODEL || 'claude-sonnet-4-6';
+// Vision QA on Haiku (cheap) — quality is now driven by smart photo selection
+// (photos.js, Sonnet) + deterministic checks; keeps per-post cost in budget.
+const VISION_MODEL = process.env.CONTENT_VERIFY_MODEL || 'haiku';
 const PLACEHOLDER_RE = /\b(lorem ipsum|paste_|your text here|headline here|body here|meet the coach|building skills together|xxxx+)\b/i;
 
 // ── layer 1: structure ───────────────────────────────────────────

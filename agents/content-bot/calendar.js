@@ -15,6 +15,7 @@
 
 const cron = require('node-cron');
 const yandex = require('./yandex');
+const photos = require('./photos');
 const assemble = require('./assemble');
 const agent = require('./agent');
 const publish = require('./publish');
@@ -90,11 +91,11 @@ async function pickPhotos(n, folder) {
 async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = false, folder } = {}) {
   logger.info({ theme, slides, routine }, 'calendar: building carousel');
   const plan = await generatePlan(theme, slides);
-  const photos = await pickPhotos(slides, folder);
+  const sel = await photos.selectBest(slides, { folder });
 
   const assembled = await assemble.assembleCarousel({
     topic: theme,
-    photos,
+    photos: sel.photos,
     cover: { headline: plan.cover.headline, cta: plan.cover.cta },
     inner: plan.inner,
     caption: plan.caption,

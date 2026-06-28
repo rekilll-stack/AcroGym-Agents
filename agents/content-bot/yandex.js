@@ -53,13 +53,16 @@ function slim(item) {
     mime_type: item.mime_type,
     media_type: item.media_type,
     modified: item.modified,
+    preview: item.preview, // small thumbnail URL (needs auth to fetch)
   };
 }
 
 /** List items in a folder (scoped to /AcroGym). */
-async function list(path = MARKETING, { limit = 200, sort = 'name' } = {}) {
+async function list(path = MARKETING, { limit = 200, sort = 'name', previewSize } = {}) {
   assertScoped(path);
-  const d = await apiGet('/resources', { path, limit, sort });
+  const params = { path, limit, sort };
+  if (previewSize) { params.preview_size = previewSize; params.preview_crop = 'false'; }
+  const d = await apiGet('/resources', params);
   const items = ((d._embedded && d._embedded.items) || []).map(slim);
   return { path: d.path, total: d._embedded && d._embedded.total, items };
 }
@@ -68,6 +71,14 @@ async function list(path = MARKETING, { limit = 200, sort = 'name' } = {}) {
 async function listImages(path = MARKETING, opts = {}) {
   const { items } = await list(path, opts);
   return items.filter((i) => i.type === 'file' && i.media_type === 'image');
+}
+
+/** Fetch a (small) preview thumbnail URL into a Buffer (needs the OAuth token). */
+async function fetchPreview(url) {
+  if (!isConfigured()) throw new Error('yandex not configured');
+  const res = await fetch(url, { headers: { Authorization: `OAuth ${TOKEN()}` } });
+  if (!res.ok) throw new Error(`yandex preview ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 /** Download a file from the Disk into a Buffer (scoped). */
@@ -86,6 +97,7 @@ module.exports = {
   list,
   listImages,
   downloadBuffer,
+  fetchPreview,
   ROOT,
   MARKETING,
 };
