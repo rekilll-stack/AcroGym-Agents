@@ -28,6 +28,8 @@ const { createLogger } = require('../../shared/logger');
 const logger = createLogger('content-bot');
 
 const CLI = process.env.CLAUDE_CLI || `${process.env.HOME || '/home/admin'}/.npm-global/bin/claude`;
+// Haiku is enough because we hand the agent the EXACT element ids to fill (no
+// guesswork) — keeps per-post cost low. Override with CONTENT_DESIGNER_MODEL.
 const MODEL = process.env.CONTENT_DESIGNER_MODEL || 'haiku';
 const MAX_TURNS = parseInt(process.env.CONTENT_DESIGNER_MAX_TURNS || '30', 10);
 const TIMEOUT_MS = parseInt(process.env.CONTENT_DESIGNER_TIMEOUT_MS || '300000', 10); // 5 min
@@ -83,22 +85,29 @@ function parseStrictJson(text) {
  */
 async function buildCarousel({ templateDesignId, slides }) {
   const pages = slides.map((s) => s.page);
+  // Each spec item carries the EXACT element ids to target — no guessing.
   const spec = slides.map((s) => ({
     page: s.page,
-    asset_id: s.assetId,
-    headline: s.headline,
-    ...(s.body != null ? { body: s.body } : {}),
-    ...(s.cta != null ? { cta: s.cta } : {}),
+    fill_element_id: s.elements.bg,            // full-bleed background image → photo
+    photo_asset_id: s.assetId,
+    set_text: [
+      { element_id: s.elements.headline, text: s.headline },
+      ...(s.elements.body && s.body != null ? [{ element_id: s.elements.body, text: s.body }] : []),
+      ...(s.elements.cta && s.cta != null ? [{ element_id: s.elements.cta, text: s.cta }] : []),
+    ],
   }));
 
   const prompt = [
-    'You are a Canva production assistant. Use ONLY the Canva tools. Do NOT invent or rephrase any text — place the EXACT strings given.',
+    'You are a Canva production assistant. Use ONLY the Canva tools. Do NOT invent or rephrase any text — place the EXACT strings given. Operate ONLY on the element ids given below; never touch any other element.',
     '',
     'Steps:',
-    `1. Copy the design ${templateDesignId} to a new design (copy-design).`,
+    `1. Copy the design ${templateDesignId} to a new design (copy-design). The copy keeps the same element ids.`,
     '2. Start an editing transaction on the NEW design.',
-    '3. For EACH item below, on its page: set the full-bleed BACKGROUND photo to the given asset_id using update_fill on that page\'s main background image element, then replace the headline text (and body / cta text if given) with the EXACT strings provided. Keep layer order — only swap fills and text, never move elements.',
-    '   IMPORTANT: after replacing a headline, make sure it FITS — if the text overflows its box or wraps badly, REDUCE its font size (format_text) until it sits cleanly on at most two lines with no characters clipped. Never let letters get cut off.',
+    '3. For EACH item below, on its page:',
+    '   - update_fill the element "fill_element_id" with image asset "photo_asset_id" (this is the full-bleed background photo — the ONLY image you change).',
+    '   - for each entry in "set_text": replace_text on that exact element_id with its text.',
+    '   - then check each text fits: if it overflows its box/pill or breaks mid-word, use format_text to REDUCE its font size until it sits cleanly with NO clipped characters.',
+    '   Do NOT fill or move any other element (the orange gradient overlay and the asterisk must stay untouched).',
     '4. Commit the transaction.',
     `5. Export pages ${JSON.stringify(pages)} of the new design as PNG (export-design), width 1080 height 1350.`,
     '6. Reply with STRICT JSON ONLY, no prose:',

@@ -67,7 +67,14 @@ async function assembleCarousel({ topic, photos, cover, inner, caption }) {
   if (!isConfigured()) throw new Error('Canva agent pipeline not configured (canva auth + carousel.templateDesignId in canva-templates.json)');
   if (!photos || photos.length < 1) throw new Error('assembleCarousel: need at least the cover photo');
 
-  const templateDesignId = loadTemplates().carousel.templateDesignId;
+  const cfg = loadTemplates().carousel;
+  const templateDesignId = cfg.templateDesignId;
+  const pageMap = cfg.pages || {};
+  const els = (page) => {
+    const e = pageMap[String(page)];
+    if (!e || !e.bg || !e.headline) throw new Error(`canva-templates.json: missing element ids for page ${page}`);
+    return e;
+  };
 
   // 1) Upload every photo as a Canva asset via REST (works on Pro).
   const assetIds = [];
@@ -75,14 +82,16 @@ async function assembleCarousel({ topic, photos, cover, inner, caption }) {
     assetIds.push(await canva.uploadAsset(photos[i].buffer, photos[i].name || `photo-${i + 1}.jpg`));
   }
 
-  // 2) Build the slide spec: page 1 = cover, pages 2..n = inner.
-  const slidesSpec = [{ page: 1, assetId: assetIds[0], headline: cover.headline, cta: cover.cta }];
+  // 2) Build the slide spec with EXACT element ids: page 1 = cover, 2..n = inner.
+  const slidesSpec = [{ page: 1, assetId: assetIds[0], headline: cover.headline, cta: cover.cta, elements: els(1) }];
   for (let i = 0; i < inner.length; i++) {
+    const page = i + 2;
     slidesSpec.push({
-      page: i + 2,
+      page,
       assetId: assetIds[i + 1] || assetIds[assetIds.length - 1],
       headline: inner[i].headline,
       body: inner[i].body,
+      elements: els(page),
     });
   }
 

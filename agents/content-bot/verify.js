@@ -1,19 +1,19 @@
 'use strict';
 
 /**
- * Self-verification (Agent 4 — autonomous posting).
+ * Self-verification — the "проверяй по 2 раза" safety net, heavily expanded.
  *
- * Bakes the owner's rule — "проверяй всё по 2 раза перед отправкой" — into code.
- * Nothing is shown for approval or auto-published until it passes these checks.
- *
- * LAYERS
- *  1) structure  — decodes, IG portrait 4:5, ≥1080px wide, sane file size.
- *  2) integrity  — not blank / near-uniform (catches broken/empty exports).
- *  3) visual(AI) — Claude vision rubric: upright, faces uncropped, text not on
- *                  faces, text legible/complete, on-brand, child-safe, no typos,
- *                  no leftover template placeholders.
- *  4) carousel   — consistent dimensions, 2–10 slides, no duplicate photos.
- *  5) caption    — length ≤ 2200, ≤ 30 hashtags, English, no placeholders.
+ * Nothing is shown for approval or auto-published until it passes. Layers:
+ *  1) STRUCTURE  — decodes, IG portrait 4:5, ≥1080px, sane file size.
+ *  2) INTEGRITY  — not blank/near-uniform; NOT a split/stitched image (top vs
+ *     bottom half saturation+brightness mismatch — catches the agent filling the
+ *     wrong layer so the page shows two different photos); duplicate-photo check.
+ *  3) VISION (AI, Sonnet) — a big rubric: single photo, upright, faces uncropped,
+ *     text legibility/completeness/fit, CTA correct, NO leftover template text,
+ *     on-brand, brand colours, asterisk, child-safe, spelling/grammar, sharpness,
+ *     contrast, duotone consistency, etc.
+ *  4) CAROUSEL  — count, size consistency, duplicate photos, style consistency.
+ *  5) CAPTION   — length, hashtags, language, placeholders, spacing.
  *
  * Returns { ok, issues[] }. Callers MUST NOT publish/show anything that fails.
  */
@@ -24,119 +24,161 @@ const { createLogger } = require('../../shared/logger');
 
 const logger = createLogger('content-bot');
 
-// Instagram portrait 1080×1350 (4:5 = 0.8).
 const TARGET_RATIO = 1080 / 1350;
 const RATIO_TOL = 0.03;
 const MIN_WIDTH = 1080;
-const MIN_BYTES = 20 * 1024;          // < 20 KB at 1080px ⇒ almost certainly broken
-const MAX_BYTES = 25 * 1024 * 1024;   // 25 MB guard
-const MIN_SLIDES = 1;                 // single image allowed; carousel ≥ 2
-const MAX_SLIDES = 10;                // IG carousel hard limit
-// Vision QA is mechanical pass/fail — run it on Haiku to keep per-post cost low.
-const VISION_MODEL = process.env.CONTENT_VERIFY_MODEL || 'claude-haiku-4-5-20251001';
-const PLACEHOLDER_RE = /\b(lorem ipsum|paste_|your text here|headline here|body here|xxxx+)\b/i;
+const MIN_BYTES = 20 * 1024;
+const MAX_BYTES = 25 * 1024 * 1024;
+const MIN_SLIDES = 1;
+const MAX_SLIDES = 10;
+// Smarter QA model by default (the cheap check missed a split photo). Configurable.
+const VISION_MODEL = process.env.CONTENT_VERIFY_MODEL || 'claude-sonnet-4-6';
+const PLACEHOLDER_RE = /\b(lorem ipsum|paste_|your text here|headline here|body here|meet the coach|building skills together|xxxx+)\b/i;
 
 // ── layer 1: structure ───────────────────────────────────────────
 async function checkStructure(buffer) {
   const issues = [];
-  if (!Buffer.isBuffer(buffer) || buffer.length < MIN_BYTES) {
-    issues.push(`image too small (${buffer ? buffer.length : 0} bytes) — likely broken export`);
-  }
+  if (!Buffer.isBuffer(buffer) || buffer.length < MIN_BYTES) issues.push(`image too small (${buffer ? buffer.length : 0} bytes) — likely broken export`);
   if (buffer && buffer.length > MAX_BYTES) issues.push(`image suspiciously large (${(buffer.length / 1e6).toFixed(1)} MB)`);
   let img;
-  try {
-    img = await loadImage(buffer);
-  } catch (err) {
-    return { ok: false, issues: [`undecodable image: ${err.message}`], width: 0, height: 0, img: null };
-  }
+  try { img = await loadImage(buffer); }
+  catch (err) { return { ok: false, issues: [`undecodable image: ${err.message}`], width: 0, height: 0, img: null }; }
   const ratio = img.width / img.height;
-  if (Math.abs(ratio - TARGET_RATIO) > RATIO_TOL) issues.push(`aspect ratio ${ratio.toFixed(3)} ≠ 4:5 (${TARGET_RATIO.toFixed(3)})`);
+  if (Math.abs(ratio - TARGET_RATIO) > RATIO_TOL) issues.push(`aspect ratio ${ratio.toFixed(3)} ≠ 4:5`);
   if (img.width < MIN_WIDTH) issues.push(`width ${img.width}px < IG min ${MIN_WIDTH}`);
   return { ok: issues.length === 0, issues, width: img.width, height: img.height, img };
 }
 
-// ── layer 2: integrity (blank / near-uniform detection) ──────────
-// Downscale to N×N grayscale; compute luminance variance + average hash.
-function fingerprint(img, n = 8) {
+// ── layer 2: integrity (blank + SPLIT/stitched + hash) ───────────
+function rgbToSat(r, g, b) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  return mx === 0 ? 0 : (mx - mn) / mx;
+}
+
+// Downscale to n×n; gather luminance variance, aHash, and per-half saturation +
+// luminance to detect a stitched two-photo page.
+function fingerprint(img, n = 16) {
   const c = createCanvas(n, n);
   const ctx = c.getContext('2d');
   ctx.drawImage(img, 0, 0, n, n);
   const { data } = ctx.getImageData(0, 0, n, n);
   const gray = [];
-  for (let i = 0; i < data.length; i += 4) {
-    gray.push(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+  let topSat = 0, botSat = 0, topLum = 0, botLum = 0, topCnt = 0, botCnt = 0;
+  for (let idx = 0, px = 0; idx < data.length; idx += 4, px++) {
+    const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    gray.push(lum);
+    const row = Math.floor(px / n);
+    const sat = rgbToSat(r, g, b);
+    if (row < n / 2) { topSat += sat; topLum += lum; topCnt++; }
+    else { botSat += sat; botLum += lum; botCnt++; }
   }
   const mean = gray.reduce((a, b) => a + b, 0) / gray.length;
-  const variance = gray.reduce((a, g) => a + (g - mean) ** 2, 0) / gray.length;
-  const hash = gray.map((g) => (g >= mean ? '1' : '0')).join('');
-  return { variance, hash };
+  const variance = gray.reduce((a, x) => a + (x - mean) ** 2, 0) / gray.length;
+  const hash = gray.map((x) => (x >= mean ? '1' : '0')).join('');
+  return {
+    variance, hash,
+    topSat: topSat / topCnt, botSat: botSat / botCnt,
+    topLum: topLum / topCnt, botLum: botLum / botCnt,
+  };
 }
 
 function checkIntegrity(img) {
   const issues = [];
   const fp = fingerprint(img);
   if (fp.variance < 25) issues.push('image looks blank / near-uniform (broken export?)');
+  // SPLIT detection: one half ~grayscale while the other is clearly colour ⇒
+  // two different photos stacked (the exact "wrong layer filled" bug).
+  // The real "wrong layer filled" bug leaves one half ~grayscale (the old
+  // template B&W photo) while the other is colour. Detect THAT. (A correct slide
+  // can legitimately have a colourful photo on top and an orange-overlay bottom,
+  // so a plain saturation-difference rule would false-positive — the smart vision
+  // "single_photo" check is the backstop for other stitch types.)
+  const grayHalf = (s) => s < 0.13;
+  const colorHalf = (s) => s > 0.30;
+  if ((grayHalf(fp.topSat) && colorHalf(fp.botSat)) || (grayHalf(fp.botSat) && colorHalf(fp.topSat))) {
+    issues.push('looks like TWO different photos stitched (one half grayscale, one colour) — wrong layer filled');
+  }
   return { ok: issues.length === 0, issues, hash: fp.hash };
 }
 
-function hamming(a, b) {
-  let d = 0;
-  for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) d++;
-  return d;
-}
+function hamming(a, b) { let d = 0; for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) d++; return d; }
 
-// ── layer 3: visual (Claude vision) ──────────────────────────────
-const VISION_SYSTEM = `You are a STRICT QA reviewer for AcroGym Qatar — a kids' gymnastics & acrobatics brand — checking ONE finished Instagram slide (photo + brand text overlay) before it goes live.
-Judge ONLY what you can see. Reply with STRICT JSON, no prose:
-{"upright":bool,"faces_ok":bool,"text_on_face":bool,"text_legible":bool,"text_complete":bool,"on_brand":bool,"child_safe":bool,"spelling_ok":bool,"has_placeholder":bool,"issues":[ "short reason", ... ]}
-Definitions:
-- upright=false → photo rotated/sideways/upside-down (people not vertical).
-- faces_ok=false → any person's face cut off by the frame edge.
-- text_on_face=true → overlay text covers someone's face.
-- text_legible=false → low contrast / hard to read.
-- text_complete=false → text is cut off at an edge or breaks mid-word badly.
-- on_brand=false → not AcroGym look (missing the cream headline / orange accent vibe).
-- child_safe=false → anything inappropriate for a kids' brand.
-- spelling_ok=false → visible typo in the overlay text.
-- has_placeholder=true → leftover template text like "PASTE", "headline", "Lorem".
-If everything is fine: all booleans as above with no problems and "issues":[].`;
+// ── layer 3: vision rubric (Sonnet) ──────────────────────────────
+const VISION_SYSTEM = `You are a METICULOUS QA reviewer for AcroGym Qatar — a kids' gymnastics & acrobatics brand — checking ONE finished Instagram slide (photo + brand text overlay) before it can go live. Be strict; when unsure, mark it a problem. Judge ONLY what you can see.
+Reply with STRICT JSON ONLY (no prose), every field present:
+{
+ "single_photo": true|false,            // false if the slide shows 2+ different photos stitched/stacked/collaged
+ "upright": true|false,                 // false if rotated/sideways/upside-down
+ "faces_uncropped": true|false,         // false if any person's face is cut off by the frame edge
+ "text_not_on_face": true|false,        // false if overlay text covers a face
+ "text_legible": true|false,            // false if low contrast / hard to read
+ "text_complete": true|false,           // false if text is clipped or broken mid-word
+ "text_fits": true|false,               // false if any text overflows its box or the CTA pill
+ "cta_ok": true|false,                  // the CTA button text is a real short CTA, fits the pill (true if no CTA expected)
+ "no_template_leftover": true|false,    // false if leftover template text remains (e.g. "meet the coach", "building skills together", "PASTE", lorem)
+ "headline_present": true|false,
+ "on_brand": true|false,                // AcroGym look: cream headline + orange accents
+ "brand_colors_present": true|false,    // cream / orange / navy present
+ "asterisk_present": true|false,        // the orange star/asterisk mark
+ "child_safe": true|false,              // appropriate for a kids' brand
+ "appropriate": true|false,             // nothing embarrassing/inappropriate in the photo
+ "spelling_ok": true|false,
+ "grammar_ok": true|false,
+ "photo_sharp": true|false,             // not blurry/pixelated
+ "subject_clear": true|false,           // main subject (kids/coach/action) clearly visible
+ "good_contrast": true|false,           // text stands out from the background
+ "duotone_consistent": true|false,      // photo treatment is uniform across the whole slide (no half-bw/half-colour)
+ "issues": ["short concrete problem", ...] // [] if perfect
+}`;
 
-function parseJson(text) {
-  try { const m = String(text).match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } catch { return null; }
-}
+const VISION_FIELD_MSG = {
+  single_photo: 'slide shows two different photos stitched together',
+  upright: 'photo rotated/sideways',
+  faces_uncropped: 'a face is cropped by the frame',
+  text_not_on_face: 'text covers a face',
+  text_legible: 'text low-contrast / unreadable',
+  text_complete: 'text clipped or broken mid-word',
+  text_fits: 'text overflows its box / the CTA pill',
+  cta_ok: 'CTA button text wrong or overflowing',
+  no_template_leftover: 'leftover template text still on the slide',
+  headline_present: 'headline missing',
+  on_brand: 'off-brand look',
+  brand_colors_present: 'brand colours missing',
+  asterisk_present: 'brand asterisk missing',
+  child_safe: 'not child-safe',
+  appropriate: 'inappropriate content in photo',
+  spelling_ok: 'spelling error in overlay text',
+  grammar_ok: 'grammar error in overlay text',
+  photo_sharp: 'photo blurry/pixelated',
+  subject_clear: 'main subject not clear',
+  good_contrast: 'poor text/background contrast',
+  duotone_consistent: 'photo treatment inconsistent (half b/w, half colour)',
+};
+
+function parseJson(text) { try { const m = String(text).match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } catch { return null; } }
 
 async function checkVisual(buffer, { context = '' } = {}) {
   const base64 = Buffer.isBuffer(buffer) ? buffer.toString('base64') : buffer;
-  const user = `Review this Instagram slide.${context ? ` Context: ${context}.` : ''} Return the JSON verdict.`;
+  const user = `Review this Instagram slide.${context ? ` Context: ${context}.` : ''} Return the full JSON verdict.`;
   let raw;
   try {
-    raw = await generateText({ system: VISION_SYSTEM, user, images: [{ data: base64, media_type: 'image/png' }], maxTokens: 400, model: VISION_MODEL });
-  } catch (err) {
-    return { ok: false, issues: [`vision check unavailable: ${err.message}`], degraded: true };
-  }
+    raw = await generateText({ system: VISION_SYSTEM, user, images: [{ data: base64, media_type: 'image/png' }], maxTokens: 700, model: VISION_MODEL });
+  } catch (err) { return { ok: false, issues: [`vision check unavailable: ${err.message}`], degraded: true }; }
   const v = parseJson(raw);
   if (!v) return { ok: false, issues: ['vision returned unparseable verdict'], degraded: true };
   const issues = [];
-  if (v.upright === false) issues.push('photo rotated/sideways');
-  if (v.faces_ok === false) issues.push('a face is cropped by the frame');
-  if (v.text_on_face === true) issues.push('text covers a face');
-  if (v.text_legible === false) issues.push('text low-contrast / unreadable');
-  if (v.text_complete === false) issues.push('text cut off / broken mid-word');
-  if (v.on_brand === false) issues.push('off-brand look');
-  if (v.child_safe === false) issues.push('not child-safe');
-  if (v.spelling_ok === false) issues.push('visible typo in overlay text');
-  if (v.has_placeholder === true) issues.push('leftover template placeholder text');
-  if (Array.isArray(v.issues)) for (const x of v.issues) if (x && !issues.includes(x)) issues.push(x);
-  return { ok: issues.length === 0, issues };
+  for (const [field, msg] of Object.entries(VISION_FIELD_MSG)) {
+    if (v[field] === false) issues.push(msg);
+  }
+  if (Array.isArray(v.issues)) for (const x of v.issues) if (x && !issues.some((i) => i.toLowerCase() === String(x).toLowerCase())) issues.push(x);
+  return { ok: issues.length === 0, issues: [...new Set(issues)] };
 }
 
 // ── public: single slide ─────────────────────────────────────────
 async function verifySlide(buffer, { context = '' } = {}) {
   const struct = await checkStructure(buffer);
-  if (!struct.img) {
-    logger.warn({ issues: struct.issues }, 'slide failed to decode');
-    return { ok: false, issues: struct.issues, width: 0, height: 0, hash: null };
-  }
+  if (!struct.img) return { ok: false, issues: struct.issues, width: 0, height: 0, hash: null };
   const integ = checkIntegrity(struct.img);
   const visual = await checkVisual(buffer, { context });
   const issues = [...struct.issues, ...integ.issues, ...visual.issues];
@@ -152,13 +194,10 @@ async function verifyCarousel(buffers, { context = '' } = {}) {
     slides.push(await verifySlide(buffers[i], { context: `${context} slide ${i + 1}/${buffers.length}` }));
   }
   const carousel = [];
-  // count limits
   if (buffers.length < MIN_SLIDES) carousel.push(`too few slides (${buffers.length})`);
   if (buffers.length > MAX_SLIDES) carousel.push(`too many slides (${buffers.length} > ${MAX_SLIDES})`);
-  // dimension consistency
   const dims = new Set(slides.filter((s) => s.width).map((s) => `${s.width}x${s.height}`));
   if (dims.size > 1) carousel.push(`mixed slide sizes: ${[...dims].join(', ')}`);
-  // duplicate-photo detection (perceptual aHash, hamming < 6 ⇒ basically same)
   for (let i = 0; i < slides.length; i++) {
     for (let j = i + 1; j < slides.length; j++) {
       if (slides[i].hash && slides[j].hash && hamming(slides[i].hash, slides[j].hash) < 6) {
@@ -178,13 +217,13 @@ function verifyCaption(caption) {
   if (text.length > 2200) issues.push(`caption ${text.length} chars > IG limit 2200`);
   const tags = (text.match(/#[\w]+/g) || []);
   if (tags.length > 30) issues.push(`${tags.length} hashtags > IG limit 30`);
-  if (PLACEHOLDER_RE.test(text)) issues.push('caption contains placeholder text');
-  // brand rule: output language is English — flag Cyrillic leakage.
+  if (PLACEHOLDER_RE.test(text)) issues.push('caption contains placeholder/template text');
   if (/[А-Яа-яЁё]/.test(text)) issues.push('caption contains Russian text (output must be English)');
+  if (/ {3,}/.test(text)) issues.push('caption has odd spacing');
   return { ok: issues.length === 0, issues };
 }
 
 module.exports = {
   verifySlide, verifyCarousel, verifyCaption,
-  checkStructure, checkIntegrity, checkVisual,
+  checkStructure, checkIntegrity, checkVisual, fingerprint,
 };

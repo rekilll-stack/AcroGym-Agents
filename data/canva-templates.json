@@ -1,6 +1,12 @@
 {
-  "_comment": "Autopilot carousel template. The designer agent COPIES this design per post, then update_fills each page's background photo + text. Page 1 = cover (headline + CTA pill), pages 2+ = inner (one-word headline + body, orange duotone). Change templateDesignId to a different brand carousel design any time.",
+  "_comment": "Autopilot carousel template. The agent COPIES templateDesignId, then on each page fills the EXACT element ids below (copy-design preserves ids). bg = full-bleed background image; headline/body/cta = text elements. This removes guesswork so a cheap model places photo+text in the right layers. If the template is changed, re-read its element ids via start-editing-transaction and update this map.",
   "carousel": {
-    "templateDesignId": "DAHN3K_RhAo"
+    "templateDesignId": "DAHN3K_RhAo",
+    "pages": {
+      "1": { "role": "cover", "bg": "PBwKlqpk4kb0QcQT-LBjY09YnK5gjSmrL-LBgbxxyzJxwLmmS0", "headline": "PBwKlqpk4kb0QcQT-LBvQ2SLzYkt0xhXW-LB972YR28mQqSTMq", "cta": "PBwKlqpk4kb0QcQT-LBJTnPltTBxz1LYB" },
+      "2": { "role": "inner", "bg": "PBV7t1kqf2NkfFnp", "headline": "PBV7t1kqf2NkfFnp-LBsDNSbg2ryfM3gz", "body": "PBV7t1kqf2NkfFnp-LBzfFdnbQ9H6KQBj" },
+      "3": { "role": "inner", "bg": "PBZKmbQnwmrWlxkX", "headline": "PBZKmbQnwmrWlxkX-LByL9qxSYwN7fnFq", "body": "PBZKmbQnwmrWlxkX-LBmWVvH5P3c908XH" },
+      "4": { "role": "inner", "bg": "PBvwbQDs2HFxj4yT", "headline": "PBvwbQDs2HFxj4yT-LBF9V9Jrq8mZxYDM", "body": "PBvwbQDs2HFxj4yT-LB2qs5GFJWJ0mXxF" }
+    }
   }
 }
