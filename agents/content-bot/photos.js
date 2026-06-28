@@ -41,10 +41,11 @@ You are shown a POST TOPIC and numbered candidate thumbnails. Pick and RANK the 
 
 Ranking priority:
 1. RELEVANCE to the topic FIRST. Whatever the topic is about IS the subject to look for — e.g. a topic about the gym/facility → wide shots of the hall, equipment, mats, the space; about competition → competition/medals/podium moments; about a coach → the coach; about a class/kids → children training. Don't force faces/kids into a topic that isn't about them.
-2. Then QUALITY: sharp/in-focus, well-lit, clean composition, on-brand, lively.
-3. Then FRAMING for the 4:5 + bottom-text layout: the main subject is fully visible and not awkwardly cut by the crop or hidden behind the bottom text band. When PEOPLE are the subject, their faces should be uncropped and not jammed against the very edges; for a room/equipment topic, faces don't matter — judge the space.
+2. Then 4:5-FRIENDLY COMPOSITION (very important — the photo will be cropped to a TALL vertical 4:5). STRONGLY PREFER photos with ONE clear main subject (or a tight small group) that has breathing room / empty space around them — these crop cleanly to vertical without cutting anyone. STRONGLY AVOID busy candid shots where people are spread ACROSS THE WHOLE WIDTH or scattered to the left/right edges — a vertical crop can't keep them all and someone gets cut. A calmer photo with one child mid-pose beats a chaotic one with 6 kids edge-to-edge, even on the same topic.
+3. Then QUALITY: sharp/in-focus, well-lit, on-brand, lively, joyful.
+4. For a room/equipment topic, faces don't matter — judge the space; still prefer a composition that reads well tall.
 
-Avoid: off-topic shots, blurry, dark, cluttered/empty, near-duplicates.
+Avoid: off-topic shots, blurry, dark, cluttered/empty, near-duplicates, and crowds spanning the full frame width.
 Reply with ONLY a raw JSON object — NO analysis, NO commentary, NO markdown, nothing before or after it. Your entire response must start with { and be exactly: {"order":[best index, next, ...]} listing the indices (0-based) of GOOD on-topic photos, best first, omitting the rest.`;
 
 function parseJson(text) { try { const m = String(text).match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } catch { return null; } }

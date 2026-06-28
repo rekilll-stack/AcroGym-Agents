@@ -120,9 +120,10 @@ function chooseWindow(W, H, people) {
   const ratio = TARGET_RATIO;
   const wide = W / H > ratio;
 
-  // candidate window sizes (full-fit first, then progressively zoomed in)
+  // candidate window sizes (full-fit first, then progressively zoomed in).
+  // Finer steps give the search more ways to land edges in clean gaps.
   const sizes = [];
-  for (const z of [1, 0.85, 0.72, 0.6, 0.5]) {
+  for (const z of [1, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6, 0.54, 0.48]) {
     let cw, ch;
     if (wide) { ch = Math.round(H * z); cw = Math.round(ch * ratio); }
     else { cw = Math.round(W * z); ch = Math.round(cw / ratio); }
@@ -130,10 +131,9 @@ function chooseWindow(W, H, people) {
   }
   if (!sizes.length) sizes.push(wide ? { cw: Math.round(H * ratio), ch: H } : { cw: W, ch: Math.round(W / ratio) });
 
-  // Safety margin (vision boxes are imprecise) — a person near an edge counts as
-  // straddling, so the window must clear people with a real gap. The main-subject
-  // scoring below stops this from zooming into empty floor.
-  const mx = 0.04 * W, my = 0.04 * H;
+  // Small safety margin (vision boxes are imprecise). Final framing is arbitrated
+  // by a vision check on the rendered crop, so this only needs to bias the search.
+  const mx = 0.02 * W, my = 0.02 * H;
   const boxes = (people || []).map((p) => ({
     x0: p.x * W - mx, y0: p.y * H - my, x1: (p.x + p.w) * W + mx, y1: (p.y + p.h) * H + my,
     area: p.w * p.h, main: p.main,
@@ -169,20 +169,66 @@ function chooseWindow(W, H, people) {
         }
         const sizeFrac = (cw * ch) / (W * H);
         const centerPenalty = Math.abs((x0 + cw / 2) - W / 2) / W + Math.abs((y0 + ch / 2) - H / 2) / H;
-        // Priorities: keep MAIN subjects whole & present > don't slice mains >
-        // don't drop mains > keep more people > avoid bg slices > wider > centred.
+        // Priorities: NEVER slice anyone (main worst, but background almost as
+        // bad — owner wants zero cut limbs) > keep the main subjects present >
+        // keep more people > wider > centred. Zoom levels let it fit cleanly.
         const score = mainKept * 1000
-          - mainSliced * 6000
-          - mainOut * 2500
-          + kept * 150
-          - bgSliced * 250
-          + sizeFrac * 140
+          - mainSliced * 8000
+          - bgSliced * 4000
+          - mainOut * 3000
+          + kept * 130
+          + sizeFrac * 120
           - centerPenalty * 8;
         if (!best || score > best.score) best = { score, x0, y0, cw, ch, sliced: mainSliced + bgSliced, slicedMain: mainSliced };
       }
     }
   }
   return best;
+}
+
+// Final arbiter: look at the RENDERED crop and say whether any person is cut at
+// an edge. Reliable (judges the actual pixels, not imprecise boxes). On failure
+// to call, returns true (assume clean) so we don't needlessly letterbox.
+const CROPCHECK_SYSTEM = `You check one finished 4:5 photo crop. Question: does the crop's EDGE cut through any person — a half/partial body, or a cut-off hand, arm, leg, or head touching the frame border? A person fully inside (even near an edge but whole) is fine. A person fully outside is fine (not your concern). Tiny far-background bystanders barely at the very corner don't count — only clearly visible people cut at an edge.
+Reply STRICT JSON ONLY: {"cuts_someone":true|false}.`;
+
+async function cropCutsPeople(buffer) {
+  try {
+    const raw = await generateText({
+      system: CROPCHECK_SYSTEM,
+      user: 'Does the crop edge cut through any person? JSON only.',
+      images: [{ data: buffer.toString('base64'), media_type: 'image/jpeg' }],
+      maxTokens: 40,
+      model: CROP_MODEL,
+    });
+    const v = parseJson(raw);
+    if (v && typeof v.cuts_someone === 'boolean') return v.cuts_someone;
+  } catch (err) { logger.warn({ err: err.message }, 'crop check failed → assume clean'); }
+  return false;
+}
+
+// Fit the WHOLE photo into 1080×1350 (nobody cropped) over a blurred, slightly
+// darkened cover of itself — the Instagram "blurred bars" look. Used when no 4:5
+// crop can avoid slicing a person.
+function letterbox(src) {
+  const W = src.width, H = src.height;
+  const out = createCanvas(TARGET_W, TARGET_H);
+  const ctx = out.getContext('2d');
+  // blurred background: scale to COVER (fills the frame), blur, darken a touch
+  const cover = Math.max(TARGET_W / W, TARGET_H / H);
+  const bw = W * cover, bh = H * cover;
+  ctx.filter = 'blur(28px)';
+  ctx.drawImage(src, (TARGET_W - bw) / 2, (TARGET_H - bh) / 2, bw, bh);
+  ctx.filter = 'none';
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(0, 0, TARGET_W, TARGET_H);
+  // foreground: scale to CONTAIN (whole photo visible, no crop), centred
+  const fit = Math.min(TARGET_W / W, TARGET_H / H);
+  const fw = W * fit, fh = H * fit;
+  ctx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, (TARGET_W - fw) / 2, (TARGET_H - fh) / 2, fw, fh);
+  return out.toBuffer('image/jpeg', { quality: 0.92 });
 }
 
 /**
@@ -196,30 +242,30 @@ async function safeCrop45(buffer) {
   const src = uprightCanvas(img, orientation);
   const W = src.width, H = src.height;
 
-  // Detect people, then pick a 4:5 window whose edges don't slice anyone.
+  // Detect people, pick the best full-bleed 4:5 window, render it.
   const people = await detectPeople(src);
-  let cx, cy, cw, ch, from;
   const win = chooseWindow(W, H, people);
-  if (people && win) {
-    ({ x0: cx, y0: cy, cw, ch } = win);
-    from = `boxes(${people.length},sliced=${win.sliced})`;
-  } else {
-    // Fallback: widest 4:5 keeping full height (or width), centred.
-    if (W / H > TARGET_RATIO) { ch = H; cw = Math.round(ch * TARGET_RATIO); }
-    else { cw = W; ch = Math.round(cw / TARGET_RATIO); }
-    cx = Math.round((W - cw) / 2);
-    cy = Math.round((H - ch) * 0.35); // bias up a touch for faces
-    from = 'fallback-centre';
+  let cropBuf = null;
+  if (win) {
+    const out = createCanvas(TARGET_W, TARGET_H);
+    const ctx = out.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+    if ('patternQuality' in ctx) ctx.patternQuality = 'best';
+    ctx.drawImage(src, win.x0, win.y0, win.cw, win.ch, 0, 0, TARGET_W, TARGET_H);
+    cropBuf = out.toBuffer('image/jpeg', { quality: 0.92 });
   }
 
-  const out = createCanvas(TARGET_W, TARGET_H);
-  const ctx = out.getContext('2d');
-  ctx.imageSmoothingEnabled = true;
-  if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
-  if ('patternQuality' in ctx) ctx.patternQuality = 'best';
-  ctx.drawImage(src, cx, cy, cw, ch, 0, 0, TARGET_W, TARGET_H);
-  const result = out.toBuffer('image/jpeg', { quality: 0.92 });
-  logger.info({ orientation, src: `${W}x${H}`, from, crop: `${cw}x${ch}@${cx},${cy}` }, 'photo pre-cropped to 4:5');
+  // Use the full-bleed crop only when BOTH signals agree it's clean: the
+  // box-search left nobody sliced AND a vision look at the rendered crop confirms
+  // no person is cut at an edge. Any doubt → letterbox the whole photo (blurred
+  // bars) so NOBODY is ever cut (owner's hard rule).
+  if (cropBuf && win.sliced === 0 && !(await cropCutsPeople(cropBuf))) {
+    logger.info({ orientation, src: `${W}x${H}`, mode: 'crop', crop: `${win.cw}x${win.ch}@${win.x0},${win.y0}` }, 'photo pre-cropped to 4:5');
+    return cropBuf;
+  }
+  const result = letterbox(src);
+  logger.info({ orientation, src: `${W}x${H}`, mode: 'letterbox' }, 'photo fit to 4:5 (blurred bars — crop would cut someone)');
   return result;
 }
 
