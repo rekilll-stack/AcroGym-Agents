@@ -120,6 +120,7 @@ async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = fa
     kind: 'post', igType: 'POST',
     caption: assembled.caption,
     slides: assembled.slides,
+    theme, slidesCount: slides, // kept so 🔄 Rebuild can repeat the same brief
     // Over-budget runs never auto-publish — route to manual review.
     routine: routine && verifyOk && !assembled.overBudget,
     verify: { ok: verifyOk && !assembled.overBudget, issues },

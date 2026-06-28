@@ -63,7 +63,8 @@ function approvalKeyboard(id) {
     inline_keyboard: [
       [{ text: '✅ Опубликовать сейчас', callback_data: `pub:now:${id}` }],
       [{ text: '🕒 В лучшее время', callback_data: `pub:best:${id}` },
-       { text: '🗑 Удалить', callback_data: `pub:drop:${id}` }],
+       { text: '🔄 Пересобрать', callback_data: `pub:redo:${id}` }],
+      [{ text: '🗑 Удалить', callback_data: `pub:drop:${id}` }],
     ],
   };
 }

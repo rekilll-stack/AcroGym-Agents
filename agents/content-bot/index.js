@@ -439,6 +439,22 @@ function start() {
     const lang = uiLang(chatId);
 
     try {
+      // 🔄 Rebuild a draft with the same theme but a fresh photo set + copy.
+      if (data.startsWith('pub:redo:')) {
+        const id = data.slice('pub:redo:'.length);
+        const draft = publish.getDraft(id);
+        await bot.answerCallbackQuery(query.id, { text: '🔄 Пересобираю…' }).catch(() => {});
+        if (!draft || !draft.theme) { await bot.sendMessage(chatId, 'Черновик устарел — собери заново через ✨ Авто-пост.').catch(() => {}); return; }
+        publish.dropDraft(id);
+        await bot.sendMessage(chatId, '🎨 Пересобираю пост на других фото…').catch(() => {});
+        try {
+          await calendar.buildAndRoute(bot, chatId, { theme: draft.theme, slides: draft.slidesCount || 4, routine: false });
+        } catch (err) {
+          logger.error({ err: err.message }, 'rebuild failed');
+          await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {});
+        }
+        return;
+      }
       // Autopilot approval buttons (publish / best-time / discard).
       if (data.startsWith('pub:')) {
         const status = await publish.handleCallback(bot, chatId, data);
