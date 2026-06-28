@@ -28,8 +28,11 @@ const TZ = process.env.TIMEZONE || 'Asia/Qatar';
 
 // Routine themes that may auto-publish. Cron in brand timezone.
 // Conservative default: one weekly recap. Easy to extend.
+// 🔴 routine=false EVERYWHERE until the visual pipeline is reliable (2026-06-28:
+// agent filled the wrong layer → split photos; verify missed it). NOTHING
+// auto-publishes — every scheduled build still goes to the owner for ✅.
 const PLAN = [
-  { name: 'weekly-recap', cron: '0 18 * * 4', theme: 'Weekly recap: highlights from training this week at AcroGym', slides: 4, routine: true },
+  { name: 'weekly-recap', cron: '0 18 * * 4', theme: 'Weekly recap: highlights from training this week at AcroGym', slides: 4, routine: false },
 ];
 
 const PLAN_SYSTEM = `You write Instagram carousel copy for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional. Output language: ENGLISH only.
