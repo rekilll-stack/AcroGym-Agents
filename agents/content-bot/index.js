@@ -99,8 +99,13 @@ function releaseLock() {
 // hashtags '#', '.', '!' never need escaping and copy stays clean)
 // ─────────────────────────────────────────────────────────────
 function menuKeyboard(lang) {
+  const ru = lang === 'ru';
   return {
     inline_keyboard: [
+      // ✨ Autopilot — the main feature: bot builds a full branded carousel via
+      // Canva and (after your tap) publishes. Buttons, not commands.
+      [{ text: ru ? '✨ Авто-пост (Canva)' : '✨ Auto-post (Canva)', callback_data: 'auto:new' }],
+      [{ text: ru ? '🤖 Статус автопилота' : '🤖 Autopilot status', callback_data: 'auto:status' }],
       [{ text: t('content.btn_post', lang), callback_data: 'fmt:post' }],
       [{ text: t('content.btn_ideas', lang), callback_data: 'fmt:ideas' }, { text: t('content.btn_plan', lang), callback_data: 'fmt:plan' }],
       [{ text: t('content.btn_photo', lang), callback_data: 'fmt:photo' }],
@@ -108,6 +113,20 @@ function menuKeyboard(lang) {
       [{ text: t('content.btn_lang', lang), callback_data: 'showlang' }],
     ],
   };
+}
+
+// Autopilot status text (shared by the 🤖 button and /autopilot command).
+function autopilotStatusText() {
+  const agent = require('./agent');
+  return [
+    '🤖 <b>Autopilot</b>',
+    `Canva: ${assemble.isConfigured() ? '✅' : '❌ (canva-auth + carousel.templateDesignId)'}`,
+    `Yandex.Disk: ${yandex.isConfigured() ? '✅' : '❌ (YANDEX_DISK_TOKEN)'}`,
+    `Публикация: ${publish.canPublish() ? (metricool.isConfigured() ? '✅ Metricool REST' : '✅ через Metricool-коннектор (без токена)') : '❌ только превью'}`,
+    '',
+    `Designer-модель: <code>${agent.MODEL}</code> · лимит/пост: $${agent.MAX_COST_USD}`,
+    `Расписание: ${calendar.PLAN.map((p) => `${p.name} (${p.cron})`).join(', ')}`,
+  ].join('\n');
 }
 
 // Track D — backgrounds the user may pick. Real (non-dev) entries normally; if
@@ -340,18 +359,7 @@ function start() {
       return;
     }
     if (text === '/autopilot') {
-      const agent = require('./agent');
-      const lines = [
-        '🤖 <b>Autopilot</b>',
-        `Canva (agent path): ${assemble.isConfigured() ? '✅' : '❌ (нужен canva-auth + carousel.templateDesignId)'}`,
-        `Yandex.Disk: ${yandex.isConfigured() ? '✅' : '❌ (нужен YANDEX_DISK_TOKEN)'}`,
-        `Публикация: ${publish.canPublish() ? (metricool.isConfigured() ? '✅ Metricool REST' : '✅ через Metricool-коннектор (без токена)') : '❌ только превью'}`,
-        '',
-        `Designer-модель: <code>${agent.MODEL}</code> · лимит/пост: $${agent.MAX_COST_USD}`,
-        '• <code>/post &lt;тема&gt;</code> — собрать пост на согласование',
-        '• Расписание: ' + calendar.PLAN.map((p) => `${p.name} (${p.cron})`).join(', '),
-      ];
-      await bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML' }).catch(() => {});
+      await bot.sendMessage(chatId, autopilotStatusText(), { parse_mode: 'HTML' }).catch(() => {});
       return;
     }
     if (text.startsWith('/')) {
@@ -363,6 +371,20 @@ function start() {
     const cur = sessions.get(chatId);
     if (cur && cur.awaiting === 'photo') {
       await bot.sendMessage(chatId, t('content.expecting_photo', lang)).catch(() => {});
+      return;
+    }
+
+    // ✨ Autopilot: waiting for the post theme (from the menu button) → build it.
+    if (cur && cur.awaiting === 'auto_topic') {
+      const topic = (text === '-' || text === '—' || !text) ? 'Weekly recap — highlights from this week at AcroGym' : text;
+      sessions.set(chatId, {});
+      await bot.sendMessage(chatId, '🎨 Собираю пост через Canva и проверяю по 2 раза…').catch(() => {});
+      try {
+        await calendar.buildAndRoute(bot, chatId, { theme: topic, slides: 4, routine: false });
+      } catch (err) {
+        logger.error({ err: err.message }, 'autopilot /post (button) failed');
+        await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {});
+      }
       return;
     }
 
@@ -420,6 +442,20 @@ function start() {
       if (data.startsWith('pub:')) {
         const status = await publish.handleCallback(bot, chatId, data);
         await bot.answerCallbackQuery(query.id, status ? { text: status } : {}).catch(() => {});
+        return;
+      }
+      // ✨ Auto-post button → ask for a theme (then message handler builds it).
+      if (data === 'auto:new') {
+        sessions.set(chatId, { awaiting: 'auto_topic' });
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.sendMessage(chatId, lang === 'ru'
+          ? '✨ О чём пост? Напиши тему (или «-» — общий рекап недели):'
+          : '✨ Post topic? Send a theme (or "-" for a weekly recap):').catch(() => {});
+        return;
+      }
+      if (data === 'auto:status') {
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.sendMessage(chatId, autopilotStatusText(), { parse_mode: 'HTML' }).catch(() => {});
         return;
       }
       if (data === 'fmt:photo') {
