@@ -57,16 +57,21 @@ function newDraft(d) {
 function getDraft(id) { return pending.get(id); }
 function dropDraft(id) { pending.delete(id); }
 
-// Approval keyboard for a draft card.
-function approvalKeyboard(id) {
-  return {
-    inline_keyboard: [
-      [{ text: '✅ Опубликовать сейчас', callback_data: `pub:now:${id}` }],
-      [{ text: '🕒 В лучшее время', callback_data: `pub:best:${id}` },
-       { text: '🔄 Пересобрать', callback_data: `pub:redo:${id}` }],
-      [{ text: '🗑 Удалить', callback_data: `pub:drop:${id}` }],
-    ],
-  };
+// Approval keyboard for a draft card. Publish rows only when publishing is
+// available; 🔄 Rebuild / 🗑 Delete / ⬅️ Menu always present so the card is never
+// a dead-end (owner rule: always a way back).
+function approvalKeyboard(id, { canPublish: pub = true } = {}) {
+  const rows = [];
+  if (pub) {
+    rows.push([{ text: '✅ Опубликовать сейчас', callback_data: `pub:now:${id}` }]);
+    rows.push([{ text: '🕒 В лучшее время', callback_data: `pub:best:${id}` },
+               { text: '🔄 Пересобрать', callback_data: `pub:redo:${id}` }]);
+  } else {
+    rows.push([{ text: '🔄 Пересобрать', callback_data: `pub:redo:${id}` }]);
+  }
+  rows.push([{ text: '🗑 Удалить', callback_data: `pub:drop:${id}` },
+             { text: '⬅️ В меню', callback_data: 'menu' }]);
+  return { inline_keyboard: rows };
 }
 
 const mediaUrls = (draft) => (draft.slides || []).map((s) => s.url).filter(Boolean);
@@ -104,7 +109,7 @@ async function sendApprovalCard(bot, chatId, draft) {
 
   return bot.sendMessage(chatId, body, {
     parse_mode: 'HTML',
-    reply_markup: canPublish() ? approvalKeyboard(draft.id) : undefined,
+    reply_markup: approvalKeyboard(draft.id, { canPublish: canPublish() }),
   }).catch((err) => logger.error({ err: err.message }, 'approval card send failed'));
 }
 

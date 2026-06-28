@@ -209,6 +209,11 @@ function langKeyboard() {
 const showMenu = (bot, chatId, lang) =>
   bot.sendMessage(chatId, t('content.menu_prompt', lang), { reply_markup: menuKeyboard(lang) }).catch(() => {});
 
+// A single ⬅️ Menu button — appended to every prompt so no step is a dead-end
+// (owner rule: there must always be a way back). Optionally merge extra rows.
+const menuKb = (lang, extraRows = []) =>
+  ({ inline_keyboard: [...extraRows, [{ text: t('content.btn_menu', lang), callback_data: 'menu' }]] });
+
 // ─────────────────────────────────────────────────────────────
 // Core: generate a draft and send it (Copy / Regenerate / Menu)
 // ─────────────────────────────────────────────────────────────
@@ -342,7 +347,7 @@ function start() {
       return;
     }
     if (text === '/language' || text === '/lang') {
-      await bot.sendMessage(chatId, t('content.lang_prompt', lang), { reply_markup: langKeyboard() }).catch(() => {});
+      await bot.sendMessage(chatId, t('content.lang_prompt', lang), { reply_markup: menuKb(lang, langKeyboard().inline_keyboard) }).catch(() => {});
       return;
     }
     // ── Autopilot: on-demand post (Phase 3). /post <topic> → assemble via Canva,
@@ -468,21 +473,21 @@ function start() {
         await bot.sendMessage(chatId, lang === 'ru'
           ? '✨ О чём пост? Напиши тему (или «-» — общий рекап недели):'
           : '✨ Post topic? Send a theme (or "-" for a weekly recap):',
-          { reply_markup: { inline_keyboard: [[{ text: t('content.btn_menu', lang), callback_data: 'menu' }]] } }).catch(() => {});
+          { reply_markup: menuKb(lang) }).catch(() => {});
         return;
       }
       if (data === 'auto:status') {
         await bot.answerCallbackQuery(query.id).catch(() => {});
         await bot.sendMessage(chatId, autopilotStatusText(), {
           parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: [[{ text: t('content.btn_menu', lang), callback_data: 'menu' }]] },
+          reply_markup: menuKb(lang),
         }).catch(() => {});
         return;
       }
       if (data === 'fmt:photo') {
         sessions.set(chatId, { format: 'photo_caption', awaiting: 'photo' });
         await bot.answerCallbackQuery(query.id).catch(() => {});
-        await bot.sendMessage(chatId, t('content.ask_photo', lang)).catch(() => {});
+        await bot.sendMessage(chatId, t('content.ask_photo', lang), { reply_markup: menuKb(lang) }).catch(() => {});
         return;
       }
       // Track D — 🎨 branded image: start the flow (choose a background).
@@ -569,13 +574,13 @@ function start() {
           await deliverDraft(bot, chatId, format, plan.topic);
         } else if (plan.action === 'ask') {
           sessions.set(chatId, { format, awaiting: 'topic' });
-          await bot.sendMessage(chatId, t('content.ask_topic', lang, { format: label(format, lang) }), { parse_mode: 'Markdown' }).catch(() => {});
+          await bot.sendMessage(chatId, t('content.ask_topic', lang, { format: label(format, lang) }), { parse_mode: 'Markdown', reply_markup: menuKb(lang) }).catch(() => {});
         }
         return;
       }
       if (data === 'showlang') {
         await bot.answerCallbackQuery(query.id).catch(() => {});
-        await bot.sendMessage(chatId, t('content.lang_prompt', lang), { reply_markup: langKeyboard() }).catch(() => {});
+        await bot.sendMessage(chatId, t('content.lang_prompt', lang), { reply_markup: menuKb(lang, langKeyboard().inline_keyboard) }).catch(() => {});
         return;
       }
       if (data.startsWith('setlang:')) {
