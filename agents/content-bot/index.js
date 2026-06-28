@@ -34,6 +34,12 @@ const { isFormat } = require('./prompts');
 const { generateContent, generateCaption, generateHeadlines } = require('./generate');
 const { planFreeText, planFormatSelect, escapeHtml } = require('./router');
 const { composeBrandedImage, loadManifest } = require('./image');
+// Phase 1–3: autonomous posting (visuals via Canva, publish via Metricool).
+const publish   = require('./publish');
+const calendar  = require('./calendar');
+const metricool = require('./metricool');
+const yandex    = require('./yandex');
+const assemble  = require('./assemble');
 
 const logger = createLogger('content-bot');
 
@@ -319,6 +325,33 @@ function start() {
       await bot.sendMessage(chatId, t('content.lang_prompt', lang), { reply_markup: langKeyboard() }).catch(() => {});
       return;
     }
+    // ── Autopilot: on-demand post (Phase 3). /post <topic> → assemble via Canva,
+    //    self-verify, then approval card. routine=false → never auto-publishes.
+    if (text === '/post' || text.startsWith('/post ')) {
+      const topic = text.slice(5).trim();
+      if (!topic) { await bot.sendMessage(chatId, '📝 Тема? Напр.: /post throwback to last week’s competition').catch(() => {}); return; }
+      await bot.sendMessage(chatId, '🎨 Собираю пост через Canva и проверяю по 2 раза…').catch(() => {});
+      try {
+        await calendar.buildAndRoute(bot, chatId, { theme: topic, slides: 4, routine: false });
+      } catch (err) {
+        logger.error({ err: err.message }, '/post failed');
+        await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {});
+      }
+      return;
+    }
+    if (text === '/autopilot') {
+      const lines = [
+        '🤖 <b>Autopilot</b>',
+        `Canva: ${assemble.isConfigured() ? '✅' : '❌ (нужен canva-auth + data/canva-templates.json)'}`,
+        `Yandex.Disk: ${yandex.isConfigured() ? '✅' : '❌ (нужен YANDEX_DISK_TOKEN)'}`,
+        `Metricool: ${metricool.isConfigured() ? '✅ публикация активна' : '❌ только превью (нужен METRICOOL_USER_TOKEN/USER_ID)'}`,
+        '',
+        '• <code>/post &lt;тема&gt;</code> — собрать пост на согласование',
+        '• Расписание: ' + calendar.PLAN.map((p) => `${p.name} (${p.cron})`).join(', '),
+      ];
+      await bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML' }).catch(() => {});
+      return;
+    }
     if (text.startsWith('/')) {
       await showMenu(bot, chatId, lang);
       return;
@@ -381,6 +414,12 @@ function start() {
     const lang = uiLang(chatId);
 
     try {
+      // Autopilot approval buttons (publish / best-time / discard).
+      if (data.startsWith('pub:')) {
+        const status = await publish.handleCallback(bot, chatId, data);
+        await bot.answerCallbackQuery(query.id, status ? { text: status } : {}).catch(() => {});
+        return;
+      }
       if (data === 'fmt:photo') {
         sessions.set(chatId, { format: 'photo_caption', awaiting: 'photo' });
         await bot.answerCallbackQuery(query.id).catch(() => {});
@@ -530,7 +569,20 @@ function start() {
   probe();
   setInterval(probe, 60 * 1000);
 
-  logger.info('Content-bot running ✅ (C.2 text formats — RU/EN UI, EN output)');
+  // ── Autopilot content calendar (Phase 3). Owner = first allow-listed chat.
+  //    Routine themes may auto-publish AFTER self-verification; everything else
+  //    waits for an approval tap. Safe no-op if Canva/Metricool unconfigured
+  //    (jobs will just report they couldn't assemble).
+  try {
+    if (ALLOWED.length) {
+      calendar.start(bot, ALLOWED[0]);
+      logger.info({ owner: ALLOWED[0] }, 'autopilot calendar started');
+    }
+  } catch (err) {
+    logger.error({ err: err.message }, 'autopilot calendar start failed');
+  }
+
+  logger.info('Content-bot running ✅ (C.2 text + autopilot: Canva→verify→Metricool gate)');
   return bot;
 }
 
