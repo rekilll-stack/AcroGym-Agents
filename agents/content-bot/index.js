@@ -451,12 +451,16 @@ function start() {
         await bot.answerCallbackQuery(query.id).catch(() => {});
         await bot.sendMessage(chatId, lang === 'ru'
           ? '✨ О чём пост? Напиши тему (или «-» — общий рекап недели):'
-          : '✨ Post topic? Send a theme (or "-" for a weekly recap):').catch(() => {});
+          : '✨ Post topic? Send a theme (or "-" for a weekly recap):',
+          { reply_markup: { inline_keyboard: [[{ text: t('content.btn_menu', lang), callback_data: 'menu' }]] } }).catch(() => {});
         return;
       }
       if (data === 'auto:status') {
         await bot.answerCallbackQuery(query.id).catch(() => {});
-        await bot.sendMessage(chatId, autopilotStatusText(), { parse_mode: 'HTML' }).catch(() => {});
+        await bot.sendMessage(chatId, autopilotStatusText(), {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: [[{ text: t('content.btn_menu', lang), callback_data: 'menu' }]] },
+        }).catch(() => {});
         return;
       }
       if (data === 'fmt:photo') {
