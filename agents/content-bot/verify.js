@@ -33,7 +33,9 @@ const MIN_SLIDES = 1;
 const MAX_SLIDES = 10;
 // Vision QA on Haiku (cheap) — quality is now driven by smart photo selection
 // (photos.js, Sonnet) + deterministic checks; keeps per-post cost in budget.
-const VISION_MODEL = process.env.CONTENT_VERIFY_MODEL || 'haiku';
+// Full model ID required — this goes through the Anthropic SDK (shared/claude),
+// which does NOT accept CLI aliases like "haiku" (→ 404 not_found_error).
+const VISION_MODEL = process.env.CONTENT_VERIFY_MODEL || 'claude-haiku-4-5-20251001';
 const PLACEHOLDER_RE = /\b(lorem ipsum|paste_|your text here|headline here|body here|meet the coach|building skills together|xxxx+)\b/i;
 
 // ── layer 1: structure ───────────────────────────────────────────
