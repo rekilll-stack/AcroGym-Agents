@@ -23,6 +23,7 @@ const fs = require('fs');
 const path = require('path');
 const canva = require('./canva');
 const agent = require('./agent');
+const crop = require('./crop');
 const { generateContent } = require('./generate');
 const { createLogger } = require('../../shared/logger');
 
@@ -76,10 +77,15 @@ async function assembleCarousel({ topic, photos, cover, inner, caption }) {
     return e;
   };
 
-  // 1) Upload every photo as a Canva asset via REST (works on Pro).
+  // 1) Pre-crop each photo to an exact 4:5 frame CENTRED on the people, then
+  //    upload as a Canva asset. Canva now fills a 4:5 element with a 4:5 image,
+  //    so it can't re-crop and cut faces — the framing is controlled here.
   const assetIds = [];
   for (let i = 0; i < photos.length; i++) {
-    assetIds.push(await canva.uploadAsset(photos[i].buffer, photos[i].name || `photo-${i + 1}.jpg`));
+    let buf = photos[i].buffer;
+    try { buf = await crop.safeCrop45(buf); }
+    catch (err) { logger.warn({ err: err.message, photo: photos[i].name }, 'pre-crop failed → using original'); }
+    assetIds.push(await canva.uploadAsset(buf, photos[i].name || `photo-${i + 1}.jpg`));
   }
 
   // 2) Build the slide spec with EXACT element ids: page 1 = cover, 2..n = inner.
