@@ -46,9 +46,22 @@ Ranking priority:
 4. For a room/equipment topic, faces don't matter — judge the space; still prefer a composition that reads well tall.
 
 Avoid: off-topic shots, blurry, dark, cluttered/empty, near-duplicates, and crowds spanning the full frame width.
-Reply with ONLY a raw JSON object — NO analysis, NO commentary, NO markdown, nothing before or after it. Your entire response must start with { and be exactly: {"order":[best index, next, ...]} listing the indices (0-based) of GOOD on-topic photos, best first, omitting the rest.`;
+Reply with ONLY a raw JSON object, exactly ONCE — NO analysis, NO commentary, NO markdown, no second attempt, nothing before or after it. Your entire response must start with { and be exactly: {"order":[best index, next, ...]} listing the indices (0-based) of GOOD on-topic photos, best first, omitting the rest. Output it once and STOP.`;
 
-function parseJson(text) { try { const m = String(text).match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } catch { return null; } }
+// Extract the FIRST balanced {...} object. The model sometimes emits a valid
+// JSON, then second-guesses and prints a second one + prose; a greedy match would
+// swallow both and fail to parse. Scan braces to take just the first object.
+function parseJson(text) {
+  const s = String(text);
+  const start = s.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0;
+  for (let i = start; i < s.length; i++) {
+    if (s[i] === '{') depth++;
+    else if (s[i] === '}') { depth--; if (depth === 0) { try { return JSON.parse(s.slice(start, i + 1)); } catch { return null; } } }
+  }
+  return null;
+}
 
 /**
  * Select the best `count` photos (download full-res). Returns
