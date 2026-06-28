@@ -22,9 +22,13 @@ const { createLogger } = require('../../shared/logger');
 const logger = createLogger('content-bot');
 
 const SELECT_MODEL = process.env.CONTENT_SELECT_MODEL || 'claude-sonnet-4-6';
+// Pull from ALL real photo folders so selection can pick the best-composed shots
+// (the "May 2025" set has portrait single-subject photos that crop full-bleed;
+// the "2026" set is mostly wide crowded event shots → letterbox). Order doesn't
+// matter — they're aggregated and ranked together by the vision step.
 const CANDIDATE_FOLDERS = [
+  '/AcroGym/Marketing/Photos/Competitions May 2025',
   '/AcroGym/Marketing/AcroGym Competiton 2026',
-  yandex.MARKETING,
 ];
 
 // Spread a sample across a big list so we don't always see the same first shots.
@@ -70,17 +74,31 @@ function parseJson(text) {
  */
 async function selectBest(count, { folder, exclude = [], topic = '' } = {}) {
   const folders = [folder, ...CANDIDATE_FOLDERS].filter(Boolean);
+  // Aggregate across ALL folders (don't stop at the first) so the vision step
+  // ranks the whole library and can prefer the better-composed shots.
+  const perFolder = [];
   let candidates = [];
   for (const f of folders) {
     try {
-      const imgs = await yandex.listImages(f, { limit: 300, previewSize: 'M' });
-      if (imgs.length) { candidates = imgs; break; }
+      const imgs = await yandex.listImages(f, { limit: 200, previewSize: 'M' });
+      perFolder.push(imgs);
+      candidates.push(...imgs);
     } catch (err) { logger.warn({ folder: f, err: err.message }, 'selectBest: folder skip'); }
   }
-  candidates = candidates.filter((c) => !exclude.includes(c.path));
+  // de-dupe by path, drop excluded
+  const seen = new Set();
+  candidates = candidates.filter((c) => !exclude.includes(c.path) && !seen.has(c.path) && seen.add(c.path));
   if (!candidates.length) throw new Error('no candidate images under /AcroGym/Marketing');
 
-  const shortlist = sample(candidates, 14).filter((c) => c.preview);
+  // Balanced shortlist: a spread sample from EACH folder so a smaller, better-
+  // composed set isn't drowned out by a large crowded one. ~16 thumbnails total.
+  const perN = Math.max(4, Math.ceil(16 / Math.max(1, perFolder.length)));
+  const seen2 = new Set();
+  let shortlist = perFolder
+    .flatMap((imgs) => sample(imgs.filter((c) => c.preview && !exclude.includes(c.path)), perN))
+    .filter((c) => c && !seen2.has(c.path) && seen2.add(c.path))
+    .slice(0, 18);
+  if (!shortlist.length) shortlist = sample(candidates, 14).filter((c) => c.preview);
   let order = null;
   if (shortlist.length) {
     try {
