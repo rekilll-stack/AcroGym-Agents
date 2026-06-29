@@ -39,7 +39,7 @@ const PLAN = [
   { name: 'weekly-recap', cron: '0 18 * * 4', theme: 'Weekly recap: highlights from training this week at AcroGym', slides: 4, routine: false },
 ];
 
-const PLAN_SYSTEM = `You write Instagram carousel copy for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional. Output language: ENGLISH only.
+const PLAN_SYSTEM = `You write Instagram carousel copy for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional. Output language: ENGLISH only — the THEME may be written in Russian or any language, but ALWAYS write every headline, body and caption in ENGLISH (this is published copy for the audience).
 Given a THEME and a slide count N, return STRICT JSON (no prose):
 {"cover":{"headline":"<1-2 SHORT words only, ≤14 characters total — it must fit one line>","cta":"<short CTA, e.g. BOOK A TRIAL>"},
  "inner":[{"headline":"<ONE short word, uppercase, ≤11 chars>","body":"<1-2 sentences, <140 chars>"}, ... exactly N-1 items],
@@ -86,7 +86,7 @@ async function pickPhotos(n, folder) {
 }
 
 // Copy for a single Instagram STORY (9:16): short headline + CTA + caption.
-const STORY_SYSTEM = `You write copy for ONE Instagram STORY (9:16 vertical) for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. English only. Voice: warm, energetic, safe.
+const STORY_SYSTEM = `You write copy for ONE Instagram STORY (9:16 vertical) for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. English only — the TOPIC may be written in Russian or any language, but ALWAYS write the headline, CTA and caption in ENGLISH (this is published copy for the audience). Voice: warm, energetic, safe.
 Given a TOPIC, return STRICT JSON (no prose):
 {"headline":"<1-2 SHORT punchy words, ≤12 characters total, MUST fit one line — e.g. \\"WE'RE OPEN\\", \\"NEW GYM\\", \\"SOON\\">","cta":"<short CTA, e.g. BOOK A TRIAL>","caption":"<short IG caption, 1-2 emojis, 3-6 hashtags>"}
 Keep it child-safe and on-brand. Never invent prices, dates, or results.`;
@@ -157,23 +157,45 @@ async function buildStoryAndRoute(bot, ownerChatId, { theme, routine = false, fo
  * MP4 is generated locally (no public URL for Metricool), so for now it's a
  * preview the owner downloads/posts. Auto-publish needs a hosting decision.
  */
+// Reels are built from REAL video clips the owner drops in /Marketing/Videos —
+// NOT Ken-Burns from a still. We pick a clip, clean it to an IG-ready 9:16 mp4,
+// caption it (English), host it, and route through the approval gate.
+const REEL_RECENT = []; // last few clip paths used — avoid repeating the same clip
 async function buildReelAndRoute(bot, ownerChatId, { theme, routine = false, folder } = {}) {
-  logger.info({ theme }, 'calendar: building reel');
+  const video = require('./video');
+  const os = require('os'); const fssync = require('fs'); const pathMod = require('path');
+  logger.info({ theme }, 'calendar: building reel (real clip)');
   const scope = beginCost();
-  const copy = await generateStoryCopy(theme);
-  const sel = await photos.selectBest(1, { folder, topic: theme, exclude: [], story: true });
-  const photo = sel.photos && sel.photos[0];
-  if (!photo) throw new Error('reel: no photo selected');
-  const assembled = await assemble.assembleReel({ topic: theme, photo, headline: copy.headline, cta: copy.cta, caption: copy.caption });
-  const slide0 = assembled.slides[0] || {};
-  const poster = slide0.poster;
-  const mp4 = slide0.buffer;
-  const vr = poster
-    ? await verifySlide(poster, { context: 'AcroGym story/reel 9:16 cover-style frame', expectedRatio: 1080 / 1920, ratioLabel: '9:16' })
-    : { ok: true, issues: [] };
-  const cap = verifyCaption(assembled.caption);
 
-  // Host the MP4 on Yandex.Disk → public direct URL so Metricool can publish it.
+  // 1. pick a real clip (prefer ones not used recently).
+  const vids = await yandex.listVideos(folder || yandex.VIDEOS);
+  if (!vids.length) throw new Error('reel: нет видео в /AcroGym/Marketing/Videos — закинь клипы туда');
+  const fresh = vids.filter((v) => !REEL_RECENT.includes(v.path));
+  const pool = fresh.length ? fresh : vids;
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  REEL_RECENT.push(pick.path); while (REEL_RECENT.length > 5) REEL_RECENT.shift();
+
+  // 2. download → clean transcode to IG-ready 9:16 mp4 (+ poster frame).
+  const srcBuf = await yandex.downloadBuffer(pick.path);
+  const tmp = fssync.mkdtempSync(pathMod.join(os.tmpdir(), 'reelsrc-'));
+  const ext = (pick.name.match(/\.[a-z0-9]+$/i) || ['.mov'])[0];
+  const inPath = pathMod.join(tmp, `in${ext}`);
+  fssync.writeFileSync(inPath, srcBuf);
+  let mp4; let poster;
+  try {
+    const out = await video.cleanReel(inPath, { maxSeconds: parseInt(process.env.CONTENT_REEL_MAX_SECONDS || '90', 10) });
+    mp4 = out.buffer; poster = out.poster;
+  } finally { try { fssync.rmSync(tmp, { recursive: true, force: true }); } catch { /* ignore */ } }
+
+  // 3. caption (English brand voice).
+  const copy = await generateStoryCopy(theme);
+  const caption = (copy.caption && copy.caption.trim()) || copy.headline || `AcroGym — ${theme}`;
+
+  // 4. verify the cover frame + host the MP4 on Yandex → public direct URL.
+  const vr = poster
+    ? await verifySlide(poster, { context: 'AcroGym reel 9:16 video frame (real footage, no overlaid text expected)', expectedRatio: 1080 / 1920, ratioLabel: '9:16' })
+    : { ok: true, issues: [] };
+  const cap = verifyCaption(caption);
   let mediaUrl = null; let hostErr = null;
   try {
     const up = await yandex.uploadPublic(mp4, `reel-${Date.now()}.mp4`, { contentType: 'video/mp4' });
@@ -181,20 +203,19 @@ async function buildReelAndRoute(bot, ownerChatId, { theme, routine = false, fol
   } catch (err) { hostErr = err.message; logger.error({ err: err.message }, 'reel hosting upload failed'); }
 
   const apiCost = endCost(scope);
-  const totalCost = apiCost + (assembled.costUsd || 0);
   const issues = [...vr.issues.map((x) => `кадр: ${x}`), ...cap.issues.map((x) => `подпись: ${x}`)];
   if (hostErr) issues.push(`хостинг видео: ${hostErr}`);
-  const verifyOk = vr.ok && cap.ok && !!mediaUrl && !assembled.overBudget;
+  const verifyOk = vr.ok && cap.ok && !!mediaUrl;
 
   const draft = publish.newDraft({
     kind: 'reel', igType: 'REEL',
-    caption: assembled.caption,
-    slides: [{ url: mediaUrl, buffer: mp4, poster, isVideo: true, alt: `${copy.headline} — AcroGym` }],
+    caption,
+    slides: [{ url: mediaUrl, buffer: mp4, poster, isVideo: true, alt: `AcroGym reel — ${theme}` }],
     theme, reelFormat: true,
     routine: routine && verifyOk,
     verify: { ok: verifyOk, issues },
-    costUsd: totalCost,
-    source: `${routine ? 'calendar' : 'on-demand'} reel: ${theme}`,
+    costUsd: apiCost,
+    source: `${routine ? 'calendar' : 'on-demand'} reel(${pick.name}): ${theme}`,
   });
   return publish.route(bot, ownerChatId, draft);
 }

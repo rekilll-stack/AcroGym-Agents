@@ -22,6 +22,8 @@ const TOKEN = () => (process.env.YANDEX_DISK_TOKEN || '').trim();
 // Hard scope guard: never read outside /AcroGym.
 const ROOT = '/AcroGym';
 const MARKETING = '/AcroGym/Marketing';
+// Real video clips for Reels live here — owner drops .mov/.mp4 files in.
+const VIDEOS = `${MARKETING}/Videos`;
 
 function isConfigured() {
   return !!TOKEN();
@@ -71,6 +73,13 @@ async function list(path = MARKETING, { limit = 200, sort = 'name', previewSize 
 async function listImages(path = MARKETING, opts = {}) {
   const { items } = await list(path, opts);
   return items.filter((i) => i.type === 'file' && i.media_type === 'image');
+}
+
+/** List only video files in a folder (real footage for Reels). */
+async function listVideos(path = VIDEOS, opts = {}) {
+  const { items } = await list(path, opts);
+  return items.filter((i) => i.type === 'file'
+    && (i.media_type === 'video' || /\.(mov|mp4|m4v|webm|avi)$/i.test(i.name)));
 }
 
 /** Fetch a (small) preview thumbnail URL into a Buffer (needs the OAuth token). */
@@ -127,9 +136,11 @@ module.exports = {
   isConfigured,
   list,
   listImages,
+  listVideos,
   downloadBuffer,
   fetchPreview,
   uploadPublic,
   ROOT,
   MARKETING,
+  VIDEOS,
 };

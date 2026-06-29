@@ -94,42 +94,48 @@ function rid() { return Math.random().toString(16).slice(2, 8); }
 // Stage 1 — a senior SMM strategist studies the competitor brief, brand and
 // season, and produces a compact strategy (NOT the posts yet). This is what
 // makes the plan considered rather than generic.
-const ANALYST_SYSTEM = `You are a SENIOR social-media strategist — AcroGym Qatar's personal SMM lead. AcroGym is a kids' gymnastics & acrobatics club in Doha with a new gym at Lagoona Mall. Audience: parents of children 3–14.
+// Planning text the OWNER reads (strategy, proposed topics, hooks, reasoning) is
+// written in the owner's chosen language. Only PUBLISHED post/slide/caption copy
+// is forced to English — that is enforced downstream (calendar.js, prompts.js).
+const LANG_NAME = (lang) => (lang === 'ru' ? 'Russian' : 'English');
+
+const analystSystem = (lang) => `You are a SENIOR social-media strategist — AcroGym Qatar's personal SMM lead. AcroGym is a kids' gymnastics & acrobatics club in Doha with a new gym at Lagoona Mall. Audience: parents of children 3–14.
 You are given a COMPETITOR & POSITIONING BRIEF for the Qatar market. Study it deeply and think like a strategist, not a copywriter.
 Produce a SHORT, sharp strategy for the next batch of posts:
 - the differentiated angle vs the named Qatar competitors,
 - which content pillars to hit this batch and why,
 - 1–2 audience-engagement hooks worth leaning on now (questions, saves, shares),
 - anything to AVOID (what rivals over-do).
-Keep it under ~180 words, plain text, no fluff. This guides the post proposals next.`;
+Keep it under ~180 words, plain text, no fluff. Write the strategy in ${LANG_NAME(lang)} — it is an internal note the owner reads. This guides the post proposals next.`;
 
 // Stage 2 — turn the strategy into concrete, buildable post proposals.
-const PROPOSE_SYSTEM = `You are AcroGym Qatar's SMM lead turning an agreed STRATEGY into a content plan of exactly N Instagram items. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional.
+const proposeSystem = (lang) => `You are AcroGym Qatar's SMM lead turning an agreed STRATEGY into a content plan of exactly N Instagram items. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional.
 Each item = a concrete, buildable TOPIC (a specific angle, not a vague category) + a FORMAT + a TYPE tag + a one-line HOOK + a short WHY (how it serves the strategy / engages the audience).
 FORMAT is either "post" (a 4:5 carousel — for educational/benefits/proof/announcement depth) or "story" (a single 9:16 vertical — for timely, lightweight, behind-the-scenes, countdowns, polls, "today at the gym" moments). Aim for a MIX: roughly 2/3 posts and 1/3 stories.
 Ensure VARIETY and a coherent, beautiful feed (rotate pillars: emotional, trust/safety, benefits/education, behind-the-scenes, proof, announcement/seasonal).
 🔴 Do NOT invent specifics the club hasn't given you: no made-up coach/staff names, no specific children, no fabricated testimonials, quotes, prices, dates, discounts or results. Keep topics GENERAL and truthful — e.g. "Meet our coaches" not "Meet Coach Sarah".
+This plan is read by the owner — write theme, hook and why in ${LANG_NAME(lang)} (the actual published post copy is generated separately in English).
 Return STRICT JSON ONLY, no prose:
-{"posts":[{"theme":"<specific topic, ENGLISH, one line>","format":"post"|"story","type":"<one lowercase tag>","hook":"<one-line scroll-stopper>","why":"<short reason, ENGLISH>"}, ... exactly N items]}`;
+{"posts":[{"theme":"<specific topic in ${LANG_NAME(lang)}, one line>","format":"post"|"story","type":"<one lowercase english tag>","hook":"<one-line scroll-stopper in ${LANG_NAME(lang)}>","why":"<short reason in ${LANG_NAME(lang)}>"}, ... exactly N items]}`;
 
-async function analyse(focus = '') {
+async function analyse(focus = '', lang = 'en') {
   const brief = loadBrief();
   return generateText({
-    system: ANALYST_SYSTEM,
+    system: analystSystem(lang),
     model: STRATEGIST_MODEL,
     user: `COMPETITOR & POSITIONING BRIEF:\n${brief || '(no brief on file — reason from general best practice for a kids\' acro club in Doha)'}\n\n${seasonContext()}\n${focus ? `Owner's focus for this batch: ${focus}` : 'No specific focus — plan a balanced, engaging batch.'}\n\nGive the strategy.`,
     maxTokens: 500,
   });
 }
 
-async function generateDraft(chatId, { count = DEFAULT_COUNT, days = DEFAULT_DAYS, focus = '' } = {}) {
+async function generateDraft(chatId, { count = DEFAULT_COUNT, days = DEFAULT_DAYS, focus = '', lang = 'en' } = {}) {
   // Stage 1: strategy from deep competitor/brand analysis.
   let strategy = '';
-  try { strategy = await analyse(focus); } catch (err) { logger.warn({ err: err.message }, 'plan analysis failed → proposing without strategy'); }
+  try { strategy = await analyse(focus, lang); } catch (err) { logger.warn({ err: err.message }, 'plan analysis failed → proposing without strategy'); }
 
   // Stage 2: concrete proposals grounded in the strategy.
   const raw = await generateText({
-    system: PROPOSE_SYSTEM,
+    system: proposeSystem(lang),
     model: STRATEGIST_MODEL,
     user: `STRATEGY:\n${strategy || '(none — use best practice)'}\n\nN: ${count}\nReturn the JSON.`,
     maxTokens: 900,

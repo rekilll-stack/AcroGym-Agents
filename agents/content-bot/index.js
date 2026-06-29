@@ -38,7 +38,7 @@ const { t }              = require('../../shared/i18n');
 const { getPreferredLanguage, setPreferredLanguage } = require('../../shared/preferences');
 const { isFormat } = require('./prompts');
 const { generateContent, generateCaption, generateHeadlines } = require('./generate');
-const { planFreeText, planFormatSelect, escapeHtml } = require('./router');
+const { escapeHtml } = require('./router');
 const { composeBrandedImage, loadManifest } = require('./image');
 // Phase 1–3: autonomous posting (visuals via Canva, publish via Metricool).
 const publish   = require('./publish');
@@ -116,8 +116,9 @@ function menuKeyboard(lang) {
        { text: ru ? '📋 Показать план' : '📋 Show plan', callback_data: 'plan:show' }],
       [{ text: ru ? '🔎 Анализ конкурентов' : '🔎 Competitor analysis', callback_data: 'plan:analyze' }],
       [{ text: ru ? '🤖 Статус автопилота' : '🤖 Autopilot status', callback_data: 'auto:status' }],
-      [{ text: t('content.btn_post', lang), callback_data: 'fmt:post' }],
-      [{ text: t('content.btn_ideas', lang), callback_data: 'fmt:ideas' }, { text: t('content.btn_plan', lang), callback_data: 'fmt:plan' }],
+      // 📱 Story (9:16) and 🎬 Reel (9:16 motion video) — on-demand, approval-gated.
+      [{ text: ru ? '📱 Сторис' : '📱 Story', callback_data: 'story:new' },
+       { text: ru ? '🎬 Reel (видео)' : '🎬 Reel (video)', callback_data: 'reel:new' }],
       [{ text: t('content.btn_photo', lang), callback_data: 'fmt:photo' }],
       // 🎨 Branded image (node-canvas engine) retired 2026-06-28 — superseded by
       // ✨ Auto-post (exact Canva look). Handlers left dormant; can be stripped later.
@@ -242,14 +243,17 @@ const planShowKb = (lang) => ({ inline_keyboard: [
 // Shared by the 📅 button AND the weekly auto-plan cron.
 async function proposePlanToOwner(bot, chatId) {
   const lang = uiLang(chatId);
-  const items = await contentPlan.generateDraft(chatId, {});
+  const ru = lang === 'ru';
+  const items = await contentPlan.generateDraft(chatId, { lang });
   const s = sessions.get(chatId) || {}; s.awaiting = 'plan_review'; sessions.set(chatId, s);
   const pend = contentPlan.getPending(chatId);
   const strategyLine = pend && pend.strategy
-    ? `🧭 <b>Стратегия</b> (анализ конкурентов в Катаре):\n<i>${escapeHtml(pend.strategy)}</i>\n\n`
+    ? `🧭 <b>${ru ? 'Стратегия' : 'Strategy'}</b> (${ru ? 'анализ конкурентов в Катаре' : 'Qatar competitor analysis'}):\n<i>${escapeHtml(pend.strategy)}</i>\n\n`
     : '';
-  await bot.sendMessage(chatId,
-    `${strategyLine}📅 <b>Черновик плана</b> (${items.length} поста):\n\n${escapeHtml(contentPlan.renderPending(items))}\n\n✏️ Изменить строку — напиши «2: новая тема». Потом ✅ Утвердить.`,
+  const body = ru
+    ? `${strategyLine}📅 <b>Черновик плана</b> (${items.length} постов):\n\n${escapeHtml(contentPlan.renderPending(items))}\n\n✏️ Изменить строку — напиши «2: новая тема». Потом ✅ Утвердить.`
+    : `${strategyLine}📅 <b>Draft plan</b> (${items.length} posts):\n\n${escapeHtml(contentPlan.renderPending(items))}\n\n✏️ To edit a line, write "2: new topic". Then ✅ Approve.`;
+  await bot.sendMessage(chatId, body,
     { parse_mode: 'HTML', reply_markup: planReviewKb(lang) }).catch(() => {});
 }
 
@@ -260,7 +264,9 @@ async function deliverDraft(bot, chatId, format, topic) {
   const lang = uiLang(chatId);
   logger.info({ format, topicPreview: String(topic || '').slice(0, 80) }, 'generating draft');
   bot.sendChatAction(chatId, 'typing').catch(() => {});
-  const draft = await generateContent(format, topic); // OUTPUT is always English (prompt-enforced)
+  // A 'post' is always English (published content); 'plan'/'ideas' follow the
+  // owner's interface language (planning notes the owner reads).
+  const draft = await generateContent(format, topic, { lang });
   const s = sessions.get(chatId) || {};
   s.format = format; s.lastTopic = topic; s.lastDraft = draft; s.awaiting = null; s.pendingTopic = null;
   sessions.set(chatId, s);
@@ -451,6 +457,34 @@ function start() {
       return;
     }
 
+    // 📱 Story theme (from the menu button) → build a 9:16 story (approval card).
+    if (cur && cur.awaiting === 'story_topic') {
+      const topic = (text === '-' || text === '—' || !text) ? 'Behind the scenes at AcroGym' : text;
+      sessions.set(chatId, {});
+      await bot.sendMessage(chatId, '🎨 Собираю сторис 9:16 через Canva…').catch(() => {});
+      try {
+        await calendar.buildStoryAndRoute(bot, chatId, { theme: topic, routine: false });
+      } catch (err) {
+        logger.error({ err: err.message }, 'story (button) failed');
+        await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {});
+      }
+      return;
+    }
+
+    // 🎬 Reel theme (from the menu button) → build a 9:16 motion reel (delivered as video).
+    if (cur && cur.awaiting === 'reel_topic') {
+      const topic = (text === '-' || text === '—' || !text) ? 'A joyful moment in training at AcroGym' : text;
+      sessions.set(chatId, {});
+      await bot.sendMessage(chatId, '🎬 Собираю Reel 9:16 с движением (Canva + ffmpeg)…').catch(() => {});
+      try {
+        await calendar.buildReelAndRoute(bot, chatId, { theme: topic });
+      } catch (err) {
+        logger.error({ err: err.message }, 'reel (button) failed');
+        await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {});
+      }
+      return;
+    }
+
     // 📅 Reviewing a draft content plan: "2: new theme" edits a line; anything
     // else nudges. Approval/regeneration happen via the inline buttons.
     if (cur && cur.awaiting === 'plan_review') {
@@ -497,17 +531,9 @@ function start() {
       return;
     }
 
-    // Free text → router (flow A: awaited topic → generate; flow B: typed first
-    // → remember as pending, never drop). Input may be Russian; output stays EN.
-    const plan = planFreeText(sessions.get(chatId), text);
-    if (plan.action === 'generate') {
-      await deliverDraft(bot, chatId, plan.format, plan.topic);
-    } else if (plan.action === 'store') {
-      const s = sessions.get(chatId) || {};
-      s.pendingTopic = plan.topic;
-      sessions.set(chatId, s);
-      await bot.sendMessage(chatId, t('content.pending_stored', lang), { reply_markup: menuKeyboard(lang) }).catch(() => {});
-    }
+    // No free-text text-drafts any more (📝 пост / 💡 идеи / 📅 план retired) —
+    // everything is driven by buttons. Guide a stray message back to the menu.
+    await showMenu(bot, chatId, lang);
   });
 
   // ── Inline buttons ──
@@ -555,6 +581,26 @@ function start() {
         await bot.sendMessage(chatId, lang === 'ru'
           ? '✨ О чём пост? Напиши тему (или «-» — общий рекап недели):'
           : '✨ Post topic? Send a theme (or "-" for a weekly recap):',
+          { reply_markup: menuKb(lang) }).catch(() => {});
+        return;
+      }
+      // 📱 Story — ask for the theme, then build a 9:16 story (approval card).
+      if (data === 'story:new') {
+        sessions.set(chatId, { awaiting: 'story_topic' });
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.sendMessage(chatId, lang === 'ru'
+          ? '📱 О чём сторис? Напиши тему (или «-» — за кулисами зала):'
+          : '📱 Story topic? Send a theme (or "-" for behind-the-scenes):',
+          { reply_markup: menuKb(lang) }).catch(() => {});
+        return;
+      }
+      // 🎬 Reel — ask for the theme, then build a 9:16 motion video (not auto-posted).
+      if (data === 'reel:new') {
+        sessions.set(chatId, { awaiting: 'reel_topic' });
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.sendMessage(chatId, lang === 'ru'
+          ? '🎬 О чём Reel? Напиши тему (или «-» — радостный момент тренировки):'
+          : '🎬 Reel topic? Send a theme (or "-" for a joyful training moment):',
           { reply_markup: menuKb(lang) }).catch(() => {});
         return;
       }
@@ -690,19 +736,6 @@ function start() {
           await bot.sendMessage(chatId, t('content.branded_ask_headline', lang), { reply_markup: headlineAskKeyboard(lang) }).catch(() => {});
         } else {
           await bot.answerCallbackQuery(query.id, { text: t('content.nothing_regen', lang) }).catch(() => {});
-        }
-        return;
-      }
-      if (data.startsWith('fmt:')) {
-        const format = data.slice(4);
-        await bot.answerCallbackQuery(query.id).catch(() => {});
-        const plan = planFormatSelect(sessions.get(chatId), format);
-        if (plan.action === 'generate') {
-          sessions.set(chatId, { format });
-          await deliverDraft(bot, chatId, format, plan.topic);
-        } else if (plan.action === 'ask') {
-          sessions.set(chatId, { format, awaiting: 'topic' });
-          await bot.sendMessage(chatId, t('content.ask_topic', lang, { format: label(format, lang) }), { parse_mode: 'Markdown', reply_markup: menuKb(lang) }).catch(() => {});
         }
         return;
       }

@@ -70,4 +70,47 @@ async function kenBurnsReel(pngBuffer, { seconds = SECONDS } = {}) {
   }
 }
 
-module.exports = { kenBurnsReel };
+/**
+ * Clean a REAL video clip into an Instagram-Reel-ready MP4: strip extra
+ * data/thumbnail streams (iMovie/CapCut add them), normalise to 9:16 1080x1920
+ * (letterbox if the source isn't vertical), H.264 yuv420p + AAC + faststart.
+ * Also extracts a poster (first frame) for the approval card.
+ * @param {string} inputPath  local path to the source clip (.mov/.mp4)
+ * @param {object} [opts] { maxSeconds }  optional hard cap on duration
+ * @returns {Promise<{buffer:Buffer, poster:Buffer, seconds:number}>}
+ */
+async function cleanReel(inputPath, { maxSeconds } = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'reel-clean-'));
+  const outMp4 = path.join(dir, 'reel.mp4');
+  const posterPng = path.join(dir, 'poster.png');
+  // decrease-fit into 1080x1920 then pad (centred) → never crops the action.
+  const vf = [
+    'scale=1080:1920:force_original_aspect_ratio=decrease',
+    'pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black',
+    'setsar=1',
+    'format=yuv420p',
+  ].join(',');
+  const args = [
+    '-y', '-i', inputPath,
+    '-map', '0:v:0', '-map', '0:a:0?', // first video + audio (if any)
+    '-dn', '-map_metadata', '-1', // drop data/timecode streams + source metadata → clean mp4
+    '-vf', vf,
+    '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
+    '-c:a', 'aac', '-b:a', '128k',
+    '-movflags', '+faststart',
+  ];
+  if (maxSeconds) args.push('-t', String(maxSeconds));
+  args.push(outMp4);
+  try {
+    await run(FFMPEG, args, 300000);
+    await run(FFMPEG, ['-y', '-i', outMp4, '-frames:v', '1', posterPng], 60000);
+    const buffer = fs.readFileSync(outMp4);
+    const poster = fs.readFileSync(posterPng);
+    logger.info({ bytes: buffer.length }, 'reel cleaned (real clip → IG mp4)');
+    return { buffer, poster };
+  } finally {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+}
+
+module.exports = { kenBurnsReel, cleanReel };

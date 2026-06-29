@@ -17,15 +17,15 @@ const logger = createLogger('content-bot');
  * @param {object} [deps]  { generate } — injectable for tests
  * @returns {Promise<string>}
  */
-async function generateContent(format, topic, { generate = generateText } = {}) {
+async function generateContent(format, topic, { generate = generateText, lang = 'en' } = {}) {
   try {
-    const text = await generate(buildContentPrompt(format, topic));
+    const text = await generate(buildContentPrompt(format, topic, lang));
     if (text && text.trim()) return text.trim();
     logger.warn({ format }, 'empty generation — using fallback');
   } catch (err) {
     logger.warn({ err: err.message, format }, 'Claude unavailable — using content fallback');
   }
-  return fallbackContent(format, topic);
+  return fallbackContent(format, topic, lang);
 }
 
 /**

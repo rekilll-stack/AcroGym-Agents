@@ -108,16 +108,22 @@ function formatLabel(f) {
  * @param {'post'|'ideas'|'plan'} format
  * @param {string} topic
  */
-function buildContentPrompt(format, topic) {
+function buildContentPrompt(format, topic, lang = 'en') {
   const f = FORMATS[format];
   if (!f) throw new Error(`unknown content format: ${format}`);
   const t = String(topic || '').trim() || 'AcroGym children\'s gymnastics in Doha';
+  // A 'post' is PUBLISHED Instagram content → always English (for the audience).
+  // 'plan'/'ideas' are internal planning notes the owner reads → owner's language.
+  const langName = lang === 'ru' ? 'Russian' : 'English';
+  const langDirective = format === 'post'
+    ? "The user's topic may be written in Russian or any language — understand it, " +
+      'then write the output ENTIRELY IN ENGLISH regardless of the input language.\n\n'
+    : `This is an INTERNAL planning note the owner reads — NOT a published Instagram post. ` +
+      `The user's topic may be in any language; write the ENTIRE output in ${langName} ` +
+      `(this overrides the brand "English only" rule, which applies only to published posts).\n\n`;
   return {
     system: f.system,
-    user:
-      "The user's topic may be written in Russian or any language — understand it, " +
-      'then write the output ENTIRELY IN ENGLISH regardless of the input language.\n\n' +
-      f.instruction(t),
+    user: langDirective + f.instruction(t),
     maxTokens: f.maxTokens,
     model: 'claude-opus-4-8', // owner choice: top quality for brand-voice content (low volume)
   };
@@ -129,25 +135,42 @@ function buildContentPrompt(format, topic) {
 // ─────────────────────────────────────────────────────────────
 const OFFLINE_TAG = '⚠️ (offline skeleton — generator unavailable, tap 🔄 Regenerate to try again)';
 
-function fallbackContent(format, topic) {
+function fallbackContent(format, topic, lang = 'en') {
   const t = String(topic || '').trim() || 'AcroGym';
+  const ru = lang === 'ru';
   if (format === 'ideas') {
-    return `${OFFLINE_TAG}\n\nPost ideas on "${t}":\n` +
-      `1. A child's first little win — the moment of joy and confidence.\n` +
-      `2. Meet coach Kristina — experience that quietly reassures parents.\n` +
-      `3. Behind the scenes — a calm, caring, well-prepared environment.\n` +
-      `4. Why movement matters — gymnastics for growing bodies and minds.\n` +
-      `5. Opening this September — a warm note of anticipation.`;
+    return ru
+      ? `${OFFLINE_TAG}\n\nИдеи постов на тему «${t}»:\n` +
+        `1. Первая маленькая победа ребёнка — момент радости и уверенности.\n` +
+        `2. Знакомство с тренером Кристиной — опыт, который успокаивает родителей.\n` +
+        `3. За кулисами — спокойная, заботливая, подготовленная среда.\n` +
+        `4. Почему движение важно — гимнастика для растущего тела и ума.\n` +
+        `5. Открытие в сентябре — тёплая нотка предвкушения.`
+      : `${OFFLINE_TAG}\n\nPost ideas on "${t}":\n` +
+        `1. A child's first little win — the moment of joy and confidence.\n` +
+        `2. Meet coach Kristina — experience that quietly reassures parents.\n` +
+        `3. Behind the scenes — a calm, caring, well-prepared environment.\n` +
+        `4. Why movement matters — gymnastics for growing bodies and minds.\n` +
+        `5. Opening this September — a warm note of anticipation.`;
   }
   if (format === 'plan') {
-    return `${OFFLINE_TAG}\n\nOne-week plan on "${t}":\n` +
-      `Mon — Welcome to AcroGym, our story and heart [emotional]\n` +
-      `Tue — What a first class feels like for your child [educational]\n` +
-      `Wed — Meet coach Kristina [meet the coach]\n` +
-      `Thu — Why gymnastics builds confidence [benefits]\n` +
-      `Fri — A peek inside our space [behind-the-scenes]\n` +
-      `Sat — A small milestone, a big smile [emotional]\n` +
-      `Sun — Opening this September — join us [gentle invitation]`;
+    return ru
+      ? `${OFFLINE_TAG}\n\nПлан на неделю по теме «${t}»:\n` +
+        `Пн — Добро пожаловать в AcroGym, наша история и сердце [emotional]\n` +
+        `Вт — Каким будет первое занятие для вашего ребёнка [educational]\n` +
+        `Ср — Знакомство с тренером Кристиной [meet the coach]\n` +
+        `Чт — Почему гимнастика растит уверенность [benefits]\n` +
+        `Пт — Загляните в наш зал [behind-the-scenes]\n` +
+        `Сб — Маленький шаг, большая улыбка [emotional]\n` +
+        `Вс — Открытие в сентябре — присоединяйтесь [gentle invitation]`
+      : `${OFFLINE_TAG}\n\nOne-week plan on "${t}":\n` +
+        `Mon — Welcome to AcroGym, our story and heart [emotional]\n` +
+        `Tue — What a first class feels like for your child [educational]\n` +
+        `Wed — Meet coach Kristina [meet the coach]\n` +
+        `Thu — Why gymnastics builds confidence [benefits]\n` +
+        `Fri — A peek inside our space [behind-the-scenes]\n` +
+        `Sat — A small milestone, a big smile [emotional]\n` +
+        `Sun — Opening this September — join us [gentle invitation]`;
   }
   // post
   return `${OFFLINE_TAG}\n\nThere's a special kind of joy in watching a child ` +
