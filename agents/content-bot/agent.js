@@ -133,6 +133,51 @@ async function buildCarousel({ templateDesignId, slides }) {
   return { ok: true, designId: parsed.designId, slides: parsed.slides, costUsd: run.costUsd, turns: run.turns, overBudget };
 }
 
+/**
+ * Build a single 9:16 Instagram STORY by delegating Canva editing to the agent.
+ * @param {object} p
+ * @param {string} p.templateDesignId  story template to copy (1080x1920, full-bleed bg)
+ * @param {string} p.assetId           uploaded photo asset (already cropped 9:16)
+ * @param {object} p.elements          { bg, headline, cta } element ids in the template
+ * @param {string} p.headline
+ * @param {string} [p.cta]
+ * @returns {Promise<{ok, designId?, url?, costUsd, overBudget, error?}>}
+ */
+async function buildStory({ templateDesignId, assetId, elements, headline, cta }) {
+  const setText = [
+    { element_id: elements.headline, text: headline },
+    ...(elements.cta && cta != null ? [{ element_id: elements.cta, text: cta }] : []),
+  ];
+  const prompt = [
+    'You are a Canva production assistant. Use ONLY the Canva tools. Place the EXACT strings given — do NOT invent or rephrase. Operate ONLY on the element ids given; never touch any other element (the orange asterisk and CTA pill shape must stay).',
+    '',
+    'Steps:',
+    `1. Copy the design ${templateDesignId} to a new design (copy-design). The copy keeps the same element ids.`,
+    '2. Start an editing transaction on the NEW design.',
+    `3. update_fill the element "${elements.bg}" with image asset "${assetId}" (full-bleed background photo — the ONLY image you change).`,
+    '4. For each entry below, replace_text on that exact element_id with its text; if it overflows its box/pill or breaks mid-word, format_text to REDUCE the font size until it sits cleanly:',
+    JSON.stringify(setText, null, 2),
+    '5. Commit the transaction.',
+    '6. Export page 1 of the new design as PNG, width 1080 height 1920 (export-design).',
+    '7. Reply with STRICT JSON ONLY, no prose, using the ACTUAL ids/URLs returned by the tools (NOT the angle-bracket placeholders): {"designId":"...","url":"https://..."}',
+  ].join('\n');
+
+  logger.info({ templateDesignId, model: MODEL }, 'designer agent: building story');
+  const run = await runCli(prompt);
+  const overBudget = run.costUsd > MAX_COST_USD;
+  if (!run.ok) {
+    logger.error({ error: run.error, costUsd: run.costUsd }, 'story agent failed');
+    return { ok: false, error: run.error || 'agent error', costUsd: run.costUsd, overBudget };
+  }
+  const parsed = parseStrictJson(run.result);
+  if (!parsed || !parsed.url || !/^https?:\/\//.test(parsed.url)) {
+    logger.error({ resultPreview: String(run.result).slice(0, 300) }, 'story agent: no valid url in result');
+    return { ok: false, error: 'agent returned no valid export url', costUsd: run.costUsd, overBudget };
+  }
+  logger.info({ designId: parsed.designId, costUsd: run.costUsd, turns: run.turns, overBudget }, 'designer agent: story done');
+  return { ok: true, designId: parsed.designId, url: parsed.url, costUsd: run.costUsd, turns: run.turns, overBudget };
+}
+
 // Local datetime string (no offset) in the brand timezone, for Metricool.
 function localDateTime(when = new Date(), tz = process.env.TIMEZONE || 'Asia/Qatar') {
   const d = new Date(when.toLocaleString('en-US', { timeZone: tz }));
@@ -192,4 +237,4 @@ async function publishPost({ media, caption, altTexts = [], igType = 'POST', whe
   return { ok: true, postId: parsed.postId, costUsd: run.costUsd, overBudget, turns: run.turns };
 }
 
-module.exports = { buildCarousel, publishPost, canPublish, runCli, localDateTime, MODEL, MAX_COST_USD };
+module.exports = { buildCarousel, buildStory, publishPost, canPublish, runCli, localDateTime, MODEL, MAX_COST_USD };

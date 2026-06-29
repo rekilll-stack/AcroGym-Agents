@@ -128,4 +128,37 @@ async function assembleCarousel({ topic, photos, cover, inner, caption }) {
   return { caption: cap, slides, costUsd: built.costUsd, overBudget: built.overBudget };
 }
 
-module.exports = { isConfigured, loadTemplates, assembleCarousel, TEMPLATES_PATH };
+/**
+ * Assemble a single 9:16 Instagram STORY via the headless designer agent.
+ * @param {object} p
+ * @param {string} p.topic
+ * @param {{buffer:Buffer,name?:string}} p.photo
+ * @param {string} p.headline
+ * @param {string} [p.cta]
+ * @param {string} p.caption
+ * @returns {Promise<{caption, slides:Array<{url,buffer,alt}>, costUsd, overBudget}>}
+ */
+async function assembleStory({ topic, photo, headline, cta, caption }) {
+  const cfg = loadTemplates().story;
+  if (!cfg || !cfg.templateDesignId || !cfg.elements || !cfg.elements.bg || !cfg.elements.headline) {
+    throw new Error('canva-templates.json: missing story template (story.templateDesignId + elements.bg/headline)');
+  }
+  if (!photo || !photo.buffer) throw new Error('assembleStory: need a photo');
+
+  // Pre-crop to an exact 9:16 frame so Canva fills a full-bleed 1080x1920 bg.
+  let buf = photo.buffer;
+  try { buf = await crop.safeCrop916(buf); }
+  catch (err) { logger.warn({ err: err.message, photo: photo.name }, 'story pre-crop failed → using original'); }
+  const assetId = await canva.uploadAsset(buf, photo.name || 'story.jpg');
+
+  const built = await agent.buildStory({
+    templateDesignId: cfg.templateDesignId, assetId, elements: cfg.elements, headline, cta,
+  });
+  if (!built.ok) throw new Error(`story agent: ${built.error} (cost $${built.costUsd})`);
+
+  const slide = { url: built.url, buffer: await fetchBuffer(built.url), alt: `${headline} — AcroGym` };
+  const cap = caption || await generateContent('post', topic);
+  return { caption: cap, slides: [slide], costUsd: built.costUsd, overBudget: built.overBudget };
+}
+
+module.exports = { isConfigured, loadTemplates, assembleCarousel, assembleStory, TEMPLATES_PATH };

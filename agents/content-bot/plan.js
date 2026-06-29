@@ -104,12 +104,13 @@ Produce a SHORT, sharp strategy for the next batch of posts:
 Keep it under ~180 words, plain text, no fluff. This guides the post proposals next.`;
 
 // Stage 2 — turn the strategy into concrete, buildable post proposals.
-const PROPOSE_SYSTEM = `You are AcroGym Qatar's SMM lead turning an agreed STRATEGY into a content plan of exactly N Instagram carousel posts. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional.
-Each post = a concrete, buildable TOPIC (a specific angle, not a vague category) + a TYPE tag + a one-line HOOK + a short WHY (how it serves the strategy / engages the audience).
+const PROPOSE_SYSTEM = `You are AcroGym Qatar's SMM lead turning an agreed STRATEGY into a content plan of exactly N Instagram items. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional.
+Each item = a concrete, buildable TOPIC (a specific angle, not a vague category) + a FORMAT + a TYPE tag + a one-line HOOK + a short WHY (how it serves the strategy / engages the audience).
+FORMAT is either "post" (a 4:5 carousel — for educational/benefits/proof/announcement depth) or "story" (a single 9:16 vertical — for timely, lightweight, behind-the-scenes, countdowns, polls, "today at the gym" moments). Aim for a MIX: roughly 2/3 posts and 1/3 stories.
 Ensure VARIETY and a coherent, beautiful feed (rotate pillars: emotional, trust/safety, benefits/education, behind-the-scenes, proof, announcement/seasonal).
 🔴 Do NOT invent specifics the club hasn't given you: no made-up coach/staff names, no specific children, no fabricated testimonials, quotes, prices, dates, discounts or results. Keep topics GENERAL and truthful — e.g. "Meet our coaches" not "Meet Coach Sarah".
 Return STRICT JSON ONLY, no prose:
-{"posts":[{"theme":"<specific topic, ENGLISH, one line>","type":"<one lowercase tag>","hook":"<one-line scroll-stopper>","why":"<short reason, ENGLISH>"}, ... exactly N items]}`;
+{"posts":[{"theme":"<specific topic, ENGLISH, one line>","format":"post"|"story","type":"<one lowercase tag>","hook":"<one-line scroll-stopper>","why":"<short reason, ENGLISH>"}, ... exactly N items]}`;
 
 async function analyse(focus = '') {
   const brief = loadBrief();
@@ -140,6 +141,7 @@ async function generateDraft(chatId, { count = DEFAULT_COUNT, days = DEFAULT_DAY
   }
   const items = parsed.posts.slice(0, count).map((p) => ({
     theme: String(p.theme || '').trim(),
+    format: String(p.format || 'post').trim().toLowerCase() === 'story' ? 'story' : 'post',
     type: String(p.type || 'post').trim().toLowerCase(),
     hook: String(p.hook || '').trim(),
     why: String(p.why || '').trim(),
@@ -169,6 +171,7 @@ function approve(chatId) {
     id: rid(),
     date: slots[i] || null,
     theme: it.theme,
+    format: it.format === 'story' ? 'story' : 'post',
     type: it.type,
     status: 'planned',
   }));
@@ -229,12 +232,14 @@ function dayLabel(dateStr) {
   return `${WD[weekdayInTz(d)]} ${dateStr.slice(8, 10)}.${dateStr.slice(5, 7)}`;
 }
 
+const FMT_ICON = { post: '📸', story: '📱' };
+
 // Numbered list of the PENDING draft (no dates yet — owner is still reviewing).
 // Shows the WHY under each topic so the owner sees the strategist's reasoning.
 function renderPending(items) {
   return items.map((it, i) => {
     const why = it.why ? `\n   ↳ ${it.why}` : '';
-    return `${i + 1}. ${it.theme} [${it.type}]${why}`;
+    return `${i + 1}. ${FMT_ICON[it.format] || '📸'} ${it.theme} [${it.type}]${why}`;
   }).join('\n');
 }
 
@@ -242,7 +247,7 @@ function renderPending(items) {
 function renderPlan(plan) {
   if (!plan.items.length) return 'План пуст.';
   return plan.items.map((it, i) =>
-    `${i + 1}. ${STATUS_ICON[it.status] || ''} ${dayLabel(it.date)} — ${it.theme} [${it.type}]`).join('\n');
+    `${i + 1}. ${STATUS_ICON[it.status] || ''} ${dayLabel(it.date)} ${FMT_ICON[it.format] || '📸'} ${it.theme} [${it.type}]`).join('\n');
 }
 
 module.exports = {

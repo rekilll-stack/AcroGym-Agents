@@ -8,5 +8,12 @@
       "3": { "role": "inner", "bg": "PBZKmbQnwmrWlxkX", "headline": "PBZKmbQnwmrWlxkX-LByL9qxSYwN7fnFq", "body": "PBZKmbQnwmrWlxkX-LBmWVvH5P3c908XH" },
       "4": { "role": "inner", "bg": "PBvwbQDs2HFxj4yT", "headline": "PBvwbQDs2HFxj4yT-LBF9V9Jrq8mZxYDM", "body": "PBvwbQDs2HFxj4yT-LB2qs5GFJWJ0mXxF" }
     }
+  },
+  "_story_comment": "Instagram Story 1080x1920. Made by resizing the carousel cover to 9:16 + full-bleed photo. Copy templateDesignId, fill bg (full-bleed photo) + headline + cta, export 1080x1920. Element ids are inherited from the carousel cover (copy preserves ids).",
+  "story": {
+    "templateDesignId": "DAHN8a21x7M",
+    "width": 1080,
+    "height": 1920,
+    "elements": { "bg": "PBwKlqpk4kb0QcQT-LBjY09YnK5gjSmrL-LBgbxxyzJxwLmmS0", "headline": "PBwKlqpk4kb0QcQT-LBvQ2SLzYkt0xhXW-LB972YR28mQqSTMq", "cta": "PBwKlqpk4kb0QcQT-LBJTnPltTBxz1LYB" }
   }
 }

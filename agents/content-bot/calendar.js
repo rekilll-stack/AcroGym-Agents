@@ -22,7 +22,7 @@ const { getPreferredLanguage } = require('../../shared/preferences');
 const assemble = require('./assemble');
 const agent = require('./agent');
 const publish = require('./publish');
-const { verifyCarousel, verifyCaption } = require('./verify');
+const { verifyCarousel, verifySlide, verifyCaption } = require('./verify');
 const { generateText, beginCost, endCost } = require('../../shared/claude');
 const { createLogger } = require('../../shared/logger');
 
@@ -83,6 +83,69 @@ async function pickPhotos(n, folder) {
     photos.push({ buffer: await yandex.downloadBuffer(c.path), name: c.name });
   }
   return photos;
+}
+
+// Copy for a single Instagram STORY (9:16): short headline + CTA + caption.
+const STORY_SYSTEM = `You write copy for ONE Instagram STORY (9:16 vertical) for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. English only. Voice: warm, energetic, safe.
+Given a TOPIC, return STRICT JSON (no prose):
+{"headline":"<1-2 SHORT punchy words, ≤12 characters total, MUST fit one line — e.g. \\"WE'RE OPEN\\", \\"NEW GYM\\", \\"SOON\\">","cta":"<short CTA, e.g. BOOK A TRIAL>","caption":"<short IG caption, 1-2 emojis, 3-6 hashtags>"}
+Keep it child-safe and on-brand. Never invent prices, dates, or results.`;
+
+async function generateStoryCopy(theme) {
+  const raw = await generateText({ system: STORY_SYSTEM, user: `TOPIC: ${theme}\nReturn the JSON.`, maxTokens: 400 });
+  const c = parseJson(raw);
+  if (!c || !c.headline) throw new Error('story copy: unparseable');
+  return { headline: c.headline, cta: c.cta || 'BOOK A TRIAL', caption: c.caption || '' };
+}
+
+/**
+ * Build a single 9:16 STORY end-to-end and route it through the gate.
+ * Mirrors buildAndRoute (auto-fix attempts, true cost, approval card) for stories.
+ */
+async function buildStoryAndRoute(bot, ownerChatId, { theme, routine = false, folder } = {}) {
+  const MAX_ATTEMPTS = Math.max(1, parseInt(process.env.CONTENT_BUILD_ATTEMPTS || '2', 10));
+  logger.info({ theme, routine, maxAttempts: MAX_ATTEMPTS }, 'calendar: building story');
+
+  let totalCost = 0; let best = null; const exclude = [];
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const scope = beginCost();
+    const copy = await generateStoryCopy(theme);
+    const sel = await photos.selectBest(1, { folder, topic: theme, exclude });
+    (sel.ranked || []).forEach((p) => exclude.push(p));
+    const photo = sel.photos && sel.photos[0];
+    if (!photo) throw new Error('story: no photo selected');
+    const assembled = await assemble.assembleStory({ topic: theme, photo, headline: copy.headline, cta: copy.cta, caption: copy.caption });
+    const buf = assembled.slides[0] && assembled.slides[0].buffer;
+    const vr = buf
+      ? await verifySlide(buf, { context: 'AcroGym kids gymnastics & acrobatics — single Instagram story 9:16 (cover-style: hook headline + asterisk + CTA pill)' })
+      : { ok: false, issues: ['нет изображения сторис'] };
+    const cap = verifyCaption(assembled.caption);
+    const apiCost = endCost(scope);
+    totalCost += apiCost + (assembled.costUsd || 0);
+
+    const issues = [...vr.issues.map((x) => `сторис: ${x}`), ...cap.issues.map((x) => `подпись: ${x}`)];
+    if (assembled.overBudget) issues.push(`стоимость: дороже лимита ($${(assembled.costUsd || 0).toFixed(2)})`);
+    const verifyOk = vr.ok && cap.ok && !assembled.overBudget;
+    const cand = { assembled, issues, verifyOk };
+    if (verifyOk) { best = cand; logger.info({ attempt }, 'story self-check passed'); break; }
+    if (!best || issues.length < best.issues.length) best = cand;
+    logger.warn({ attempt, issueCount: issues.length }, 'story self-check found issues');
+    if (attempt < MAX_ATTEMPTS) {
+      await bot.sendMessage(ownerChatId, `🔍 Проверка нашла замечания по сторис — пересобираю на другом фото (попытка ${attempt + 1}/${MAX_ATTEMPTS})…`).catch(() => {});
+    }
+  }
+
+  const { assembled, issues, verifyOk } = best;
+  const draft = publish.newDraft({
+    kind: 'story', igType: 'STORY',
+    caption: assembled.caption, slides: assembled.slides,
+    theme, slidesCount: 1, storyFormat: true,
+    routine: routine && verifyOk,
+    verify: { ok: verifyOk, issues },
+    costUsd: totalCost,
+    source: `${routine ? 'calendar' : 'on-demand'} story: ${theme}`,
+  });
+  return publish.route(bot, ownerChatId, draft);
 }
 
 /**
@@ -230,8 +293,10 @@ function start(bot, ownerChatId, opts = {}) {
     logger.info({ count: due.length }, 'content-plan: building today\'s posts');
     for (const item of due) {
       try {
-        await bot.sendMessage(ownerChatId, `📅 По плану на сегодня: «${item.theme}» — собираю…`).catch(() => {});
-        await buildAndRoute(bot, ownerChatId, { theme: item.theme, slides: 4, routine: false });
+        const isStory = item.format === 'story';
+        await bot.sendMessage(ownerChatId, `📅 По плану на сегодня (${isStory ? '📱 сторис' : '📸 пост'}): «${item.theme}» — собираю…`).catch(() => {});
+        if (isStory) await buildStoryAndRoute(bot, ownerChatId, { theme: item.theme, routine: false });
+        else await buildAndRoute(bot, ownerChatId, { theme: item.theme, slides: 4, routine: false });
         plan.setStatus(item.id, 'built'); // don't rebuild tomorrow; owner still gates publish
       } catch (err) {
         logger.error({ err: err.message, theme: item.theme }, 'plan post build failed');
@@ -271,9 +336,10 @@ function start(bot, ownerChatId, opts = {}) {
 async function buildNextPlanned(bot, ownerChatId) {
   const item = plan.nextPlanned();
   if (!item) return null;
-  await buildAndRoute(bot, ownerChatId, { theme: item.theme, slides: 4, routine: false });
+  if (item.format === 'story') await buildStoryAndRoute(bot, ownerChatId, { theme: item.theme, routine: false });
+  else await buildAndRoute(bot, ownerChatId, { theme: item.theme, slides: 4, routine: false });
   plan.setStatus(item.id, 'built');
   return item;
 }
 
-module.exports = { start, buildAndRoute, buildNextPlanned, runResearchAndReport, generatePlan, pickPhotos, PLAN };
+module.exports = { start, buildAndRoute, buildStoryAndRoute, buildNextPlanned, runResearchAndReport, generatePlan, pickPhotos, PLAN };

@@ -21,11 +21,8 @@ const { createLogger } = require('../../shared/logger');
 const logger = createLogger('content-bot');
 
 const CROP_MODEL = process.env.CONTENT_CROP_MODEL || 'claude-haiku-4-5-20251001';
-const TARGET_W = 1080;
-const TARGET_H = 1350; // 4:5
-const TARGET_RATIO = TARGET_W / TARGET_H; // 0.8
 
-const FOCUS_SYSTEM = `You place the crop for an Instagram 4:5 vertical slide. You see one photo. The slide will be a 4:5 crop CENTRED on a single point — pick the point on the MAIN SUBJECT so it stays nicely in frame.
+const FOCUS_SYSTEM = `You place the crop for an Instagram vertical slide. You see one photo. The slide will be a vertical crop CENTRED on a single point — pick the point on the MAIN SUBJECT so it stays nicely in frame.
 The main subject is the FOREGROUND, in-focus, active person the photo is about — the child performing / training / posing / receiving a medal, or the coach with them. It is NOT the blurry seated spectators or people in the background; ignore them when choosing the point.
 Aim at the centre of that main subject — roughly their torso/face, usually a bit above the vertical middle.
 Reply STRICT JSON ONLY, no prose: {"focus_x":0..1,"focus_y":0..1} as fractions of the image width/height.`;
@@ -125,34 +122,45 @@ async function focalPoint(srcCanvas) {
 }
 
 /**
- * Crop a photo buffer to an exact 1080×1350 (4:5) FULL-BLEED image centred on
- * the main subject. @returns {Promise<Buffer>} JPEG, 1080×1350.
+ * Crop a photo buffer to an exact targetW×targetH FULL-BLEED image centred on
+ * the main subject. @returns {Promise<Buffer>} JPEG.
  */
-async function safeCrop45(buffer) {
+async function cropToRatio(buffer, targetW, targetH) {
+  const ratio = targetW / targetH;
   const orientation = readOrientation(buffer);
   const img = await loadImage(buffer);
-  const src = uprightCanvas(img, orientation);
+  // node-canvas's loadImage ALREADY applies EXIF orientation (the decoded image
+  // is upright). Rotating again here double-rotated 90°/270° photos (orientation
+  // 6/8) and laid them on their side. So draw the image as-is.
+  const src = createCanvas(img.width, img.height);
+  src.getContext('2d').drawImage(img, 0, 0);
   const W = src.width, H = src.height;
 
-  // Largest 4:5 window that fits the image (full height if wide, full width if
-  // tall), positioned so its centre sits on the subject's focal point.
+  // Largest window of the target ratio that fits the image (full height if the
+  // image is wider than the target, full width if taller), positioned so its
+  // centre sits on the subject's focal point.
   let cw, ch;
-  if (W / H > TARGET_RATIO) { ch = H; cw = Math.round(ch * TARGET_RATIO); }
-  else { cw = W; ch = Math.round(cw / TARGET_RATIO); }
+  if (W / H > ratio) { ch = H; cw = Math.round(ch * ratio); }
+  else { cw = W; ch = Math.round(cw / ratio); }
   const f = await focalPoint(src);
   let cx = Math.round(f.x * W - cw / 2);
   let cy = Math.round(f.y * H - ch / 2);
   cx = Math.max(0, Math.min(W - cw, cx));
   cy = Math.max(0, Math.min(H - ch, cy));
 
-  const out = createCanvas(TARGET_W, TARGET_H);
+  const out = createCanvas(targetW, targetH);
   const ctx = out.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
   if ('patternQuality' in ctx) ctx.patternQuality = 'best';
-  ctx.drawImage(src, cx, cy, cw, ch, 0, 0, TARGET_W, TARGET_H);
-  logger.info({ orientation, src: `${W}x${H}`, focus: f.from, crop: `${cw}x${ch}@${cx},${cy}` }, 'photo pre-cropped to 4:5 (full-bleed)');
+  ctx.drawImage(src, cx, cy, cw, ch, 0, 0, targetW, targetH);
+  logger.info({ orientation, src: `${W}x${H}`, target: `${targetW}x${targetH}`, focus: f.from, crop: `${cw}x${ch}@${cx},${cy}` }, 'photo pre-cropped (full-bleed)');
   return out.toBuffer('image/jpeg', { quality: 0.92 });
 }
 
-module.exports = { safeCrop45, readOrientation };
+// 4:5 carousel slide (1080×1350).
+const safeCrop45 = (buffer) => cropToRatio(buffer, 1080, 1350);
+// 9:16 story (1080×1920).
+const safeCrop916 = (buffer) => cropToRatio(buffer, 1080, 1920);
+
+module.exports = { safeCrop45, safeCrop916, cropToRatio, readOrientation };

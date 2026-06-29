@@ -397,6 +397,15 @@ function start() {
       }
       return;
     }
+    // On-demand single STORY (9:16). routine=false → approval card, never auto-posts.
+    if (text === '/story' || text.startsWith('/story ')) {
+      const topic = text.slice(6).trim();
+      if (!topic) { await bot.sendMessage(chatId, '📱 Тема сторис? Напр.: /story behind the scenes setting up the gym').catch(() => {}); return; }
+      await bot.sendMessage(chatId, '🎨 Собираю сторис 9:16 через Canva…').catch(() => {});
+      try { await calendar.buildStoryAndRoute(bot, chatId, { theme: topic, routine: false }); }
+      catch (err) { logger.error({ err: err.message }, '/story failed'); await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {}); }
+      return;
+    }
     if (text === '/autopilot') {
       await bot.sendMessage(chatId, autopilotStatusText(), { parse_mode: 'HTML' }).catch(() => {});
       return;
@@ -504,9 +513,11 @@ function start() {
         await bot.answerCallbackQuery(query.id, { text: '🔄 Пересобираю…' }).catch(() => {});
         if (!draft || !draft.theme) { await bot.sendMessage(chatId, 'Черновик устарел — собери заново через ✨ Авто-пост.').catch(() => {}); return; }
         publish.dropDraft(id);
-        await bot.sendMessage(chatId, '🎨 Пересобираю пост на других фото…').catch(() => {});
+        const isStory = draft.igType === 'STORY' || draft.storyFormat;
+        await bot.sendMessage(chatId, `🎨 Пересобираю ${isStory ? 'сторис' : 'пост'} на других фото…`).catch(() => {});
         try {
-          await calendar.buildAndRoute(bot, chatId, { theme: draft.theme, slides: draft.slidesCount || 4, routine: false });
+          if (isStory) await calendar.buildStoryAndRoute(bot, chatId, { theme: draft.theme, routine: false });
+          else await calendar.buildAndRoute(bot, chatId, { theme: draft.theme, slides: draft.slidesCount || 4, routine: false });
         } catch (err) {
           logger.error({ err: err.message }, 'rebuild failed');
           await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {});
