@@ -110,14 +110,17 @@ async function buildStoryAndRoute(bot, ownerChatId, { theme, routine = false, fo
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const scope = beginCost();
     const copy = await generateStoryCopy(theme);
-    const sel = await photos.selectBest(1, { folder, topic: theme, exclude });
+    const sel = await photos.selectBest(1, { folder, topic: theme, exclude, story: true });
     (sel.ranked || []).forEach((p) => exclude.push(p));
     const photo = sel.photos && sel.photos[0];
     if (!photo) throw new Error('story: no photo selected');
     const assembled = await assemble.assembleStory({ topic: theme, photo, headline: copy.headline, cta: copy.cta, caption: copy.caption });
     const buf = assembled.slides[0] && assembled.slides[0].buffer;
     const vr = buf
-      ? await verifySlide(buf, { context: 'AcroGym kids gymnastics & acrobatics — single Instagram story 9:16 (cover-style: hook headline + asterisk + CTA pill)' })
+      ? await verifySlide(buf, {
+          context: 'AcroGym kids gymnastics & acrobatics — single Instagram story 9:16 (cover-style: hook headline + asterisk + CTA pill)',
+          expectedRatio: 1080 / 1920, ratioLabel: '9:16',
+        })
       : { ok: false, issues: ['нет изображения сторис'] };
     const cap = verifyCaption(assembled.caption);
     const apiCost = endCost(scope);

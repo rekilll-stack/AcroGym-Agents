@@ -39,7 +39,9 @@ const VISION_MODEL = process.env.CONTENT_VERIFY_MODEL || 'claude-haiku-4-5-20251
 const PLACEHOLDER_RE = /\b(lorem ipsum|paste_|your text here|headline here|body here|meet the coach|building skills together|xxxx+)\b/i;
 
 // ── layer 1: structure ───────────────────────────────────────────
-async function checkStructure(buffer) {
+// expectedRatio/ratioLabel let the same check serve 4:5 carousels (default) AND
+// 9:16 stories — otherwise a story would always fail "пропорции ≠ 4:5".
+async function checkStructure(buffer, { expectedRatio = TARGET_RATIO, ratioLabel = '4:5' } = {}) {
   const issues = [];
   if (!Buffer.isBuffer(buffer) || buffer.length < MIN_BYTES) issues.push(`фото слишком маленькое (${buffer ? buffer.length : 0} байт) — вероятно битый экспорт`);
   if (buffer && buffer.length > MAX_BYTES) issues.push(`фото подозрительно большое (${(buffer.length / 1e6).toFixed(1)} МБ)`);
@@ -47,7 +49,7 @@ async function checkStructure(buffer) {
   try { img = await loadImage(buffer); }
   catch (err) { return { ok: false, issues: [`не удалось открыть фото: ${err.message}`], width: 0, height: 0, img: null }; }
   const ratio = img.width / img.height;
-  if (Math.abs(ratio - TARGET_RATIO) > RATIO_TOL) issues.push(`пропорции ${ratio.toFixed(3)} ≠ 4:5`);
+  if (Math.abs(ratio - expectedRatio) > RATIO_TOL) issues.push(`пропорции ${ratio.toFixed(3)} ≠ ${ratioLabel}`);
   if (img.width < MIN_WIDTH) issues.push(`ширина ${img.width}px меньше минимума IG ${MIN_WIDTH}`);
   return { ok: issues.length === 0, issues, width: img.width, height: img.height, img };
 }
@@ -183,8 +185,8 @@ async function checkVisual(buffer, { context = '' } = {}) {
 }
 
 // ── public: single slide ─────────────────────────────────────────
-async function verifySlide(buffer, { context = '' } = {}) {
-  const struct = await checkStructure(buffer);
+async function verifySlide(buffer, { context = '', expectedRatio, ratioLabel } = {}) {
+  const struct = await checkStructure(buffer, { expectedRatio, ratioLabel });
   if (!struct.img) return { ok: false, issues: struct.issues, width: 0, height: 0, hash: null };
   const integ = checkIntegrity(struct.img);
   const visual = await checkVisual(buffer, { context });

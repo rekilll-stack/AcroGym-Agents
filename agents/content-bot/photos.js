@@ -93,7 +93,7 @@ const HERO_SUBJECTS = new Set(['single_child', 'two_children', 'coach_with_child
  * Select the best `count` photos (download full-res). Returns
  * { photos:[{buffer,name,path}], backups:[...], ranked:[paths] }.
  */
-async function selectBest(count, { folder, exclude = [], topic = '' } = {}) {
+async function selectBest(count, { folder, exclude = [], topic = '', story = false } = {}) {
   exclude = [...new Set([...exclude, ...recentExclude()])]; // avoid repeating recent shots
   const cat = loadCatalog().filter((p) => p && p.phash && !exclude.includes(p.path));
   if (cat.length < Math.max(count + 2, 8)) {
@@ -101,8 +101,17 @@ async function selectBest(count, { folder, exclude = [], topic = '' } = {}) {
     return selectBestVision(count, { folder, exclude, topic });
   }
 
-  // Usability tiers — relax only if too few crop-friendly good photos.
-  const tiers = [
+  // Usability tiers — relax only if too few crop-friendly good photos. A 9:16
+  // STORY crop is far more aggressive than 4:5 (it keeps only ~37% of a landscape
+  // photo's width), so for stories demand a HIGH vertical_crop score and prefer a
+  // SINGLE subject — a second person spread across a wide frame gets sliced.
+  const tiers = story ? [
+    (p) => p.quality >= 0.6 && p.vertical_crop >= 0.75 && p.subject === 'single_child',
+    (p) => p.quality >= 0.55 && p.vertical_crop >= 0.7 && p.subject === 'single_child',
+    (p) => p.quality >= 0.55 && p.vertical_crop >= 0.65 && p.subject !== 'crowd' && p.subject !== 'small_group' && p.subject !== 'two_children',
+    (p) => p.quality >= 0.5 && p.vertical_crop >= 0.55 && p.subject !== 'crowd',
+    () => true,
+  ] : [
     (p) => p.quality >= 0.6 && p.vertical_crop >= 0.6 && p.subject !== 'crowd',
     (p) => p.quality >= 0.55 && p.vertical_crop >= 0.5 && p.subject !== 'crowd',
     (p) => p.quality >= 0.5 && p.vertical_crop >= 0.45,
@@ -131,8 +140,12 @@ async function selectBest(count, { folder, exclude = [], topic = '' } = {}) {
   if (!ordered || !ordered.length) ordered = pool; // already quality-sorted
 
   // Cover = best hero (clear face + joyful single/pair) near the top; else first.
+  // For a story, force a SINGLE-subject hero so the aggressive 9:16 crop can't
+  // slice a second person.
   const topRel = ordered.slice(0, Math.max(count * 3, 10));
-  const cover = topRel.find((p) => p.faces_ok && p.joyful && HERO_SUBJECTS.has(p.subject))
+  const heroOk = (p) => (story ? p.subject === 'single_child' : HERO_SUBJECTS.has(p.subject));
+  const cover = topRel.find((p) => p.faces_ok && p.joyful && heroOk(p))
+    || topRel.find((p) => p.faces_ok && heroOk(p))
     || topRel.find((p) => p.faces_ok && p.joyful)
     || topRel.find((p) => p.faces_ok)
     || ordered[0];
