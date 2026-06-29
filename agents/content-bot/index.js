@@ -37,6 +37,7 @@ const { composeBrandedImage, loadManifest } = require('./image');
 // Phase 1–3: autonomous posting (visuals via Canva, publish via Metricool).
 const publish   = require('./publish');
 const calendar  = require('./calendar');
+const contentPlan = require('./plan');
 const metricool = require('./metricool');
 const yandex    = require('./yandex');
 const assemble  = require('./assemble');
@@ -105,6 +106,8 @@ function menuKeyboard(lang) {
       // ✨ Autopilot — the main feature: bot builds a full branded carousel via
       // Canva and (after your tap) publishes. Buttons, not commands.
       [{ text: ru ? '✨ Авто-пост (Canva)' : '✨ Auto-post (Canva)', callback_data: 'auto:new' }],
+      [{ text: ru ? '📅 Контент-план' : '📅 Content plan', callback_data: 'plan:new' },
+       { text: ru ? '📋 Показать план' : '📋 Show plan', callback_data: 'plan:show' }],
       [{ text: ru ? '🤖 Статус автопилота' : '🤖 Autopilot status', callback_data: 'auto:status' }],
       [{ text: t('content.btn_post', lang), callback_data: 'fmt:post' }],
       [{ text: t('content.btn_ideas', lang), callback_data: 'fmt:ideas' }, { text: t('content.btn_plan', lang), callback_data: 'fmt:plan' }],
@@ -213,6 +216,19 @@ const showMenu = (bot, chatId, lang) =>
 // (owner rule: there must always be a way back). Optionally merge extra rows.
 const menuKb = (lang, extraRows = []) =>
   ({ inline_keyboard: [...extraRows, [{ text: t('content.btn_menu', lang), callback_data: 'menu' }]] });
+
+// Content-plan keyboards: review a draft plan (approve/regenerate/edit) and the
+// approved-plan view (build next / new plan). Always a way back to the menu.
+const planReviewKb = (lang) => ({ inline_keyboard: [
+  [{ text: lang === 'ru' ? '✅ Утвердить план' : '✅ Approve plan', callback_data: 'plan:approve' }],
+  [{ text: lang === 'ru' ? '🔄 Другой план' : '🔄 Regenerate', callback_data: 'plan:regen' }],
+  [{ text: t('content.btn_menu', lang), callback_data: 'menu' }],
+] });
+const planShowKb = (lang) => ({ inline_keyboard: [
+  [{ text: lang === 'ru' ? '▶️ Собрать следующий сейчас' : '▶️ Build next now', callback_data: 'plan:buildnext' }],
+  [{ text: lang === 'ru' ? '🔄 Новый план' : '🔄 New plan', callback_data: 'plan:new' }],
+  [{ text: t('content.btn_menu', lang), callback_data: 'menu' }],
+] });
 
 // ─────────────────────────────────────────────────────────────
 // Core: generate a draft and send it (Copy / Regenerate / Menu)
@@ -394,6 +410,26 @@ function start() {
       return;
     }
 
+    // 📅 Reviewing a draft content plan: "2: new theme" edits a line; anything
+    // else nudges. Approval/regeneration happen via the inline buttons.
+    if (cur && cur.awaiting === 'plan_review') {
+      const pend = contentPlan.getPending(chatId);
+      if (!pend) { await bot.sendMessage(chatId, 'Черновик плана не найден — собери заново 📅.', { reply_markup: menuKeyboard(lang) }).catch(() => {}); sessions.set(chatId, {}); return; }
+      const m = text.match(/^(\d+)\s*[:.\-)]\s*(.+)$/);
+      if (m) {
+        const items = contentPlan.editPendingLine(chatId, parseInt(m[1], 10), m[2]);
+        if (!items) { await bot.sendMessage(chatId, `Нет строки ${m[1]} — в плане ${pend.items.length} строк(и).`, { reply_markup: planReviewKb(lang) }).catch(() => {}); return; }
+        await bot.sendMessage(chatId,
+          `✏️ Обновил:\n\n${escapeHtml(contentPlan.renderPending(items))}\n\nЕщё правка («2: …») или ✅ Утвердить.`,
+          { parse_mode: 'HTML', reply_markup: planReviewKb(lang) }).catch(() => {});
+      } else {
+        await bot.sendMessage(chatId,
+          'Чтобы изменить строку — напиши «2: новая тема». Или жми ✅ Утвердить / 🔄 Другой план.',
+          { reply_markup: planReviewKb(lang) }).catch(() => {});
+      }
+      return;
+    }
+
     // Track D (D.3): waiting for the headline-generation theme → generate 3 options.
     if (cur && cur.awaiting === 'gen_topic' && cur.bg) {
       const topic = (text === '-' || text === '—') ? '' : text;
@@ -482,6 +518,47 @@ function start() {
           parse_mode: 'HTML',
           reply_markup: menuKb(lang),
         }).catch(() => {});
+        return;
+      }
+      // 📅 Content plan — on-demand: generate a draft plan to review/edit/approve.
+      if (data === 'plan:new' || data === 'plan:regen') {
+        await bot.answerCallbackQuery(query.id, { text: '📅 Готовлю план…' }).catch(() => {});
+        try {
+          const items = await contentPlan.generateDraft(chatId, {});
+          const s = sessions.get(chatId) || {}; s.awaiting = 'plan_review'; sessions.set(chatId, s);
+          await bot.sendMessage(chatId,
+            `📅 <b>Черновик плана</b> (${items.length} поста):\n\n${escapeHtml(contentPlan.renderPending(items))}\n\n✏️ Изменить строку — напиши «2: новая тема». Потом ✅ Утвердить.`,
+            { parse_mode: 'HTML', reply_markup: planReviewKb(lang) }).catch(() => {});
+        } catch (err) {
+          logger.error({ err: err.message }, 'plan generation failed');
+          await bot.sendMessage(chatId, '❌ Не получилось собрать план: ' + err.message).catch(() => {});
+        }
+        return;
+      }
+      if (data === 'plan:approve') {
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        const saved = contentPlan.approve(chatId);
+        if (!saved) { await bot.sendMessage(chatId, 'Черновик плана не найден — собери заново 📅.').catch(() => {}); return; }
+        const s = sessions.get(chatId) || {}; delete s.awaiting; sessions.set(chatId, s);
+        await bot.sendMessage(chatId,
+          `✅ План утверждён. Утром планового дня соберу пост и пришлю карточку на ✅ (публикация — только по твоему тапу «🕒 В лучшее время»):\n\n${escapeHtml(contentPlan.renderPlan(saved))}`,
+          { parse_mode: 'HTML', reply_markup: planShowKb(lang) }).catch(() => {});
+        return;
+      }
+      if (data === 'plan:show') {
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.sendMessage(chatId,
+          `📋 <b>Текущий план</b>:\n\n${escapeHtml(contentPlan.renderPlan(contentPlan.load()))}`,
+          { parse_mode: 'HTML', reply_markup: planShowKb(lang) }).catch(() => {});
+        return;
+      }
+      if (data === 'plan:buildnext') {
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        const next = contentPlan.nextPlanned();
+        if (!next) { await bot.sendMessage(chatId, 'В плане нет тем со статусом 🕒. Собери новый план 📅.').catch(() => {}); return; }
+        await bot.sendMessage(chatId, `🎨 Собираю по плану: «${next.theme}»…`).catch(() => {});
+        try { await calendar.buildNextPlanned(bot, chatId); }
+        catch (err) { logger.error({ err: err.message }, 'plan buildnext failed'); await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {}); }
         return;
       }
       if (data === 'fmt:photo') {

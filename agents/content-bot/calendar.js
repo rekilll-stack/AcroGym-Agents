@@ -16,6 +16,7 @@
 const cron = require('node-cron');
 const yandex = require('./yandex');
 const photos = require('./photos');
+const plan = require('./plan');
 const assemble = require('./assemble');
 const agent = require('./agent');
 const publish = require('./publish');
@@ -107,7 +108,12 @@ async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = fa
       inner: plan.inner, caption: plan.caption,
     });
     const buffers = assembled.slides.map((s) => s.buffer).filter(Boolean);
-    const vr = await verifyCarousel(buffers, { context: `AcroGym ${theme}` });
+    // NB: do NOT pass the campaign brief (theme) into per-slide verify. The
+    // verifier sees ONE slide at a time, so feeding it the whole brief makes it
+    // flag every slide that doesn't repeat campaign facts (e.g. "slide 3 doesn't
+    // mention Lagoona Mall") — a false positive that wastes a rebuild. Each slide
+    // is judged on its OWN visual + text quality; brand identity only for context.
+    const vr = await verifyCarousel(buffers, { context: 'AcroGym kids gymnastics & acrobatics — Instagram carousel' });
     const cap = verifyCaption(assembled.caption);
     const apiCost = endCost(scope);
     totalCost += apiCost + (assembled.costUsd || 0); // API (copy+select+crop+verify) + design agent
@@ -182,7 +188,41 @@ function start(bot, ownerChatId) {
   }, { timezone: TZ });
   jobs.push(refresh);
 
+  // Content-plan executor: every morning, build the post(s) the owner's APPROVED
+  // plan scheduled for today and send each as an approval card (routine=false →
+  // nothing auto-publishes; the owner taps "🕒 В лучшее время"). The plan is
+  // owner-driven and only ever decides WHAT to assemble today.
+  const planJob = cron.schedule('0 8 * * *', async () => {
+    let due;
+    try { due = plan.dueToday(); } catch (err) { logger.error({ err: err.message }, 'plan dueToday failed'); return; }
+    if (!due.length) return;
+    logger.info({ count: due.length }, 'content-plan: building today\'s posts');
+    for (const item of due) {
+      try {
+        await bot.sendMessage(ownerChatId, `📅 По плану на сегодня: «${item.theme}» — собираю…`).catch(() => {});
+        await buildAndRoute(bot, ownerChatId, { theme: item.theme, slides: 4, routine: false });
+        plan.setStatus(item.id, 'built'); // don't rebuild tomorrow; owner still gates publish
+      } catch (err) {
+        logger.error({ err: err.message, theme: item.theme }, 'plan post build failed');
+        await bot.sendMessage(ownerChatId, `⚠️ Пост по плану «${item.theme}» не собрался: ${err.message}`).catch(() => {});
+      }
+    }
+  }, { timezone: TZ });
+  jobs.push(planJob);
+
   return jobs;
 }
 
-module.exports = { start, buildAndRoute, generatePlan, pickPhotos, PLAN };
+/**
+ * Build a single content-plan item NOW (used by the "▶️ Собрать следующий" button).
+ * Marks it built and routes an approval card. Returns the item or null if none due.
+ */
+async function buildNextPlanned(bot, ownerChatId) {
+  const item = plan.nextPlanned();
+  if (!item) return null;
+  await buildAndRoute(bot, ownerChatId, { theme: item.theme, slides: 4, routine: false });
+  plan.setStatus(item.id, 'built');
+  return item;
+}
+
+module.exports = { start, buildAndRoute, buildNextPlanned, generatePlan, pickPhotos, PLAN };

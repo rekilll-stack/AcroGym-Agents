@@ -112,7 +112,7 @@ const VISION_SYSTEM = `You are a METICULOUS QA reviewer for AcroGym Qatar — a 
 KNOW THE TEMPLATE (do NOT flag these as issues — they are intentional design):
 - It is a CAROUSEL. The context says which slide ("slide 1/4" etc). Slide 1 is the COVER: short hook headline + an orange "BOOK A TRIAL" pill with a SEPARATE arrow beside it (the arrow sitting outside the pill is correct). The cover is just a hook — campaign details (dates, location like "Lagoona Mall"/"September") live on the INNER slides, so do NOT flag the cover for "missing details".
 - Slides 2+ are INNER: a short headline + body text + the orange asterisk. They have NO CTA pill and NO arrow by design — do NOT flag inner slides for "missing CTA".
-- You see only ONE slide at a time. Campaign facts (location like "Lagoona Mall", dates, "equipment ready", price) only need to appear on ONE slide of the whole carousel — do NOT flag a slide just because THIS slide doesn't repeat them. Judge this slide on its OWN visual + text quality, not on coverage of the campaign brief.
+- You see only ONE slide at a time and you do NOT have the campaign brief. Judge this slide ONLY on its own visual + text quality (framing, legibility, brand look, spelling). NEVER flag a slide for "missing" any fact, location, date, price or call-to-action that you merely expect a campaign to contain — coverage of the campaign across the carousel is NOT your job and you cannot see the other slides. Do not invent a brief to check against.
 Reply with STRICT JSON ONLY (no prose), every field present:
 {
  "single_photo": true|false,            // false if the slide shows 2+ different photos stitched/stacked/collaged
