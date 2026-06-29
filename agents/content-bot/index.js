@@ -20,6 +20,12 @@
  * session map (format → awaiting topic → draft).
  */
 
+// The required modules below each register an 'exit' cleanup listener on
+// `process` (11 total) — a static count at startup, not a leak. Raise the limit
+// above the default 10 BEFORE those requires run, so the false-positive
+// MaxListenersExceededWarning never fires.
+process.setMaxListeners(20);
+
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 
 const fs   = require('fs');
