@@ -126,8 +126,8 @@ Reply with STRICT JSON ONLY (no prose), every field present:
  "asterisk_present": true|false,        // the orange star/asterisk mark is visible somewhere on the slide
  "child_safe": true|false,              // appropriate for a kids' brand
  "appropriate": true|false,             // nothing embarrassing/inappropriate in the photo
- "spelling_ok": true|false,
- "grammar_ok": true|false,
+ "spelling_ok": true|false,             // false ONLY for a CLEAR, unmistakable misspelling actually visible IN the slide's overlay text. Read the text exactly as printed; do NOT invent errors and do NOT judge anything outside the visible text.
+ "grammar_ok": true|false,              // false ONLY for a CLEAR grammatical mistake in the overlay text. Do NOT flag style, tone, formality, word choice, or capitalisation preferences — those are fine.
  "photo_sharp": true|false,             // not blurry/pixelated
  "subject_clear": true|false,           // main subject (kids/coach/action) clearly visible
  "good_contrast": true|false,           // text stands out from the background
