@@ -526,8 +526,12 @@ function start() {
         try {
           const items = await contentPlan.generateDraft(chatId, {});
           const s = sessions.get(chatId) || {}; s.awaiting = 'plan_review'; sessions.set(chatId, s);
+          const pend = contentPlan.getPending(chatId);
+          const strategyLine = pend && pend.strategy
+            ? `🧭 <b>Стратегия</b> (анализ конкурентов в Катаре):\n<i>${escapeHtml(pend.strategy)}</i>\n\n`
+            : '';
           await bot.sendMessage(chatId,
-            `📅 <b>Черновик плана</b> (${items.length} поста):\n\n${escapeHtml(contentPlan.renderPending(items))}\n\n✏️ Изменить строку — напиши «2: новая тема». Потом ✅ Утвердить.`,
+            `${strategyLine}📅 <b>Черновик плана</b> (${items.length} поста):\n\n${escapeHtml(contentPlan.renderPending(items))}\n\n✏️ Изменить строку — напиши «2: новая тема». Потом ✅ Утвердить.`,
             { parse_mode: 'HTML', reply_markup: planReviewKb(lang) }).catch(() => {});
         } catch (err) {
           logger.error({ err: err.message }, 'plan generation failed');

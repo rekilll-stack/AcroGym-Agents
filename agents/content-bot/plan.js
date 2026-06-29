@@ -25,6 +25,22 @@ const logger = createLogger('content-bot');
 
 const TZ = process.env.TIMEZONE || 'Asia/Qatar';
 const PLAN_PATH = path.join(__dirname, '../../data/content-plan.json');
+const BRIEF_PATH = path.join(__dirname, '../../data/competitor-brief.md');
+
+// The strategist model. Opus = the sharpest planner; plan generation is on-demand
+// and infrequent (~2 calls/request), so the extra cost is negligible.
+const STRATEGIST_MODEL = process.env.CONTENT_PLAN_MODEL || 'claude-opus-4-8';
+
+function loadBrief() {
+  try { return fs.readFileSync(BRIEF_PATH, 'utf8'); } catch { return ''; }
+}
+
+// A short human label for "now" so the strategist can factor season/timing.
+function seasonContext() {
+  const now = new Date();
+  const month = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'long' }).format(now);
+  return `Current month: ${month} (Qatar). Factor local season, school calendar and weather (summer = hot, families seek indoor activities).`;
+}
 
 // Default cadence: 3 posts/week on Mon/Wed/Fri (JS weekday: Sun=0 … Sat=6).
 const DEFAULT_DAYS = [1, 3, 5];
@@ -73,19 +89,48 @@ const pending = new Map(); // chatId → { items:[{theme,type}], days }
 
 function rid() { return Math.random().toString(16).slice(2, 8); }
 
-// ── generation ────────────────────────────────────────────────────
-const GEN_SYSTEM = `You plan Instagram content for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional.
-Propose a content plan of exactly N posts for the coming period. Each post = a concrete carousel TOPIC (a specific angle the bot can build, not a vague category) + a content TYPE tag.
-Ensure VARIETY across the plan (mix types: educational, emotional, behind-the-scenes, benefits, meet-the-coach, social-proof, seasonal/announcement).
-🔴 Do NOT invent specifics the club hasn't given you: no made-up coach/staff names, no specific children, no fabricated testimonials, quotes, prices, dates, discounts or results. Keep each topic GENERAL and truthful — something any AcroGym post could honestly cover (the club fills in real names/details later). E.g. "Meet our coaches" not "Meet Coach Sarah"; "A parent's first-cartwheel story" not a specific invented child.
+// ── generation (2-stage: analyse → propose) ───────────────────────
+// Stage 1 — a senior SMM strategist studies the competitor brief, brand and
+// season, and produces a compact strategy (NOT the posts yet). This is what
+// makes the plan considered rather than generic.
+const ANALYST_SYSTEM = `You are a SENIOR social-media strategist — AcroGym Qatar's personal SMM lead. AcroGym is a kids' gymnastics & acrobatics club in Doha with a new gym at Lagoona Mall. Audience: parents of children 3–14.
+You are given a COMPETITOR & POSITIONING BRIEF for the Qatar market. Study it deeply and think like a strategist, not a copywriter.
+Produce a SHORT, sharp strategy for the next batch of posts:
+- the differentiated angle vs the named Qatar competitors,
+- which content pillars to hit this batch and why,
+- 1–2 audience-engagement hooks worth leaning on now (questions, saves, shares),
+- anything to AVOID (what rivals over-do).
+Keep it under ~180 words, plain text, no fluff. This guides the post proposals next.`;
+
+// Stage 2 — turn the strategy into concrete, buildable post proposals.
+const PROPOSE_SYSTEM = `You are AcroGym Qatar's SMM lead turning an agreed STRATEGY into a content plan of exactly N Instagram carousel posts. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional.
+Each post = a concrete, buildable TOPIC (a specific angle, not a vague category) + a TYPE tag + a one-line HOOK + a short WHY (how it serves the strategy / engages the audience).
+Ensure VARIETY and a coherent, beautiful feed (rotate pillars: emotional, trust/safety, benefits/education, behind-the-scenes, proof, announcement/seasonal).
+🔴 Do NOT invent specifics the club hasn't given you: no made-up coach/staff names, no specific children, no fabricated testimonials, quotes, prices, dates, discounts or results. Keep topics GENERAL and truthful — e.g. "Meet our coaches" not "Meet Coach Sarah".
 Return STRICT JSON ONLY, no prose:
-{"posts":[{"theme":"<specific post topic in ENGLISH, one line>","type":"<one lowercase tag>"}, ... exactly N items]}`;
+{"posts":[{"theme":"<specific topic, ENGLISH, one line>","type":"<one lowercase tag>","hook":"<one-line scroll-stopper>","why":"<short reason, ENGLISH>"}, ... exactly N items]}`;
+
+async function analyse(focus = '') {
+  const brief = loadBrief();
+  return generateText({
+    system: ANALYST_SYSTEM,
+    model: STRATEGIST_MODEL,
+    user: `COMPETITOR & POSITIONING BRIEF:\n${brief || '(no brief on file — reason from general best practice for a kids\' acro club in Doha)'}\n\n${seasonContext()}\n${focus ? `Owner's focus for this batch: ${focus}` : 'No specific focus — plan a balanced, engaging batch.'}\n\nGive the strategy.`,
+    maxTokens: 500,
+  });
+}
 
 async function generateDraft(chatId, { count = DEFAULT_COUNT, days = DEFAULT_DAYS, focus = '' } = {}) {
+  // Stage 1: strategy from deep competitor/brand analysis.
+  let strategy = '';
+  try { strategy = await analyse(focus); } catch (err) { logger.warn({ err: err.message }, 'plan analysis failed → proposing without strategy'); }
+
+  // Stage 2: concrete proposals grounded in the strategy.
   const raw = await generateText({
-    system: GEN_SYSTEM,
-    user: `N: ${count}\n${focus ? `Focus / theme for this batch: ${focus}` : 'No specific focus — a balanced week.'}\nReturn the JSON.`,
-    maxTokens: 700,
+    system: PROPOSE_SYSTEM,
+    model: STRATEGIST_MODEL,
+    user: `STRATEGY:\n${strategy || '(none — use best practice)'}\n\nN: ${count}\nReturn the JSON.`,
+    maxTokens: 900,
   });
   let parsed;
   try { const m = String(raw).match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : null; } catch { parsed = null; }
@@ -95,9 +140,11 @@ async function generateDraft(chatId, { count = DEFAULT_COUNT, days = DEFAULT_DAY
   const items = parsed.posts.slice(0, count).map((p) => ({
     theme: String(p.theme || '').trim(),
     type: String(p.type || 'post').trim().toLowerCase(),
+    hook: String(p.hook || '').trim(),
+    why: String(p.why || '').trim(),
   })).filter((p) => p.theme);
   if (!items.length) throw new Error('plan generation: empty');
-  pending.set(String(chatId), { items, days });
+  pending.set(String(chatId), { items, days, strategy });
   return items;
 }
 
@@ -182,8 +229,12 @@ function dayLabel(dateStr) {
 }
 
 // Numbered list of the PENDING draft (no dates yet — owner is still reviewing).
+// Shows the WHY under each topic so the owner sees the strategist's reasoning.
 function renderPending(items) {
-  return items.map((it, i) => `${i + 1}. ${it.theme} [${it.type}]`).join('\n');
+  return items.map((it, i) => {
+    const why = it.why ? `\n   ↳ ${it.why}` : '';
+    return `${i + 1}. ${it.theme} [${it.type}]${why}`;
+  }).join('\n');
 }
 
 // Numbered list of the APPROVED plan (with dates + statuses).
