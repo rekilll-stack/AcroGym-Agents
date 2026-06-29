@@ -49,9 +49,19 @@ function isConfigured() {
 }
 
 async function fetchBuffer(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`canva export download ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
+  // Canva export URLs are short-lived/CDN-flaky — retry a few times before failing
+  // so a transient 403/5xx doesn't sink the whole post.
+  let lastErr;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return Buffer.from(await res.arrayBuffer());
+      lastErr = new Error(`canva export download ${res.status}`);
+      if (res.status !== 403 && res.status < 500) break; // only retry 403 / 5xx
+    } catch (err) { lastErr = err; }
+    await new Promise((r) => setTimeout(r, 800 * attempt));
+  }
+  throw lastErr || new Error('canva export download failed');
 }
 
 /**
