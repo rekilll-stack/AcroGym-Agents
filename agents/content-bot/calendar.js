@@ -157,7 +157,7 @@ async function buildStoryAndRoute(bot, ownerChatId, { theme, routine = false, fo
  * MP4 is generated locally (no public URL for Metricool), so for now it's a
  * preview the owner downloads/posts. Auto-publish needs a hosting decision.
  */
-async function buildReelAndRoute(bot, ownerChatId, { theme, folder } = {}) {
+async function buildReelAndRoute(bot, ownerChatId, { theme, routine = false, folder } = {}) {
   logger.info({ theme }, 'calendar: building reel');
   const scope = beginCost();
   const copy = await generateStoryCopy(theme);
@@ -165,31 +165,38 @@ async function buildReelAndRoute(bot, ownerChatId, { theme, folder } = {}) {
   const photo = sel.photos && sel.photos[0];
   if (!photo) throw new Error('reel: no photo selected');
   const assembled = await assemble.assembleReel({ topic: theme, photo, headline: copy.headline, cta: copy.cta, caption: copy.caption });
-  const poster = assembled.slides[0] && assembled.slides[0].poster;
-  const mp4 = assembled.slides[0] && assembled.slides[0].buffer;
+  const slide0 = assembled.slides[0] || {};
+  const poster = slide0.poster;
+  const mp4 = slide0.buffer;
   const vr = poster
     ? await verifySlide(poster, { context: 'AcroGym story/reel 9:16 cover-style frame', expectedRatio: 1080 / 1920, ratioLabel: '9:16' })
     : { ok: true, issues: [] };
   const cap = verifyCaption(assembled.caption);
+
+  // Host the MP4 on Yandex.Disk → public direct URL so Metricool can publish it.
+  let mediaUrl = null; let hostErr = null;
+  try {
+    const up = await yandex.uploadPublic(mp4, `reel-${Date.now()}.mp4`, { contentType: 'video/mp4' });
+    mediaUrl = up.directUrl;
+  } catch (err) { hostErr = err.message; logger.error({ err: err.message }, 'reel hosting upload failed'); }
+
   const apiCost = endCost(scope);
   const totalCost = apiCost + (assembled.costUsd || 0);
-
   const issues = [...vr.issues.map((x) => `кадр: ${x}`), ...cap.issues.map((x) => `подпись: ${x}`)];
-  const verifyLine = issues.length ? `⚠️ Замечания:\n• ${issues.join('\n• ')}` : '✅ Самопроверка пройдена';
-  const note = `🎬 <b>Reel (9:16, движение)</b> — <i>${escapeHtmlSafe(theme)}</i>\n💰 ~$${totalCost.toFixed(2)}\n${verifyLine}\n\n<i>Авто-публикация Reels пока не подключена — скачай и выложи, либо подключим хостинг видео.</i>`;
-  try {
-    await bot.sendVideo(ownerChatId, mp4, { caption: note, parse_mode: 'HTML' }, { filename: 'acrogym-reel.mp4', contentType: 'video/mp4' });
-  } catch (err) {
-    logger.error({ err: err.message }, 'reel sendVideo failed');
-    await bot.sendMessage(ownerChatId, '⚠️ Reel собрался, но не отправился: ' + err.message).catch(() => {});
-  }
-  // Caption to copy separately (Telegram video captions can't be long/selectable).
-  await bot.sendMessage(ownerChatId, `<pre>${escapeHtmlSafe(assembled.caption || '')}</pre>`, { parse_mode: 'HTML' }).catch(() => {});
-  return { ok: true, costUsd: totalCost, issues };
-}
+  if (hostErr) issues.push(`хостинг видео: ${hostErr}`);
+  const verifyOk = vr.ok && cap.ok && !!mediaUrl && !assembled.overBudget;
 
-function escapeHtmlSafe(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const draft = publish.newDraft({
+    kind: 'reel', igType: 'REEL',
+    caption: assembled.caption,
+    slides: [{ url: mediaUrl, buffer: mp4, poster, isVideo: true, alt: `${copy.headline} — AcroGym` }],
+    theme, reelFormat: true,
+    routine: routine && verifyOk,
+    verify: { ok: verifyOk, issues },
+    costUsd: totalCost,
+    source: `${routine ? 'calendar' : 'on-demand'} reel: ${theme}`,
+  });
+  return publish.route(bot, ownerChatId, draft);
 }
 
 /**

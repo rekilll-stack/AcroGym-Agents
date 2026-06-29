@@ -522,10 +522,13 @@ function start() {
         await bot.answerCallbackQuery(query.id, { text: '🔄 Пересобираю…' }).catch(() => {});
         if (!draft || !draft.theme) { await bot.sendMessage(chatId, 'Черновик устарел — собери заново через ✨ Авто-пост.').catch(() => {}); return; }
         publish.dropDraft(id);
+        const isReel = draft.igType === 'REEL' || draft.reelFormat;
         const isStory = draft.igType === 'STORY' || draft.storyFormat;
-        await bot.sendMessage(chatId, `🎨 Пересобираю ${isStory ? 'сторис' : 'пост'} на других фото…`).catch(() => {});
+        const kindWord = isReel ? 'Reel' : isStory ? 'сторис' : 'пост';
+        await bot.sendMessage(chatId, `🎨 Пересобираю ${kindWord} на других фото…`).catch(() => {});
         try {
-          if (isStory) await calendar.buildStoryAndRoute(bot, chatId, { theme: draft.theme, routine: false });
+          if (isReel) await calendar.buildReelAndRoute(bot, chatId, { theme: draft.theme, routine: false });
+          else if (isStory) await calendar.buildStoryAndRoute(bot, chatId, { theme: draft.theme, routine: false });
           else await calendar.buildAndRoute(bot, chatId, { theme: draft.theme, slides: draft.slidesCount || 4, routine: false });
         } catch (err) {
           logger.error({ err: err.message }, 'rebuild failed');

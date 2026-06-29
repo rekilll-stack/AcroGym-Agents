@@ -83,6 +83,15 @@ const mediaAlts = (draft) => (draft.slides || []).map((s) => s.alt || '');
  */
 async function sendApprovalCard(bot, chatId, draft) {
   const urls = mediaUrls(draft);
+  // Reel / video draft → preview as a Telegram video (buffer if we have it).
+  const firstSlide = (draft.slides || [])[0];
+  if (firstSlide && firstSlide.isVideo) {
+    try {
+      await bot.sendVideo(chatId, firstSlide.buffer || firstSlide.url, {}, { filename: 'acrogym-reel.mp4', contentType: 'video/mp4' });
+    } catch (err) {
+      logger.warn({ err: err.message }, 'reel preview send failed');
+    }
+  } else {
   // Preview the visuals (album). If we only have buffers, send the first.
   try {
     if (urls.length > 1) {
@@ -97,6 +106,7 @@ async function sendApprovalCard(bot, chatId, draft) {
   } catch (err) {
     logger.warn({ err: err.message }, 'approval preview send failed');
   }
+  }
 
   const verifyLine = draft.verify
     ? (draft.verify.ok
@@ -104,7 +114,8 @@ async function sendApprovalCard(bot, chatId, draft) {
         : `⚠️ Замечания самопроверки:\n• ${draft.verify.issues.map(escapeHtml).join('\n• ')}`)
     : '';
   const priceLine = typeof draft.costUsd === 'number' ? `\n💰 Цена поста: $${draft.costUsd.toFixed(2)}` : '';
-  const header = `📝 <b>Черновик ${draft.id}</b> — карусель` +
+  const kindLabel = draft.igType === 'REEL' ? '🎬 Reel' : draft.igType === 'STORY' ? '📱 сторис' : '📸 карусель';
+  const header = `📝 <b>Черновик ${draft.id}</b> — ${kindLabel}` +
     (draft.source ? `\n<i>${escapeHtml(draft.source)}</i>` : '') +
     priceLine +
     (verifyLine ? `\n${verifyLine}` : '') +

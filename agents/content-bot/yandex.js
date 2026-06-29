@@ -81,6 +81,37 @@ async function fetchPreview(url) {
   return Buffer.from(await res.arrayBuffer());
 }
 
+async function apiPut(pathname, params) {
+  if (!isConfigured()) throw new Error('yandex not configured — set YANDEX_DISK_TOKEN in .env');
+  const url = `${API}${pathname}?${new URLSearchParams(params).toString()}`;
+  const res = await fetch(url, { method: 'PUT', headers: { Authorization: `OAuth ${TOKEN()}` } });
+  const data = await res.json().catch(() => ({}));
+  // 409 = already exists (e.g. mkdir) — not an error for our use.
+  if (!res.ok && res.status !== 409) throw new Error(`yandex PUT ${pathname} ${res.status}: ${(data && data.message) || ''}`);
+  return { status: res.status, data };
+}
+
+/**
+ * Upload a file to /AcroGym/Marketing/reels, publish it, and return a DIRECT
+ * public download URL (for Metricool to fetch). Scoped: only ever writes under
+ * /AcroGym/Marketing. @returns {Promise<{directUrl, publicPage, path}>}
+ */
+async function uploadPublic(buffer, name, { contentType = 'application/octet-stream' } = {}) {
+  const folder = `${MARKETING}/reels`;
+  const filePath = `${folder}/${name}`;
+  assertScoped(folder); assertScoped(filePath);
+  await apiPut('/resources', { path: folder }).catch(() => {}); // ensure folder (409 = exists)
+  const up = await apiGet('/resources/upload', { path: filePath, overwrite: 'true' });
+  const put = await fetch(up.href, { method: 'PUT', body: buffer, headers: { 'Content-Type': contentType } });
+  if (!put.ok && put.status !== 201) throw new Error(`yandex upload PUT ${put.status}`);
+  await apiPut('/resources/publish', { path: filePath });
+  const meta = await apiGet('/resources', { path: filePath, fields: 'public_key,public_url' });
+  if (!meta.public_key) throw new Error('yandex: file did not become public (no public_key)');
+  const dl = await apiGet('/public/resources/download', { public_key: meta.public_key });
+  logger.info({ filePath, bytes: buffer.length }, 'yandex video uploaded + published');
+  return { directUrl: dl.href, publicPage: meta.public_url, path: filePath };
+}
+
 /** Download a file from the Disk into a Buffer (scoped). */
 async function downloadBuffer(diskPath) {
   assertScoped(diskPath);
@@ -98,6 +129,7 @@ module.exports = {
   listImages,
   downloadBuffer,
   fetchPreview,
+  uploadPublic,
   ROOT,
   MARKETING,
 };
