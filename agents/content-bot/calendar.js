@@ -152,6 +152,47 @@ async function buildStoryAndRoute(bot, ownerChatId, { theme, routine = false, fo
 }
 
 /**
+ * Build a 9:16 REEL (branded frame + gentle Ken-Burns motion → MP4) and deliver
+ * it to the owner as a Telegram video. 🔴 Reels are NOT auto-published yet: the
+ * MP4 is generated locally (no public URL for Metricool), so for now it's a
+ * preview the owner downloads/posts. Auto-publish needs a hosting decision.
+ */
+async function buildReelAndRoute(bot, ownerChatId, { theme, folder } = {}) {
+  logger.info({ theme }, 'calendar: building reel');
+  const scope = beginCost();
+  const copy = await generateStoryCopy(theme);
+  const sel = await photos.selectBest(1, { folder, topic: theme, exclude: [], story: true });
+  const photo = sel.photos && sel.photos[0];
+  if (!photo) throw new Error('reel: no photo selected');
+  const assembled = await assemble.assembleReel({ topic: theme, photo, headline: copy.headline, cta: copy.cta, caption: copy.caption });
+  const poster = assembled.slides[0] && assembled.slides[0].poster;
+  const mp4 = assembled.slides[0] && assembled.slides[0].buffer;
+  const vr = poster
+    ? await verifySlide(poster, { context: 'AcroGym story/reel 9:16 cover-style frame', expectedRatio: 1080 / 1920, ratioLabel: '9:16' })
+    : { ok: true, issues: [] };
+  const cap = verifyCaption(assembled.caption);
+  const apiCost = endCost(scope);
+  const totalCost = apiCost + (assembled.costUsd || 0);
+
+  const issues = [...vr.issues.map((x) => `кадр: ${x}`), ...cap.issues.map((x) => `подпись: ${x}`)];
+  const verifyLine = issues.length ? `⚠️ Замечания:\n• ${issues.join('\n• ')}` : '✅ Самопроверка пройдена';
+  const note = `🎬 <b>Reel (9:16, движение)</b> — <i>${escapeHtmlSafe(theme)}</i>\n💰 ~$${totalCost.toFixed(2)}\n${verifyLine}\n\n<i>Авто-публикация Reels пока не подключена — скачай и выложи, либо подключим хостинг видео.</i>`;
+  try {
+    await bot.sendVideo(ownerChatId, mp4, { caption: note, parse_mode: 'HTML' }, { filename: 'acrogym-reel.mp4', contentType: 'video/mp4' });
+  } catch (err) {
+    logger.error({ err: err.message }, 'reel sendVideo failed');
+    await bot.sendMessage(ownerChatId, '⚠️ Reel собрался, но не отправился: ' + err.message).catch(() => {});
+  }
+  // Caption to copy separately (Telegram video captions can't be long/selectable).
+  await bot.sendMessage(ownerChatId, `<pre>${escapeHtmlSafe(assembled.caption || '')}</pre>`, { parse_mode: 'HTML' }).catch(() => {});
+  return { ok: true, costUsd: totalCost, issues };
+}
+
+function escapeHtmlSafe(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
  * Build a themed carousel end-to-end and route it through the gate.
  * @param {object} bot Telegram bot
  * @param {string|number} ownerChatId
@@ -345,4 +386,4 @@ async function buildNextPlanned(bot, ownerChatId) {
   return item;
 }
 
-module.exports = { start, buildAndRoute, buildStoryAndRoute, buildNextPlanned, runResearchAndReport, generatePlan, pickPhotos, PLAN };
+module.exports = { start, buildAndRoute, buildStoryAndRoute, buildReelAndRoute, buildNextPlanned, runResearchAndReport, generatePlan, pickPhotos, PLAN };

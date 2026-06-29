@@ -138,12 +138,14 @@ async function assembleCarousel({ topic, photos, cover, inner, caption }) {
  * @param {string} p.caption
  * @returns {Promise<{caption, slides:Array<{url,buffer,alt}>, costUsd, overBudget}>}
  */
-async function assembleStory({ topic, photo, headline, cta, caption }) {
+// Build ONE on-brand 9:16 frame (full-bleed photo + Gerhaus headline + asterisk
+// + CTA) via the story template. Shared by stories AND reels (reels animate it).
+async function buildStoryFrame({ photo, headline, cta }) {
   const cfg = loadTemplates().story;
   if (!cfg || !cfg.templateDesignId || !cfg.elements || !cfg.elements.bg || !cfg.elements.headline) {
     throw new Error('canva-templates.json: missing story template (story.templateDesignId + elements.bg/headline)');
   }
-  if (!photo || !photo.buffer) throw new Error('assembleStory: need a photo');
+  if (!photo || !photo.buffer) throw new Error('buildStoryFrame: need a photo');
 
   // Pre-crop to an exact 9:16 frame so Canva fills a full-bleed 1080x1920 bg.
   let buf = photo.buffer;
@@ -155,10 +157,31 @@ async function assembleStory({ topic, photo, headline, cta, caption }) {
     templateDesignId: cfg.templateDesignId, assetId, elements: cfg.elements, headline, cta,
   });
   if (!built.ok) throw new Error(`story agent: ${built.error} (cost $${built.costUsd})`);
-
-  const slide = { url: built.url, buffer: await fetchBuffer(built.url), alt: `${headline} — AcroGym` };
-  const cap = caption || await generateContent('post', topic);
-  return { caption: cap, slides: [slide], costUsd: built.costUsd, overBudget: built.overBudget };
+  return { url: built.url, buffer: await fetchBuffer(built.url), costUsd: built.costUsd, overBudget: built.overBudget };
 }
 
-module.exports = { isConfigured, loadTemplates, assembleCarousel, assembleStory, TEMPLATES_PATH };
+async function assembleStory({ topic, photo, headline, cta, caption }) {
+  const frame = await buildStoryFrame({ photo, headline, cta });
+  const slide = { url: frame.url, buffer: frame.buffer, alt: `${headline} — AcroGym` };
+  const cap = caption || await generateContent('post', topic);
+  return { caption: cap, slides: [slide], costUsd: frame.costUsd, overBudget: frame.overBudget };
+}
+
+/**
+ * Assemble a 9:16 REEL: build the branded frame, then add gentle Ken-Burns motion
+ * (ffmpeg) → MP4. The MP4 is a local buffer (no public URL — delivered to the
+ * owner; auto-publish needs hosting). Returns the still PNG too (card thumbnail).
+ */
+async function assembleReel({ topic, photo, headline, cta, caption, seconds }) {
+  const video = require('./video');
+  const frame = await buildStoryFrame({ photo, headline, cta });
+  const mp4 = await video.kenBurnsReel(frame.buffer, seconds ? { seconds } : {});
+  const cap = caption || await generateContent('post', topic);
+  return {
+    caption: cap,
+    slides: [{ buffer: mp4, isVideo: true, poster: frame.buffer, alt: `${headline} — AcroGym` }],
+    costUsd: frame.costUsd, overBudget: frame.overBudget,
+  };
+}
+
+module.exports = { isConfigured, loadTemplates, assembleCarousel, assembleStory, assembleReel, buildStoryFrame, TEMPLATES_PATH };

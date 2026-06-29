@@ -406,6 +406,15 @@ function start() {
       catch (err) { logger.error({ err: err.message }, '/story failed'); await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {}); }
       return;
     }
+    // On-demand REEL (9:16 motion). Delivered as a Telegram video (not auto-posted).
+    if (text === '/reel' || text.startsWith('/reel ')) {
+      const topic = text.slice(5).trim();
+      if (!topic) { await bot.sendMessage(chatId, '🎬 Тема Reel? Напр.: /reel a joyful moment in training').catch(() => {}); return; }
+      await bot.sendMessage(chatId, '🎬 Собираю Reel 9:16 с движением (Canva + ffmpeg)…').catch(() => {});
+      try { await calendar.buildReelAndRoute(bot, chatId, { theme: topic }); }
+      catch (err) { logger.error({ err: err.message }, '/reel failed'); await bot.sendMessage(chatId, '❌ ' + err.message).catch(() => {}); }
+      return;
+    }
     if (text === '/autopilot') {
       await bot.sendMessage(chatId, autopilotStatusText(), { parse_mode: 'HTML' }).catch(() => {});
       return;
