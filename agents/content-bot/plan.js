@@ -42,9 +42,10 @@ function seasonContext() {
   return `Current month: ${month} (Qatar). Factor local season, school calendar and weather (summer = hot, families seek indoor activities).`;
 }
 
-// Default cadence: 3 posts/week on Mon/Wed/Fri (JS weekday: Sun=0 … Sat=6).
-const DEFAULT_DAYS = [1, 3, 5];
-const DEFAULT_COUNT = 3;
+// Default cadence: 5 posts/week, Mon–Fri (JS weekday: Sun=0 … Sat=6). Bumped
+// from 3/wk per the competitor analysis (rivals post 4–5×/wk; 2–3/mo = invisible).
+const DEFAULT_DAYS = [1, 2, 3, 4, 5];
+const DEFAULT_COUNT = 5;
 
 // ── persistence ───────────────────────────────────────────────────
 function load() {
