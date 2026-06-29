@@ -18,6 +18,7 @@ const yandex = require('./yandex');
 const photos = require('./photos');
 const plan = require('./plan');
 const research = require('./research');
+const { getPreferredLanguage } = require('../../shared/preferences');
 const assemble = require('./assemble');
 const agent = require('./agent');
 const publish = require('./publish');
@@ -171,14 +172,18 @@ async function sendChunked(bot, chatId, text, prefix = '') {
  * Used by the every-3-days cron AND the manual "🔎 Анализ сейчас" button.
  */
 async function runResearchAndReport(bot, ownerChatId) {
-  await bot.sendMessage(ownerChatId, '🔎 Провожу анализ конкурентов в Катаре… (1–3 мин)').catch(() => {});
-  const res = await research.runAnalysis();
+  const lang = getPreferredLanguage(ownerChatId) === 'ru' ? 'ru' : 'en';
+  const msg = lang === 'ru'
+    ? { wait: '🔎 Провожу анализ конкурентов в Катаре… (1–3 мин)', fail: '⚠️ Анализ не удался: ', head: '📊 Анализ конкурентов', brief: ' · бриф планировщика обновлён ✅' }
+    : { wait: '🔎 Running competitor analysis (Qatar)… (1–3 min)', fail: '⚠️ Analysis failed: ', head: '📊 Competitor analysis', brief: ' · planner brief updated ✅' };
+  await bot.sendMessage(ownerChatId, msg.wait).catch(() => {});
+  const res = await research.runAnalysis({ lang });
   if (!res.ok) {
-    await bot.sendMessage(ownerChatId, `⚠️ Анализ не удался: ${res.error}`).catch(() => {});
+    await bot.sendMessage(ownerChatId, `${msg.fail}${res.error}`).catch(() => {});
     return res;
   }
   await sendChunked(bot, ownerChatId, res.reportMd,
-    `📊 <Анализ конкурентов> ${new Date().toLocaleDateString('ru-RU')}${res.briefUpdated ? ' · бриф планировщика обновлён ✅' : ''}`);
+    `${msg.head} ${new Date().toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')}${res.briefUpdated ? msg.brief : ''}`);
   return res;
 }
 

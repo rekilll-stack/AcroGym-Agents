@@ -46,9 +46,10 @@ function todayStr() {
   }).format(new Date());
 }
 
-function buildPrompt() {
+function buildPrompt(lang = 'ru') {
   let prev = '';
   try { prev = fs.readFileSync(BRIEF_PATH, 'utf8'); } catch { /* first run */ }
+  const reportLang = lang === 'en' ? 'English' : 'Russian';
   return [
     'You are AcroGym Qatar\'s personal SENIOR social-media strategist. AcroGym is a kids\' gymnastics & acrobatics club in Doha with a new gym at Lagoona Mall; audience = parents of children 3-14; brand voice = warm, energetic, safe, professional.',
     'TASK: run a fresh, deep competitive & market analysis for Instagram, then output an updated strategy brief AND an owner report.',
@@ -65,7 +66,7 @@ function buildPrompt() {
     '(A concise STRATEGY BRIEF in Markdown that REPLACES the existing brief — the content planner reads this as context. Keep the structure: market landscape table, what rivals over-do, AcroGym\'s differentiation/opportunities, content pillars, voice & visual guardrails. Keep it truthful — no invented prices/dates/names. ~400-600 words.)',
     '',
     '===REPORT===',
-    '(An OWNER-FACING report in Russian, Markdown, SCANNABLE and under ~450 words. Sections: 📊 Что у конкурентов сейчас (ключевые цифры/наблюдения, 1 строка на конкурента), 💡 Что работает / тренды, 🎯 Рекомендация на ближайший цикл (3-5 конкретных шагов: какие посты/сторис/форматы), ⚠️ Чего избегать. Speak to the owner directly, like his trusted SMM lead.)',
+    `(An OWNER-FACING report written ENTIRELY in ${reportLang}, Markdown, SCANNABLE and under ~450 words. Sections (translate the headings into ${reportLang}): "What competitors are doing now" (key numbers/observations, 1 line per competitor), "What works / trends", "Recommendation for the coming cycle" (3-5 concrete steps: which posts/stories/formats), "What to avoid". Speak to the owner directly, like his trusted SMM lead.)`,
     '',
     'Output ONLY those two delimited sections. Begin now.',
     prev ? `\n(Previous brief for reference — improve on it, note what changed:)\n${prev}` : '',
@@ -85,9 +86,9 @@ function splitSections(text) {
  * Run the analysis via the headless agent and persist outputs.
  * @returns {Promise<{ok, reportMd?, briefUpdated?, reportPath?, costUsd, error?}>}
  */
-async function runAnalysis() {
-  logger.info({ model: RESEARCH_MODEL }, 'competitor analysis: starting headless research');
-  const run = await agent.runCli(buildPrompt(), {
+async function runAnalysis({ lang = 'ru' } = {}) {
+  logger.info({ model: RESEARCH_MODEL, lang }, 'competitor analysis: starting headless research');
+  const run = await agent.runCli(buildPrompt(lang), {
     model: RESEARCH_MODEL, maxTurns: RESEARCH_MAX_TURNS, timeoutMs: RESEARCH_TIMEOUT_MS,
   });
   if (!run.ok) {
