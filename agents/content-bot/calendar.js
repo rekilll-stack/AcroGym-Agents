@@ -23,7 +23,7 @@ const assemble = require('./assemble');
 const agent = require('./agent');
 const publish = require('./publish');
 const { verifyCarousel, verifySlide, verifyCaption } = require('./verify');
-const { generateText, beginCost, endCost } = require('../../shared/claude');
+const { generateText, beginCost, endCost } = require('./llm');
 const { createLogger } = require('../../shared/logger');
 
 const logger = createLogger('content-bot');

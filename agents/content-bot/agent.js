@@ -28,9 +28,10 @@ const { createLogger } = require('../../shared/logger');
 const logger = createLogger('content-bot');
 
 const CLI = process.env.CLAUDE_CLI || `${process.env.HOME || '/home/admin'}/.npm-global/bin/claude`;
-// Haiku is enough because we hand the agent the EXACT element ids to fill (no
-// guesswork) — keeps per-post cost low. Override with CONTENT_DESIGNER_MODEL.
-const MODEL = process.env.CONTENT_DESIGNER_MODEL || 'haiku';
+// Owner's call (2026-06-29): everything on Opus 4.8. (Design is mechanical and
+// Haiku sufficed with exact element ids, but the owner wants 4.8 across the
+// board.) Override with CONTENT_DESIGNER_MODEL if Max quota throttles.
+const MODEL = process.env.CONTENT_DESIGNER_MODEL || 'opus';
 const MAX_TURNS = parseInt(process.env.CONTENT_DESIGNER_MAX_TURNS || '30', 10);
 const TIMEOUT_MS = parseInt(process.env.CONTENT_DESIGNER_TIMEOUT_MS || '300000', 10); // 5 min
 const MAX_COST_USD = parseFloat(process.env.MAX_POST_COST_USD || '0.5');

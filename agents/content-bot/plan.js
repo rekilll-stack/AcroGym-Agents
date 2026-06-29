@@ -18,7 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { generateText } = require('../../shared/claude');
+const { generateText } = require('./llm');
 const { createLogger } = require('../../shared/logger');
 
 const logger = createLogger('content-bot');

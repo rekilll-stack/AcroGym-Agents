@@ -4,7 +4,7 @@
 // Claude is unavailable (mirrors the lead-helper greeting / drip pattern).
 // Returns a DRAFT string — never published anywhere by this code.
 
-const { generateText } = require('../../shared/claude');
+const { generateText } = require('./llm');
 const { createLogger }  = require('../../shared/logger');
 const { buildContentPrompt, fallbackContent, buildCaptionPrompt, fallbackCaption,
         buildHeadlinePrompt, parseHeadlines, fallbackHeadlines } = require('./prompts');

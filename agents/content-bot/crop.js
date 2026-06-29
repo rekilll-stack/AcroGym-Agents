@@ -15,7 +15,7 @@
  */
 
 const { createCanvas, loadImage } = require('canvas');
-const { generateText } = require('../../shared/claude');
+const { generateText } = require('./llm');
 const { createLogger } = require('../../shared/logger');
 
 const logger = createLogger('content-bot');
