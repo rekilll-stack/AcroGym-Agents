@@ -8,6 +8,13 @@ const logger = createLogger('claude');
 
 let _client = null;
 
+// Cost scopes — let a caller measure the total $ of all generateText calls it
+// makes (e.g. one full carousel build), so the bot can show a correct per-post
+// price. Per-process state (each bot is its own process).
+const _costScopes = new Set();
+function beginCost() { const s = { total: 0 }; _costScopes.add(s); return s; }
+function endCost(s) { if (s) _costScopes.delete(s); return s ? s.total : 0; }
+
 function getClient() {
   if (_client) return _client;
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -62,6 +69,7 @@ async function generateText({ system, user, images = null, maxTokens = DEFAULT_M
       const input  = response.usage?.input_tokens  || 0;
       const output = response.usage?.output_tokens || 0;
       const costUSD = _estimateCost(model, input, output);
+      for (const s of _costScopes) s.total += costUSD; // accrue into any open cost scopes
       logger.info({ model, input, output, costUSD: costUSD.toFixed(6) }, 'Claude API вызов');
 
       return response.content[0]?.text || '';
@@ -92,9 +100,11 @@ async function generateText({ system, user, images = null, maxTokens = DEFAULT_M
 function _estimateCost(model, inputTokens, outputTokens) {
   const pricing = {
     'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
+    'claude-sonnet-4-6': { input: 3.0, output: 15.0 },
     'claude-opus-4-8':   { input: 15.0, output: 75.0 }, // opus tier (approx); for cost-log estimate
     'claude-opus-4-7':   { input: 15.0, output: 75.0 },
     'claude-haiku-4-5':  { input: 0.25, output: 1.25 },
+    'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
   };
   const p = pricing[model] || pricing['claude-sonnet-4-5'];
   return (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
@@ -104,4 +114,4 @@ function _sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-module.exports = { generateText };
+module.exports = { generateText, beginCost, endCost };

@@ -99,10 +99,14 @@ async function sendApprovalCard(bot, chatId, draft) {
   }
 
   const verifyLine = draft.verify
-    ? (draft.verify.ok ? '✅ self-check passed' : `⚠️ self-check issues: ${draft.verify.issues.join('; ')}`)
+    ? (draft.verify.ok
+        ? '✅ Самопроверка пройдена'
+        : `⚠️ Замечания самопроверки:\n• ${draft.verify.issues.map(escapeHtml).join('\n• ')}`)
     : '';
-  const header = `📝 <b>Draft ${draft.id}</b> — ${draft.kind}/${draft.igType}` +
-    (draft.source ? `\n<i>${draft.source}</i>` : '') +
+  const priceLine = typeof draft.costUsd === 'number' ? `\n💰 Цена поста: $${draft.costUsd.toFixed(2)}` : '';
+  const header = `📝 <b>Черновик ${draft.id}</b> — карусель` +
+    (draft.source ? `\n<i>${escapeHtml(draft.source)}</i>` : '') +
+    priceLine +
     (verifyLine ? `\n${verifyLine}` : '') +
     (canPublish() ? '' : '\n⚠️ Публикация недоступна — это только превью.');
   const body = `${header}\n\n<pre>${escapeHtml(draft.caption || '')}</pre>`;

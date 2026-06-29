@@ -20,7 +20,7 @@ const assemble = require('./assemble');
 const agent = require('./agent');
 const publish = require('./publish');
 const { verifyCarousel, verifyCaption } = require('./verify');
-const { generateText } = require('../../shared/claude');
+const { generateText, beginCost, endCost } = require('../../shared/claude');
 const { createLogger } = require('../../shared/logger');
 
 const logger = createLogger('content-bot');
@@ -89,43 +89,57 @@ async function pickPhotos(n, folder) {
  * @param {object} opts { theme, slides, routine, folder }
  */
 async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = false, folder } = {}) {
-  logger.info({ theme, slides, routine }, 'calendar: building carousel');
-  const plan = await generatePlan(theme, slides);
-  const sel = await photos.selectBest(slides, { folder, topic: theme });
+  const MAX_ATTEMPTS = Math.max(1, parseInt(process.env.CONTENT_BUILD_ATTEMPTS || '2', 10));
+  logger.info({ theme, slides, routine, maxAttempts: MAX_ATTEMPTS }, 'calendar: building carousel');
 
-  const assembled = await assemble.assembleCarousel({
-    topic: theme,
-    photos: sel.photos,
-    cover: { headline: plan.cover.headline, cta: plan.cover.cta },
-    inner: plan.inner,
-    caption: plan.caption,
-  });
+  let totalCost = 0;   // true $ across ALL attempts (API calls + design agent)
+  let best = null;     // best attempt so far (passed, or fewest issues)
+  const exclude = [];  // photos already tried — auto-rebuild picks fresh ones
 
-  // Self-verify EVERYTHING before it can be shown or auto-published:
-  // every slide (structure/integrity/visual), carousel-level consistency, and
-  // the caption.
-  const buffers = assembled.slides.map((s) => s.buffer).filter(Boolean);
-  const vr = await verifyCarousel(buffers, { context: `AcroGym ${theme}` });
-  const cap = verifyCaption(assembled.caption);
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const scope = beginCost(); // sum every Claude API call this attempt makes
+    const plan = await generatePlan(theme, slides);
+    const sel = await photos.selectBest(slides, { folder, topic: theme, exclude });
+    (sel.ranked || []).forEach((p) => exclude.push(p)); // never reuse on a rebuild
+    const assembled = await assemble.assembleCarousel({
+      topic: theme, photos: sel.photos,
+      cover: { headline: plan.cover.headline, cta: plan.cover.cta },
+      inner: plan.inner, caption: plan.caption,
+    });
+    const buffers = assembled.slides.map((s) => s.buffer).filter(Boolean);
+    const vr = await verifyCarousel(buffers, { context: `AcroGym ${theme}` });
+    const cap = verifyCaption(assembled.caption);
+    const apiCost = endCost(scope);
+    totalCost += apiCost + (assembled.costUsd || 0); // API (copy+select+crop+verify) + design agent
 
-  const issues = [
-    ...vr.slides.flatMap((s, i) => s.issues.map((x) => `s${i + 1}:${x}`)),
-    ...vr.carousel.map((x) => `carousel:${x}`),
-    ...cap.issues.map((x) => `caption:${x}`),
-  ];
-  if (assembled.overBudget) issues.push(`cost:over budget ($${(assembled.costUsd || 0).toFixed(2)})`);
-  const verifyOk = vr.ok && cap.ok;
+    const issues = [
+      ...vr.slides.flatMap((s, i) => s.issues.map((x) => `слайд ${i + 1}: ${x}`)),
+      ...vr.carousel.map((x) => `карусель: ${x}`),
+      ...cap.issues.map((x) => `подпись: ${x}`),
+    ];
+    if (assembled.overBudget) issues.push(`стоимость: дороже лимита ($${(assembled.costUsd || 0).toFixed(2)})`);
+    const verifyOk = vr.ok && cap.ok && !assembled.overBudget;
+    const cand = { assembled, issues, verifyOk };
 
-  const cost = typeof assembled.costUsd === 'number' ? ` · $${assembled.costUsd.toFixed(2)}` : '';
+    if (verifyOk) { best = cand; logger.info({ attempt }, 'self-check passed'); break; }
+    if (!best || issues.length < best.issues.length) best = cand; // keep the cleanest attempt
+    logger.warn({ attempt, issueCount: issues.length }, 'self-check found issues');
+    if (attempt < MAX_ATTEMPTS) {
+      await bot.sendMessage(ownerChatId,
+        `🔍 Проверка нашла замечания — исправляю: пересобираю на других фото (попытка ${attempt + 1}/${MAX_ATTEMPTS})…`).catch(() => {});
+    }
+  }
+
+  const { assembled, issues, verifyOk } = best;
   const draft = publish.newDraft({
     kind: 'post', igType: 'POST',
     caption: assembled.caption,
     slides: assembled.slides,
     theme, slidesCount: slides, // kept so 🔄 Rebuild can repeat the same brief
-    // Over-budget runs never auto-publish — route to manual review.
-    routine: routine && verifyOk && !assembled.overBudget,
-    verify: { ok: verifyOk && !assembled.overBudget, issues },
-    source: `${routine ? 'calendar' : 'on-demand'}: ${theme}${cost}`,
+    routine: routine && verifyOk,
+    verify: { ok: verifyOk, issues },
+    costUsd: totalCost,
+    source: `${routine ? 'calendar' : 'on-demand'}: ${theme}`,
   });
 
   if (assembled.overBudget) {

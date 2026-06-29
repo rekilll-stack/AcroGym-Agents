@@ -41,14 +41,14 @@ const PLACEHOLDER_RE = /\b(lorem ipsum|paste_|your text here|headline here|body 
 // ── layer 1: structure ───────────────────────────────────────────
 async function checkStructure(buffer) {
   const issues = [];
-  if (!Buffer.isBuffer(buffer) || buffer.length < MIN_BYTES) issues.push(`image too small (${buffer ? buffer.length : 0} bytes) — likely broken export`);
-  if (buffer && buffer.length > MAX_BYTES) issues.push(`image suspiciously large (${(buffer.length / 1e6).toFixed(1)} MB)`);
+  if (!Buffer.isBuffer(buffer) || buffer.length < MIN_BYTES) issues.push(`фото слишком маленькое (${buffer ? buffer.length : 0} байт) — вероятно битый экспорт`);
+  if (buffer && buffer.length > MAX_BYTES) issues.push(`фото подозрительно большое (${(buffer.length / 1e6).toFixed(1)} МБ)`);
   let img;
   try { img = await loadImage(buffer); }
-  catch (err) { return { ok: false, issues: [`undecodable image: ${err.message}`], width: 0, height: 0, img: null }; }
+  catch (err) { return { ok: false, issues: [`не удалось открыть фото: ${err.message}`], width: 0, height: 0, img: null }; }
   const ratio = img.width / img.height;
-  if (Math.abs(ratio - TARGET_RATIO) > RATIO_TOL) issues.push(`aspect ratio ${ratio.toFixed(3)} ≠ 4:5`);
-  if (img.width < MIN_WIDTH) issues.push(`width ${img.width}px < IG min ${MIN_WIDTH}`);
+  if (Math.abs(ratio - TARGET_RATIO) > RATIO_TOL) issues.push(`пропорции ${ratio.toFixed(3)} ≠ 4:5`);
+  if (img.width < MIN_WIDTH) issues.push(`ширина ${img.width}px меньше минимума IG ${MIN_WIDTH}`);
   return { ok: issues.length === 0, issues, width: img.width, height: img.height, img };
 }
 
@@ -89,7 +89,7 @@ function fingerprint(img, n = 16) {
 function checkIntegrity(img) {
   const issues = [];
   const fp = fingerprint(img);
-  if (fp.variance < 25) issues.push('image looks blank / near-uniform (broken export?)');
+  if (fp.variance < 25) issues.push('фото пустое / почти однотонное (битый экспорт?)');
   // SPLIT detection: one half ~grayscale while the other is clearly colour ⇒
   // two different photos stacked (the exact "wrong layer filled" bug).
   // The real "wrong layer filled" bug leaves one half ~grayscale (the old
@@ -100,7 +100,7 @@ function checkIntegrity(img) {
   const grayHalf = (s) => s < 0.13;
   const colorHalf = (s) => s > 0.30;
   if ((grayHalf(fp.topSat) && colorHalf(fp.botSat)) || (grayHalf(fp.botSat) && colorHalf(fp.topSat))) {
-    issues.push('looks like TWO different photos stitched (one half grayscale, one colour) — wrong layer filled');
+    issues.push('похоже на склейку двух фото (одна половина ч/б, другая цветная) — залит не тот слой');
   }
   return { ok: issues.length === 0, issues, hash: fp.hash };
 }
@@ -135,31 +135,31 @@ Reply with STRICT JSON ONLY (no prose), every field present:
  "subject_clear": true|false,           // main subject (kids/coach/action) clearly visible
  "good_contrast": true|false,           // text stands out from the background
  "duotone_consistent": true|false,      // photo treatment is uniform across the whole slide (no half-bw/half-colour)
- "issues": ["short concrete problem", ...] // [] if perfect
+ "issues": ["короткая конкретная проблема НА РУССКОМ", ...] // [] если всё хорошо. Все строки в issues — на русском языке.
 }`;
 
 const VISION_FIELD_MSG = {
-  single_photo: 'slide shows two different photos stitched together',
-  upright: 'photo rotated/sideways',
-  faces_uncropped: "the main subject's face is cropped by the frame",
-  text_not_on_face: 'text covers a face',
-  text_legible: 'text low-contrast / unreadable',
-  text_complete: 'text clipped or broken mid-word',
-  text_fits: 'text overflows its box / the CTA pill',
-  cta_ok: 'CTA button text wrong or overflowing',
-  no_template_leftover: 'leftover template text still on the slide',
-  headline_present: 'headline missing',
-  on_brand: 'off-brand look',
-  brand_colors_present: 'brand colours missing',
-  asterisk_present: 'brand asterisk missing',
-  child_safe: 'not child-safe',
-  appropriate: 'inappropriate content in photo',
-  spelling_ok: 'spelling error in overlay text',
-  grammar_ok: 'grammar error in overlay text',
-  photo_sharp: 'photo blurry/pixelated',
-  subject_clear: 'main subject not clear',
-  good_contrast: 'poor text/background contrast',
-  duotone_consistent: 'photo treatment inconsistent (half b/w, half colour)',
+  single_photo: 'на слайде склеены два разных фото',
+  upright: 'фото перевёрнуто/набок',
+  faces_uncropped: 'лицо главного героя обрезано краем кадра',
+  text_not_on_face: 'текст налезает на лицо',
+  text_legible: 'текст плохо читается / низкий контраст',
+  text_complete: 'текст обрезан или разорван посреди слова',
+  text_fits: 'текст не помещается в блок / в пилюлю CTA',
+  cta_ok: 'текст кнопки CTA неверный или вылезает',
+  no_template_leftover: 'на слайде остался шаблонный текст',
+  headline_present: 'нет заголовка',
+  on_brand: 'выглядит не по-бренду',
+  brand_colors_present: 'нет фирменных цветов',
+  asterisk_present: 'нет фирменного астериска',
+  child_safe: 'не подходит для детского бренда',
+  appropriate: 'неуместный контент на фото',
+  spelling_ok: 'орфографическая ошибка в тексте',
+  grammar_ok: 'грамматическая ошибка в тексте',
+  photo_sharp: 'фото размыто/в пикселях',
+  subject_clear: 'главный объект не читается',
+  good_contrast: 'плохой контраст текста и фона',
+  duotone_consistent: 'неоднородная обработка фото (половина ч/б, половина цвет)',
 };
 
 function parseJson(text) { try { const m = String(text).match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } catch { return null; } }
@@ -170,9 +170,9 @@ async function checkVisual(buffer, { context = '' } = {}) {
   let raw;
   try {
     raw = await generateText({ system: VISION_SYSTEM, user, images: [{ data: base64, media_type: 'image/png' }], maxTokens: 700, model: VISION_MODEL });
-  } catch (err) { return { ok: false, issues: [`vision check unavailable: ${err.message}`], degraded: true }; }
+  } catch (err) { return { ok: false, issues: [`проверка зрением недоступна: ${err.message}`], degraded: true }; }
   const v = parseJson(raw);
-  if (!v) return { ok: false, issues: ['vision returned unparseable verdict'], degraded: true };
+  if (!v) return { ok: false, issues: ['проверка вернула нечитаемый ответ'], degraded: true };
   const issues = [];
   for (const [field, msg] of Object.entries(VISION_FIELD_MSG)) {
     if (v[field] === false) issues.push(msg);
@@ -200,14 +200,14 @@ async function verifyCarousel(buffers, { context = '' } = {}) {
     slides.push(await verifySlide(buffers[i], { context: `${context} slide ${i + 1}/${buffers.length}` }));
   }
   const carousel = [];
-  if (buffers.length < MIN_SLIDES) carousel.push(`too few slides (${buffers.length})`);
-  if (buffers.length > MAX_SLIDES) carousel.push(`too many slides (${buffers.length} > ${MAX_SLIDES})`);
+  if (buffers.length < MIN_SLIDES) carousel.push(`слишком мало слайдов (${buffers.length})`);
+  if (buffers.length > MAX_SLIDES) carousel.push(`слишком много слайдов (${buffers.length} > ${MAX_SLIDES})`);
   const dims = new Set(slides.filter((s) => s.width).map((s) => `${s.width}x${s.height}`));
-  if (dims.size > 1) carousel.push(`mixed slide sizes: ${[...dims].join(', ')}`);
+  if (dims.size > 1) carousel.push(`разные размеры слайдов: ${[...dims].join(', ')}`);
   for (let i = 0; i < slides.length; i++) {
     for (let j = i + 1; j < slides.length; j++) {
       if (slides[i].hash && slides[j].hash && hamming(slides[i].hash, slides[j].hash) < 6) {
-        carousel.push(`slides ${i + 1} & ${j + 1} look like the same photo`);
+        carousel.push(`слайды ${i + 1} и ${j + 1} — похоже одно и то же фото`);
       }
     }
   }
@@ -219,13 +219,13 @@ async function verifyCarousel(buffers, { context = '' } = {}) {
 function verifyCaption(caption) {
   const issues = [];
   const text = String(caption || '');
-  if (!text.trim()) issues.push('empty caption');
-  if (text.length > 2200) issues.push(`caption ${text.length} chars > IG limit 2200`);
+  if (!text.trim()) issues.push('пустая подпись');
+  if (text.length > 2200) issues.push(`подпись ${text.length} символов > лимит IG 2200`);
   const tags = (text.match(/#[\w]+/g) || []);
-  if (tags.length > 30) issues.push(`${tags.length} hashtags > IG limit 30`);
-  if (PLACEHOLDER_RE.test(text)) issues.push('caption contains placeholder/template text');
-  if (/[А-Яа-яЁё]/.test(text)) issues.push('caption contains Russian text (output must be English)');
-  if (/ {3,}/.test(text)) issues.push('caption has odd spacing');
+  if (tags.length > 30) issues.push(`${tags.length} хэштегов > лимит IG 30`);
+  if (PLACEHOLDER_RE.test(text)) issues.push('в подписи остался шаблонный текст');
+  if (/[А-Яа-яЁё]/.test(text)) issues.push('в подписи есть русский текст (должно быть на английском)');
+  if (/ {3,}/.test(text)) issues.push('в подписи странные пробелы');
   return { ok: issues.length === 0, issues };
 }
 

@@ -137,17 +137,29 @@ async function selectBest(count, { folder, exclude = [], topic = '' } = {}) {
     || topRel.find((p) => p.faces_ok)
     || ordered[0];
 
-  // Build a distinct set (skip near-duplicate burst frames via phash).
-  const chosen = [];
-  const pushDistinct = (p) => {
-    if (!p || chosen.includes(p)) return;
-    if (chosen.some((c) => hamming(c.phash, p.phash) <= 8)) return;
-    chosen.push(p);
+  // Build the set with VARIETY — a good carousel mixes shot types (a hero, an
+  // action, a coach/medal moment, an expression), not 4 near-identical poses.
+  const tagSet = (p) => new Set((p.tags || []).map((t) => String(t).toLowerCase()));
+  const jaccard = (a, b) => {
+    const A = tagSet(a), B = tagSet(b);
+    if (!A.size || !B.size) return 0;
+    let inter = 0; for (const t of A) if (B.has(t)) inter += 1;
+    return inter / (A.size + B.size - inter);
   };
-  pushDistinct(cover);
-  for (const p of ordered) { if (chosen.length >= count) break; pushDistinct(p); }
-  // top up if dedupe left us short
-  for (const p of ordered) { if (chosen.length >= count) break; if (!chosen.includes(p)) chosen.push(p); }
+  const chosen = [];
+  const subjCount = {};
+  const tryPush = (p, diverse) => {
+    if (!p || chosen.includes(p)) return false;
+    if (chosen.some((c) => hamming(c.phash, p.phash) <= 8)) return false; // never a near-dupe frame
+    if (diverse) {
+      if ((subjCount[p.subject] || 0) >= 2) return false;            // ≤2 of the same subject type
+      if (chosen.some((c) => jaccard(c, p) >= 0.55)) return false;   // not too tag-similar to a chosen one
+    }
+    chosen.push(p); subjCount[p.subject] = (subjCount[p.subject] || 0) + 1; return true;
+  };
+  tryPush(cover, false);
+  for (const p of ordered) { if (chosen.length >= count) break; tryPush(p, true); }   // variety pass
+  for (const p of ordered) { if (chosen.length >= count) break; tryPush(p, false); }  // fill pass (dedupe still on)
 
   const final = chosen.slice(0, count);
   if (!final.length) throw new Error('catalog selection produced nothing');
