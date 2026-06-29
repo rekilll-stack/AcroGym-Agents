@@ -17,6 +17,7 @@ const cron = require('node-cron');
 const yandex = require('./yandex');
 const photos = require('./photos');
 const plan = require('./plan');
+const research = require('./research');
 const assemble = require('./assemble');
 const agent = require('./agent');
 const publish = require('./publish');
@@ -156,8 +157,33 @@ async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = fa
   return publish.route(bot, ownerChatId, draft);
 }
 
+// Send a long markdown report to Telegram as plain-text chunks (TG cap ~4096).
+async function sendChunked(bot, chatId, text, prefix = '') {
+  const LIMIT = 3800;
+  const body = (prefix ? prefix + '\n\n' : '') + String(text || '');
+  for (let i = 0; i < body.length; i += LIMIT) {
+    await bot.sendMessage(chatId, body.slice(i, i + LIMIT)).catch(() => {});
+  }
+}
+
+/**
+ * Run the autonomous competitor analysis and deliver the owner report to TG.
+ * Used by the every-3-days cron AND the manual "🔎 Анализ сейчас" button.
+ */
+async function runResearchAndReport(bot, ownerChatId) {
+  await bot.sendMessage(ownerChatId, '🔎 Провожу анализ конкурентов в Катаре… (1–3 мин)').catch(() => {});
+  const res = await research.runAnalysis();
+  if (!res.ok) {
+    await bot.sendMessage(ownerChatId, `⚠️ Анализ не удался: ${res.error}`).catch(() => {});
+    return res;
+  }
+  await sendChunked(bot, ownerChatId, res.reportMd,
+    `📊 <Анализ конкурентов> ${new Date().toLocaleDateString('ru-RU')}${res.briefUpdated ? ' · бриф планировщика обновлён ✅' : ''}`);
+  return res;
+}
+
 /** Start the cron schedules. Call once from index.js after the bot is up. */
-function start(bot, ownerChatId) {
+function start(bot, ownerChatId, opts = {}) {
   const jobs = [];
   for (const item of PLAN) {
     const job = cron.schedule(item.cron, async () => {
@@ -210,6 +236,26 @@ function start(bot, ownerChatId) {
   }, { timezone: TZ });
   jobs.push(planJob);
 
+  // Autonomous competitor analysis every ~3 days (07:00). Runs on the claude.ai
+  // subscription via the headless agent (NOT the metered API), refreshes the
+  // planner's brief, and delivers the owner report to Telegram.
+  const researchJob = cron.schedule('0 7 */3 * *', async () => {
+    try { await runResearchAndReport(bot, ownerChatId); }
+    catch (err) { logger.error({ err: err.message }, 'scheduled research failed'); }
+  }, { timezone: TZ });
+  jobs.push(researchJob);
+
+  // Weekly auto-plan (Sunday 09:00): propose next week's plan from the FRESH
+  // brief and send the owner a review card (he edits/approves; nothing publishes
+  // without his tap). opts.proposePlan is provided by index.js (needs its UI).
+  if (typeof opts.proposePlan === 'function') {
+    const weeklyPlanJob = cron.schedule('0 9 * * 0', async () => {
+      try { await opts.proposePlan(); }
+      catch (err) { logger.error({ err: err.message }, 'weekly auto-plan failed'); }
+    }, { timezone: TZ });
+    jobs.push(weeklyPlanJob);
+  }
+
   return jobs;
 }
 
@@ -225,4 +271,4 @@ async function buildNextPlanned(bot, ownerChatId) {
   return item;
 }
 
-module.exports = { start, buildAndRoute, buildNextPlanned, generatePlan, pickPhotos, PLAN };
+module.exports = { start, buildAndRoute, buildNextPlanned, runResearchAndReport, generatePlan, pickPhotos, PLAN };

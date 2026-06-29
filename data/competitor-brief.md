@@ -1,40 +1,61 @@
-# AcroGym Qatar — SMM competitor & positioning brief
+# AcroGym Qatar — SMM Competitor & Positioning Brief
 
-_Maintained by the team for the content planner. Last updated: 2026-06-29.
-The planner reads this as strategic context before proposing a content plan.
-Refresh periodically (or on request) as the market changes._
+_Last updated: 2026-06-29. Source: web research + Metricool live data. Replace previous version entirely._
 
-## The Qatar kids' gymnastics / acro landscape (Doha)
+## AcroGym's own baseline (Metricool, May–Jun 2026)
+~268 followers · 5 posts in 2 months · **0 Reels published** · aggregated engagement ~13% (excellent — 3–5× the niche average) · avg reach per post ~185. Account is pre-opening with a loyal but tiny core audience.
 
-| Club | IG | ~Followers | Positioning | Notes |
+## Market landscape (Doha kids gymnastics / acro, Jun 2026)
+
+| Club | IG | ~Followers | Positioning | Key notes |
 |---|---|---|---|---|
-| MyGym Qatar | @mygymqatar | ~11K | American franchise, ages 6 weeks–12y. Broad: gymnastics + ballet, karate, zumba, parties. | Biggest reach, but a generalist "kids activities" brand, not acro-specialist. |
-| Rebel Angels Sports | @rebelangelsqatar | ~4.8K | Gymnastics + parkour + acrobatics, rec & advanced. Many school-based locations. | Closest direct competitor on ACRO. Term pricing public (QR80/class, QR2,560/term). |
-| The Gymnastics Academy | @gymacademy_doha | ~2.7K | Professional / competitive, MEGA founding member, multi-school. | Formal, structured, achievement-focused tone. |
-| Olympic Stars | @gymnasticsqatar | — | "Professional center of gymnastics." | Competitive/elite framing. |
-| Doha Sport & Arts | — | — | Master Rami Al Banna, Al Messila branch. | Smaller, instructor-led. |
+| MyGym Qatar | @mygymqatar | ~11 K | American franchise, generalist kids 6wk–12y. Gymnastics, ballet, karate, parties. | Biggest reach; NOT an acro specialist. 1,390 posts — franchise playbook, promotional cadence. |
+| Olympic Stars | @gymnasticsqatar | ~9 K | Professional gymnastics & rhythmic ballet. Ministry of Sports accredited. | **Updated: stronger than previously noted.** Elite/competitive framing. 1,059 posts, formal institutional voice. |
+| Rebel Angels Sports | @rebelangelsqatar | ~4.8 K | Gymnastics + parkour + acrobatics, school-based multi-location. | **Closest acro rival.** Active Reels. Running Summer Camp 2026 and marketing it aggressively right now. Public pricing QR 80/class. School-hall model (no dedicated venue). |
+| The Gymnastics Academy | @gymacademy_doha | ~2.7 K | Competitive/recreational, Aspire Zone + schools. | Formal, structured. Only 140 posts — chronically under-published. Weak digital presence. |
+| Doha Sport & Arts | @dohasportsandarts1 | Small | Master Rami Al Banna; multi-discipline (martial arts, ballet, gymnastics). | Local, instructor-led identity, modest footprint. |
 
-## What competitors mostly DO (and over-do)
-- Class info, schedules, enrollment CTAs, competition results — functional and a bit formal.
-- Achievement/medal posts (elite framing) that speak to competitive parents more than first-timers.
-- Location/logistics (many run inside schools).
+## What rivals over-do (and where they're weak)
+- **Info-dump posts**: schedules, enrollment links, location lists — functional but cold.
+- **Elite/medal framing** that speaks to competitive parents, alienates first-timers.
+- **Static images or low-quality video**: Olympic Stars and Gym Academy barely use Reels; even Rebel Angels is inconsistent.
+- **School-hall model**: all multi-location rivals meet kids in borrowed corridors. Nobody has a destination gym story.
+- **No emotional hook**: zero warm storytelling, no child's-face-in-the-moment content across the board.
 
-## Gaps & opportunities for AcroGym (where we can win)
-1. **Warm, emotional, parent-POV storytelling** — most rivals are info-first. Joyful "first cartwheel", confidence, friendship, the child's face lighting up. This is AcroGym's brand voice — lean in.
-2. **Acro specialism + a real destination gym** — we are an acrobatics & gymnastics specialist with our OWN new gym at **Lagoona Mall** (not a borrowed school hall). Convenience for families ("class while you shop"), modern dedicated space, safe new equipment.
-3. **Reels** — the smaller competitors under-use short video; Reels are the 2026 IG growth lever. Even simple motion (tumbling clips, before/after a skill) outperforms static. (Story/Reel formats are a near-term roadmap item.)
-4. **Behind-the-scenes & coach trust** — "meet our coaches", how we keep kids safe, what a first class looks like. Reduces the #1 parent hesitation (safety + the unknown).
-5. **Beginner-friendly, low-pressure** — competitors skew competitive. We can own the "first step into acro, ages 3–14, no experience needed, book a trial" lane.
+## AcroGym's differentiation & open opportunities
 
-## Content pillars (rotate for a beautiful, coherent grid)
-- **Joy & emotion** (kids' faces, real moments) — the brand's signature look.
-- **Trust & safety** (coaches, equipment, what a class looks like).
-- **Benefits/education** (confidence, focus, strength, balance — why acro helps a child).
-- **Proof** (parent stories, progress moments — truthful, no invented testimonials).
-- **Announcements/seasonal** (Lagoona Mall opening, trials, Qatar school calendar, summer indoor activity demand).
+1. **Dedicated destination gym at Lagoona Mall** — the only acro/gymnastics venue inside a premium shopping mall in Doha. "Train while parents shop" is a unique practical story no rival can tell.
+2. **Beginner-first, age 3–14** — the whole market skews competitive. AcroGym can own "first step into acro, no experience needed, free trial" positioning at zero cost.
+3. **Emotional/warm storytelling** — the child's joy, the first cartwheel, the proud parent moment. An open goal: no rival does this.
+4. **Reels are blue ocean right now** — AcroGym has posted zero. Even 15-second tumbling clips from the gym will outperform all competitors' static grids and reach far beyond current followers.
+5. **Summer heat = peak demand window** (Jun–Aug, 40 °C+). School holidays run July–September. Parents are searching for quality indoor activity RIGHT NOW. Rebel Angels is capturing this; AcroGym should occupy the "opening this September, register your interest" space immediately.
+6. **2026 algorithm shift**: DM shares now outweigh likes 3–5×. Content designed to be forwarded ("send this to your friend who has a 5-year-old") compounds reach fastest — educational carousels, relatable parent moments, "before/after skill" clips.
+
+## Content pillars
+
+- **Joy & first moments** — real child reactions, milestone skills, genuine laughter. Brand signature. Never staged.
+- **Trust & safety** — coach introductions, equipment tour, "what your child's first class looks like." Defeats the #1 parent hesitation.
+- **Benefits / education** — confidence, focus, strength, balance, social skills. Shareable carousels; optimised for saves.
+- **Behind-the-scenes / countdown** — Lagoona Mall build, equipment arrivals, team prep, days-to-opening. Pre-launch hype that makes followers feel like insiders.
+- **Seasonal / social proof** — Qatar school calendar hooks (summer, new term), parent reactions, trial-day invitations. No invented testimonials.
+
+## Format mix (2026 algorithm-aligned)
+
+| Format | Target share | Why |
+|---|---|---|
+| Reels 15–30 s | 40–50% | Highest reach; >72% completion rate at this length |
+| Reels 60–90 s | 15–20% | Drives saves + DM shares; storytelling length |
+| Carousels (5–10 slides) | 25–30% | +30.9% engagement uplift in 2026; saves = strong signal |
+| Static / announcements | ≤10% | Grid anchors only |
+
+**Cadence target**: 4–5 posts/week + daily Stories (polls, countdowns, Q&A). Current 2–3 posts/month is algorithm-invisible.
 
 ## Voice & visual guardrails
-- Warm, energetic, safe, professional. Speak to PARENTS of kids 3–14.
-- Beautiful, cohesive grid: consistent brand colours (cream / orange / navy), real photos, one clear subject per slide.
-- NEVER invent specific coach names, children, testimonials, prices, dates or results — keep claims truthful and general unless the club supplies specifics.
-- Differentiate on warmth + specialism + the Lagoona Mall destination — don't just copy rivals' class-info posts.
+- Warm, energetic, safe, professional. Speak always to **parents of children 3–14**.
+- Brand palette: cream / orange / navy. Real photos, one clear subject per frame.
+- Copy in English primary; add Arabic subtitle or caption where possible (Doha expat mix is Arab-majority + Russian-speaking community).
+- **Never invent** specific coach names, children, testimonials, prices, dates, or results not confirmed by the club.
+- Differentiate on warmth + specialism + Lagoona Mall — never copy rivals' bare class-info posts.
+- Respect Qatar cultural norms in all imagery.
+
+---

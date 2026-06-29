@@ -108,6 +108,7 @@ function menuKeyboard(lang) {
       [{ text: ru ? '✨ Авто-пост (Canva)' : '✨ Auto-post (Canva)', callback_data: 'auto:new' }],
       [{ text: ru ? '📅 Контент-план' : '📅 Content plan', callback_data: 'plan:new' },
        { text: ru ? '📋 Показать план' : '📋 Show plan', callback_data: 'plan:show' }],
+      [{ text: ru ? '🔎 Анализ конкурентов' : '🔎 Competitor analysis', callback_data: 'plan:analyze' }],
       [{ text: ru ? '🤖 Статус автопилота' : '🤖 Autopilot status', callback_data: 'auto:status' }],
       [{ text: t('content.btn_post', lang), callback_data: 'fmt:post' }],
       [{ text: t('content.btn_ideas', lang), callback_data: 'fmt:ideas' }, { text: t('content.btn_plan', lang), callback_data: 'fmt:plan' }],
@@ -229,6 +230,22 @@ const planShowKb = (lang) => ({ inline_keyboard: [
   [{ text: lang === 'ru' ? '🔄 Новый план' : '🔄 New plan', callback_data: 'plan:new' }],
   [{ text: t('content.btn_menu', lang), callback_data: 'menu' }],
 ] });
+
+// Propose a content plan to the owner: generate a draft (strategist), set the
+// review state, and send the strategy + numbered draft with review buttons.
+// Shared by the 📅 button AND the weekly auto-plan cron.
+async function proposePlanToOwner(bot, chatId) {
+  const lang = uiLang(chatId);
+  const items = await contentPlan.generateDraft(chatId, {});
+  const s = sessions.get(chatId) || {}; s.awaiting = 'plan_review'; sessions.set(chatId, s);
+  const pend = contentPlan.getPending(chatId);
+  const strategyLine = pend && pend.strategy
+    ? `🧭 <b>Стратегия</b> (анализ конкурентов в Катаре):\n<i>${escapeHtml(pend.strategy)}</i>\n\n`
+    : '';
+  await bot.sendMessage(chatId,
+    `${strategyLine}📅 <b>Черновик плана</b> (${items.length} поста):\n\n${escapeHtml(contentPlan.renderPending(items))}\n\n✏️ Изменить строку — напиши «2: новая тема». Потом ✅ Утвердить.`,
+    { parse_mode: 'HTML', reply_markup: planReviewKb(lang) }).catch(() => {});
+}
 
 // ─────────────────────────────────────────────────────────────
 // Core: generate a draft and send it (Copy / Regenerate / Menu)
@@ -523,19 +540,20 @@ function start() {
       // 📅 Content plan — on-demand: generate a draft plan to review/edit/approve.
       if (data === 'plan:new' || data === 'plan:regen') {
         await bot.answerCallbackQuery(query.id, { text: '📅 Готовлю план…' }).catch(() => {});
-        try {
-          const items = await contentPlan.generateDraft(chatId, {});
-          const s = sessions.get(chatId) || {}; s.awaiting = 'plan_review'; sessions.set(chatId, s);
-          const pend = contentPlan.getPending(chatId);
-          const strategyLine = pend && pend.strategy
-            ? `🧭 <b>Стратегия</b> (анализ конкурентов в Катаре):\n<i>${escapeHtml(pend.strategy)}</i>\n\n`
-            : '';
-          await bot.sendMessage(chatId,
-            `${strategyLine}📅 <b>Черновик плана</b> (${items.length} поста):\n\n${escapeHtml(contentPlan.renderPending(items))}\n\n✏️ Изменить строку — напиши «2: новая тема». Потом ✅ Утвердить.`,
-            { parse_mode: 'HTML', reply_markup: planReviewKb(lang) }).catch(() => {});
-        } catch (err) {
+        try { await proposePlanToOwner(bot, chatId); }
+        catch (err) {
           logger.error({ err: err.message }, 'plan generation failed');
           await bot.sendMessage(chatId, '❌ Не получилось собрать план: ' + err.message).catch(() => {});
+        }
+        return;
+      }
+      // 🔎 Run the competitor analysis now (manual trigger of the 3-day loop).
+      if (data === 'plan:analyze') {
+        await bot.answerCallbackQuery(query.id, { text: '🔎 Анализирую…' }).catch(() => {});
+        try { await calendar.runResearchAndReport(bot, chatId); }
+        catch (err) {
+          logger.error({ err: err.message }, 'manual research failed');
+          await bot.sendMessage(chatId, '❌ Анализ не удался: ' + err.message).catch(() => {});
         }
         return;
       }
@@ -720,7 +738,10 @@ function start() {
   //    (jobs will just report they couldn't assemble).
   try {
     if (ALLOWED.length) {
-      calendar.start(bot, ALLOWED[0]);
+      calendar.start(bot, ALLOWED[0], {
+        // Weekly auto-plan cron uses the bot's plan-review UI.
+        proposePlan: () => proposePlanToOwner(bot, ALLOWED[0]),
+      });
       logger.info({ owner: ALLOWED[0] }, 'autopilot calendar started');
     }
   } catch (err) {

@@ -34,3 +34,4 @@ exports/*.pptx
 !exports/.gitkeep
 data/recent-photos.json
 data/content-plan.json
+data/reports/
