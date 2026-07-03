@@ -169,9 +169,32 @@ async function cropToRatio(buffer, targetW, targetH) {
   return { buffer: out.toBuffer('image/jpeg', { quality: 0.92 }), covered };
 }
 
+// Direct post-crop check: look at the FINISHED crop and ask whether the main
+// subject got amputated. Catches what the bbox geometry misses (coarse boxes on
+// small previews). Cheap: downscaled image, one short vision call.
+const CROP_CHECK_SYSTEM = `You see ONE photo cropped for an Instagram slide. Is the MAIN subject's body cut by the image edge — head, feet or hands sliced off mid-limb? A deliberate waist-up close-up portrait is fine (answer false); a full-body pose missing its feet/hands/head is cut (answer true).
+Reply STRICT JSON ONLY: {"cut":true|false}. No prose.`;
+async function checkCropCut(buffer) {
+  try {
+    const img = await loadImage(buffer);
+    const sw = 480; const sh = Math.max(1, Math.round((img.height * sw) / img.width));
+    const small = createCanvas(sw, sh);
+    small.getContext('2d').drawImage(img, 0, 0, sw, sh);
+    const raw = await generateText({
+      system: CROP_CHECK_SYSTEM,
+      user: 'Is the main subject cut by the edge? Return the JSON.',
+      images: [{ data: small.toBuffer('image/jpeg', { quality: 0.7 }).toString('base64'), media_type: 'image/jpeg' }],
+      maxTokens: 30, model: CROP_MODEL,
+    });
+    const v = parseJson(raw);
+    if (v && typeof v.cut === 'boolean') return v.cut;
+  } catch (err) { logger.warn({ err: err.message }, 'crop cut-check failed → assuming ok'); }
+  return false;
+}
+
 // 4:5 carousel slide (1080×1350).
 const safeCrop45 = (buffer) => cropToRatio(buffer, 1080, 1350);
 // 9:16 story (1080×1920).
 const safeCrop916 = (buffer) => cropToRatio(buffer, 1080, 1920);
 
-module.exports = { safeCrop45, safeCrop916, cropToRatio, readOrientation };
+module.exports = { safeCrop45, safeCrop916, cropToRatio, checkCropCut, readOrientation };

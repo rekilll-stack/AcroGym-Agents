@@ -104,7 +104,8 @@ async function assembleCarousel({ topic, photos, cover, inner, caption, backups 
         logger.warn({ err: err.message, photo: current.name }, 'pre-crop failed → using original');
         result = { buffer: current.buffer, covered: true };
       }
-      if (result.covered || !pool.length) break;
+      if (result.covered && !(result.cut = await crop.checkCropCut(result.buffer))) break;
+      if (!pool.length) break;
       const alt = pool.shift();
       try {
         const buffer = await yandex.downloadBuffer(alt.path);
@@ -112,7 +113,7 @@ async function assembleCarousel({ topic, photos, cover, inner, caption, backups 
         current = { buffer, name: alt.name, path: alt.path };
       } catch (err) { logger.warn({ err: err.message, backup: alt.name }, 'backup download failed'); }
     }
-    if (!result.covered) logger.warn({ photo: current.name }, 'no backup fits either → best-effort crop');
+    if (!result.covered || result.cut) logger.warn({ photo: current.name, cut: !!result.cut }, 'no backup fits either → best-effort crop');
     photos[i] = current; // callers read photos[i].path for publish-time burn
     assetIds.push(await canva.uploadAsset(result.buffer, current.name || `photo-${i + 1}.jpg`));
   }
@@ -165,6 +166,7 @@ async function replaceSlidePhoto({ designId, page, bgElementId, candidates = [] 
     try { cropped = await crop.safeCrop45(buffer); }
     catch (err) { logger.warn({ err: err.message, photo: cand.name }, 'slide-fix: crop failed'); continue; }
     if (!cropped.covered) { logger.info({ photo: cand.name }, 'slide-fix: body does not fit 4:5 → next candidate'); continue; }
+    if (await crop.checkCropCut(cropped.buffer)) { logger.info({ photo: cand.name }, 'slide-fix: crop cut-check failed → next candidate'); continue; }
     const assetId = await canva.uploadAsset(cropped.buffer, cand.name || 'fix.jpg');
     const upd = await agent.updateFill({ designId, elementId: bgElementId, assetId });
     if (!upd.ok) { logger.warn({ err: upd.error, photo: cand.name }, 'slide-fix: update_fill failed'); continue; }

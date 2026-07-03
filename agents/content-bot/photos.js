@@ -28,7 +28,7 @@ const CATALOG_PATH = path.join(__dirname, '../../data/photo-catalog.json');
 const RANK_MODEL = process.env.CONTENT_RANK_MODEL || 'claude-haiku-4-5-20251001'; // text-only topic rank (cheap)
 const SELECT_MODEL = process.env.CONTENT_SELECT_MODEL || 'claude-sonnet-5';     // fallback vision rank
 const CANDIDATE_FOLDERS = [
-  '/AcroGym/Marketing/Photos/Competitions May 2025',
+  '/AcroGym/Marketing/AcroGym Competiton 2026',
 ];
 
 // Take the FIRST balanced {...} object (models sometimes append a second one).
@@ -99,25 +99,32 @@ const COVER_SYSTEM = `You pick the COVER photo for a kids' gymnastics Instagram 
 Choose the single most EYE-CATCHING one: a photogenic, joyful child at a flattering angle, face clearly visible, sharp and well lit, a pose that reads instantly, background not messy. AVOID: unflattering mid-motion grimaces, awkward or unattractive angles, faces obscured or turned away, cluttered frames.
 Reply STRICT JSON ONLY, exactly once: {"cover": <index>}. No prose.`;
 
+// Fetch M-size previews for candidate catalog entries → [{i, img}] aligned to
+// the input indices. Shared by the cover pick and the pre-build set review.
+async function fetchPreviews(cands, size = 'M') {
+  const folders = [...new Set(cands.map((c) => c.path.slice(0, c.path.lastIndexOf('/')).replace(/^disk:/, '')))];
+  const previewByPath = new Map();
+  for (const f of folders) {
+    const items = await yandex.listImages(f, { limit: 2000, previewSize: size });
+    for (const it of items) if (it.preview) previewByPath.set(String(it.path).replace(/^disk:/, ''), it.preview);
+  }
+  const out = [];
+  for (let i = 0; i < cands.length; i++) {
+    const u = previewByPath.get(String(cands[i].path).replace(/^disk:/, ''));
+    if (!u) continue;
+    try {
+      const b = await yandex.fetchPreview(u);
+      out.push({ i, img: { data: b.toString('base64'), media_type: 'image/jpeg' } });
+    } catch { /* skip candidate without a fetchable preview */ }
+  }
+  return out;
+}
+
 async function pickCoverVision(cands) {
   if (!cands || cands.length < 2) return null;
   try {
-    const folders = [...new Set(cands.map((c) => c.path.slice(0, c.path.lastIndexOf('/')).replace(/^disk:/, '')))];
-    const previewByPath = new Map();
-    for (const f of folders) {
-      const items = await yandex.listImages(f, { limit: 200, previewSize: 'M' });
-      for (const it of items) if (it.preview) previewByPath.set(String(it.path).replace(/^disk:/, ''), it.preview);
-    }
-    const imgs = []; const idx = [];
-    for (let i = 0; i < cands.length; i++) {
-      const u = previewByPath.get(String(cands[i].path).replace(/^disk:/, ''));
-      if (!u) continue;
-      try {
-        const b = await yandex.fetchPreview(u);
-        imgs.push({ data: b.toString('base64'), media_type: 'image/jpeg' });
-        idx.push(i);
-      } catch { /* skip candidate without a fetchable preview */ }
-    }
+    const prevs = await fetchPreviews(cands);
+    const imgs = prevs.map((p) => p.img); const idx = prevs.map((p) => p.i);
     if (imgs.length < 2) return null;
     const raw = await generateText({
       system: COVER_SYSTEM,
@@ -131,6 +138,88 @@ async function pickCoverVision(cands) {
     }
   } catch (err) { logger.warn({ err: err.message }, 'cover vision pick failed → heuristic'); }
   return null;
+}
+
+// Vision SET SELECTION (2026-07-03, after repeated owner feedback on machine
+// taste): ONE vision pass over the top candidates' previews picks the final set
+// directly — the way a human SMM would. The old heuristic chain (cover pick +
+// greedy variety + set review) stays as the fallback.
+// AVOID-PEOPLE references (owner feedback 2026-07-03): photos in
+// data/avoid-people/ show children the owner does not want featured. The set
+// picker sees them first and must not pick candidates starring the same child.
+// File-level blacklisting can't do this — the same kids appear in hundreds of
+// frames; this bans the PERSON, not the file.
+const AVOID_DIR = path.join(__dirname, '../../data/avoid-people');
+function loadAvoidRefs() {
+  try {
+    return fs.readdirSync(AVOID_DIR).filter((f) => /\.(jpe?g|png)$/i.test(f)).slice(0, 4)
+      .map((f) => ({ data: fs.readFileSync(path.join(AVOID_DIR, f)).toString('base64'), media_type: 'image/jpeg' }));
+  } catch { return []; }
+}
+
+const SET_PICK_SYSTEM = `You are the SMM photo editor for AcroGym Qatar — a kids' gymnastics & acrobatics brand in Doha. You choose the photos for ONE Instagram carousel on the given TOPIC.
+If AVOID references are present (they come FIRST, before the candidates), they show children the owner does not want featured: do NOT pick any candidate where one of those same children is the main subject.
+What a great pick looks like, in priority order:
+1. SOUL — a genuine moment: a real smile, pride after a landed element, focus, grace mid-move. A parent should look at it and feel "I want this for my child".
+2. The child looks GREAT: face clearly visible and flattering, elegant pose (never butt-first / diaper-like poses, grimaces, visible skin irritation or bruises — nothing the child could be embarrassed by later).
+3. LACONIC composition: ONE clear hero, calm uncluttered background, no third-party sponsor banners/logos dominating the frame, breathing room below (the slide adds a text overlay over the bottom third).
+4. Complete framing: the photo's own edges do not slice the subject's head/feet/hands; the subject is sharp.
+5. The set reads as ONE session (cohesive light/setting), poses varied, no near-duplicate frames. The FIRST pick is the cover — the single most striking shot.
+Reply STRICT JSON ONLY, exactly once: {"picks":[candidate indices]} with EXACTLY the requested number, cover first. No prose.`;
+
+async function pickSetVision(cands, count, topic) {
+  if (!cands || cands.length < count + 2) return null;
+  try {
+    const prevs = await fetchPreviews(cands.slice(0, 12), 'L');
+    if (prevs.length < count + 2) return null;
+    const refs = loadAvoidRefs();
+    const user = (refs.length
+      ? `The FIRST ${refs.length} image(s) are AVOID references (children NOT to feature). After them come ${prevs.length} CANDIDATE photos, numbered 0..${prevs.length - 1} in the given order.`
+      : `You see ${prevs.length} candidate photos, numbered 0..${prevs.length - 1} in the given order.`)
+      + `\nTOPIC: ${topic || 'general AcroGym life'}\nChoose EXACTLY ${count} candidates. Return the JSON.`;
+    const raw = await generateText({
+      system: SET_PICK_SYSTEM,
+      user,
+      images: [...refs, ...prevs.map((x) => x.img)], maxTokens: 80, model: SELECT_MODEL,
+    });
+    const v = parseJson(raw);
+    if (!v || !Array.isArray(v.picks)) return null;
+    const seen = new Set();
+    const picked = v.picks
+      .filter((n) => Number.isInteger(n) && n >= 0 && n < prevs.length && !seen.has(n) && seen.add(n))
+      .map((n) => cands[prevs[n].i]);
+    // phash dedupe safety net, then top-up from the remaining candidates
+    const out = [];
+    for (const p of picked) if (!out.some((c) => hamming(c.phash, p.phash) <= 8)) out.push(p);
+    for (const c of cands) { if (out.length >= count) break; if (!out.includes(c) && !out.some((x) => hamming(x.phash, c.phash) <= 8)) out.push(c); }
+    if (out.length < count) return null;
+    logger.info({ picks: out.slice(0, count).map((p) => p.name) }, 'set picked by vision (SMM rule)');
+    return out.slice(0, count);
+  } catch (err) { logger.warn({ err: err.message }, 'vision set pick failed → heuristic chain'); return null; }
+}
+
+// Pre-build SET REVIEW (owner rule 2026-07-03: «выбирать красивых детей», no
+// awkward source-cropped shots). ONE vision pass over the chosen set's previews
+// rejects unpostable photos BEFORE money is spent on crops/design.
+const SET_REVIEW_SYSTEM = `You QA candidate photos for a kids' gymnastics Instagram carousel BEFORE it is built. You see several numbered photos (0-based, in the given order).
+For EACH photo decide if it is POSTABLE: photogenic joyful child, flattering moment (not an unflattering mid-motion grimace or butt-first pose), face meaningfully visible, the photo's own framing does not slice off the subject's head/feet/hands, sharp enough, background acceptable.
+Be picky — these go on a brand account to attract parents. Reply STRICT JSON ONLY, exactly once: {"reject":[indices]} — empty array if all are postable. No prose.`;
+
+async function reviewSetVision(cands) {
+  try {
+    const prevs = await fetchPreviews(cands);
+    if (!prevs.length) return new Set();
+    const raw = await generateText({
+      system: SET_REVIEW_SYSTEM,
+      user: `You see ${prevs.length} numbered photos in the given order. Return the JSON.`,
+      images: prevs.map((p) => p.img), maxTokens: 80, model: SELECT_MODEL,
+    });
+    const v = parseJson(raw);
+    if (v && Array.isArray(v.reject)) {
+      return new Set(v.reject.filter((n) => Number.isInteger(n) && n >= 0 && n < prevs.length).map((n) => prevs[n].i));
+    }
+  } catch (err) { logger.warn({ err: err.message }, 'set review failed → keeping picks'); }
+  return new Set();
 }
 
 /**
@@ -183,7 +272,17 @@ async function selectBest(count, { folder, exclude = [], topic = '', story = fal
   } catch (err) { logger.warn({ err: err.message }, 'catalog topic-rank failed → quality order'); }
   if (!ordered || !ordered.length) ordered = pool; // already quality-sorted
 
-  // Cover = best hero (clear face + joyful single/pair) near the top; else first.
+  // Primary path: vision picks the whole set from the top candidates' previews.
+  const visCands = ordered.filter((p) => p.faces_ok !== false).slice(0, 16);
+  const visSet = await pickSetVision(visCands, count, topic);
+  if (visSet) {
+    const photos = [];
+    for (const p of visSet) photos.push({ buffer: await yandex.downloadBuffer(p.path), name: p.name, path: p.path });
+    const rest = ordered.filter((p) => p.faces_ok !== false && !visSet.includes(p));
+    return { photos, backups: rest.slice(0, 8).map((p) => ({ path: p.path, name: p.name, faces_ok: p.faces_ok, joyful: p.joyful, subject: p.subject })), ranked: visSet.map((p) => p.path) };
+  }
+
+  // Fallback: cover = best hero (clear face + joyful single/pair) near the top.
   // For a story, force a SINGLE-subject hero so the aggressive 9:16 crop can't
   // slice a second person.
   const topRel = ordered.slice(0, Math.max(count * 3, 10));
@@ -222,8 +321,21 @@ async function selectBest(count, { folder, exclude = [], topic = '', story = fal
   for (const p of ordered) { if (chosen.length >= count) break; tryPush(p, true); }   // variety pass
   for (const p of ordered) { if (chosen.length >= count) break; tryPush(p, false); }  // fill pass (dedupe still on)
 
-  const final = chosen.slice(0, count);
+  let final = chosen.slice(0, count);
   if (!final.length) throw new Error('catalog selection produced nothing');
+
+  // Vision set review: reject unphotogenic / source-cropped shots and refill
+  // from the ranked pool (one bounded pass — the slide verifier stays the net).
+  const rejected = await reviewSetVision(final);
+  if (rejected.size) {
+    logger.info({ rejected: final.filter((_, i) => rejected.has(i)).map((p) => p.name) }, 'set review rejected photos');
+    const keep = final.filter((_, i) => !rejected.has(i));
+    const rejectedPaths = new Set(final.filter((_, i) => rejected.has(i)).map((p) => p.path));
+    const refill = ordered.filter((p) => p.faces_ok !== false && !rejectedPaths.has(p.path) && !keep.includes(p)
+      && !keep.some((c) => hamming(c.phash, p.phash) <= 8));
+    final = [...keep, ...refill.slice(0, count - keep.length)];
+    if (final.length < count) logger.warn({ have: final.length, want: count }, 'set review: pool too small to refill fully');
+  }
 
   const photos = [];
   for (const p of final) photos.push({ buffer: await yandex.downloadBuffer(p.path), name: p.name, path: p.path });

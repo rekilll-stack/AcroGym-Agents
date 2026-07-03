@@ -67,7 +67,7 @@ async function generatePlan(theme, slides = 4) {
 // Pick N photos from Marketing (prefer a content folder, fall back to root).
 async function pickPhotos(n, folder) {
   const candidates = [];
-  const tryFolders = [folder, '/AcroGym/Marketing/Photos/Competitions May 2025', yandex.MARKETING].filter(Boolean);
+  const tryFolders = [folder, '/AcroGym/Marketing/AcroGym Competiton 2026', yandex.MARKETING].filter(Boolean);
   for (const f of tryFolders) {
     try {
       const imgs = await yandex.listImages(f, { limit: 200 });

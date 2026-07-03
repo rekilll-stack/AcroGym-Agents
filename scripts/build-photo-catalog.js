@@ -126,7 +126,7 @@ async function pool(items, n, worker, onProgress) {
   let all = [];
   for (const f of FOLDERS) {
     try {
-      const imgs = await yandex.listImages(f, { limit: 500, previewSize: 'M' });
+      const imgs = await yandex.listImages(f, { limit: 2000, previewSize: 'M' });
       all.push(...imgs.filter((i) => i.preview));
     } catch (err) { console.error('list fail', f, err.message); }
   }

@@ -41,3 +41,4 @@ data/recent-photos.json
 data/run-job-once
 data/*.bak-*
 data/leads-sheet-backup-*.json
+data/avoid-people/
