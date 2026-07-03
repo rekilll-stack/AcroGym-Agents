@@ -67,7 +67,7 @@ async function generatePlan(theme, slides = 4) {
 // Pick N photos from Marketing (prefer a content folder, fall back to root).
 async function pickPhotos(n, folder) {
   const candidates = [];
-  const tryFolders = [folder, '/AcroGym/Marketing/AcroGym Competiton 2026', yandex.MARKETING].filter(Boolean);
+  const tryFolders = [folder, '/AcroGym/Marketing/Photos/Competitions May 2025', yandex.MARKETING].filter(Boolean);
   for (const f of tryFolders) {
     try {
       const imgs = await yandex.listImages(f, { limit: 200 });
@@ -129,7 +129,7 @@ async function buildStoryAndRoute(bot, ownerChatId, { theme, routine = false, fo
     const issues = [...vr.issues.map((x) => `сторис: ${x}`), ...cap.issues.map((x) => `подпись: ${x}`)];
     if (assembled.overBudget) issues.push(`стоимость: дороже лимита ($${(assembled.costUsd || 0).toFixed(2)})`);
     const verifyOk = vr.ok && cap.ok && !assembled.overBudget;
-    const cand = { assembled, issues, verifyOk };
+    const cand = { assembled, issues, verifyOk, photoPaths: photoPathsArr };
     if (verifyOk) { best = cand; logger.info({ attempt }, 'story self-check passed'); break; }
     if (!best || issues.length < best.issues.length) best = cand;
     logger.warn({ attempt, issueCount: issues.length }, 'story self-check found issues');
@@ -138,7 +138,7 @@ async function buildStoryAndRoute(bot, ownerChatId, { theme, routine = false, fo
     }
   }
 
-  const { assembled, issues, verifyOk } = best;
+  const { assembled, issues, verifyOk, photoPaths } = best;
   const draft = publish.newDraft({
     kind: 'story', igType: 'STORY',
     caption: assembled.caption, slides: assembled.slides,
@@ -240,7 +240,7 @@ async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = fa
     const sel = await photos.selectBest(slides, { folder, topic: theme, exclude });
     (sel.ranked || []).forEach((p) => exclude.push(p)); // never reuse on a rebuild
     const assembled = await assemble.assembleCarousel({
-      topic: theme, photos: sel.photos,
+      topic: theme, photos: sel.photos, backups: sel.backups,
       cover: { headline: plan.cover.headline, cta: plan.cover.cta },
       inner: plan.inner, caption: plan.caption,
     });
@@ -251,6 +251,35 @@ async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = fa
     // mention Lagoona Mall") — a false positive that wastes a rebuild. Each slide
     // is judged on its OWN visual + text quality; brand identity only for context.
     const vr = await verifyCarousel(buffers, { context: 'AcroGym kids gymnastics & acrobatics — Instagram carousel' });
+
+    // Targeted slide fix (owner rule 2026-07-03): when verification flags a
+    // PHOTO on specific slides, swap just those photos in the SAME design and
+    // re-verify — a full rebuild is the fallback, not the first response.
+    const photoPathsArr = sel.photos.map((x) => x.path);
+    if (!vr.ok && assembled.designId) {
+      const usedPaths = new Set(photoPathsArr);
+      let fresh = (sel.backups || []).filter((b) => b.faces_ok !== false && !usedPaths.has(b.path) && !exclude.includes(b.path));
+      for (let i = 0; i < vr.slides.length; i++) {
+        const sres = vr.slides[i];
+        const slide = assembled.slides[i];
+        if (sres.ok || !sres.photoRelated || !slide || !slide.bgElementId) continue;
+        const fixed = await assemble.replaceSlidePhoto({
+          designId: assembled.designId, page: slide.page, bgElementId: slide.bgElementId,
+          candidates: fresh.slice(0, 3),
+        });
+        if (!fixed) { logger.warn({ page: slide.page }, 'targeted slide fix: no candidate worked'); continue; }
+        fresh = fresh.filter((b) => b.path !== fixed.path);
+        usedPaths.add(fixed.path);
+        totalCost += fixed.costUsd || 0;
+        const recheck = await verifySlide(fixed.buffer, { context: `AcroGym kids gymnastics & acrobatics — Instagram carousel slide ${i + 1}/${assembled.slides.length}` });
+        assembled.slides[i] = { ...slide, url: fixed.url, buffer: fixed.buffer };
+        photoPathsArr[i] = fixed.path;
+        vr.slides[i] = recheck;
+        logger.info({ page: slide.page, photo: fixed.name, ok: recheck.ok }, 'targeted slide photo fix applied');
+      }
+      vr.ok = vr.slides.every((r) => r.ok) && vr.carousel.length === 0;
+    }
+
     const cap = verifyCaption(assembled.caption);
     const apiCost = endCost(scope);
     totalCost += apiCost + (assembled.costUsd || 0); // API (copy+select+crop+verify) + design agent
@@ -262,7 +291,7 @@ async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = fa
     ];
     if (assembled.overBudget) issues.push(`стоимость: дороже лимита ($${(assembled.costUsd || 0).toFixed(2)})`);
     const verifyOk = vr.ok && cap.ok && !assembled.overBudget;
-    const cand = { assembled, issues, verifyOk };
+    const cand = { assembled, issues, verifyOk, photoPaths: photoPathsArr };
 
     if (verifyOk) { best = cand; logger.info({ attempt }, 'self-check passed'); break; }
     if (!best || issues.length < best.issues.length) best = cand; // keep the cleanest attempt
@@ -273,12 +302,13 @@ async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = fa
     }
   }
 
-  const { assembled, issues, verifyOk } = best;
+  const { assembled, issues, verifyOk, photoPaths } = best;
   const draft = publish.newDraft({
     kind: 'post', igType: 'POST',
     caption: assembled.caption,
     slides: assembled.slides,
     theme, slidesCount: slides, // kept so 🔄 Rebuild can repeat the same brief
+    photoPaths,                 // burned (recorded as used) only on actual publish
     routine: routine && verifyOk,
     verify: { ok: verifyOk, issues },
     costUsd: totalCost,

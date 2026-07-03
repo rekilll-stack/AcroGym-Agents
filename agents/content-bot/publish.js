@@ -21,6 +21,7 @@
 const crypto = require('crypto');
 const metricool = require('./metricool');
 const agent = require('./agent');
+const photos = require('./photos');
 const { createLogger } = require('../../shared/logger');
 
 const logger = createLogger('content-bot');
@@ -146,6 +147,7 @@ async function publishDraft(draft, { mode = 'now' } = {}) {
     if (mode === 'best') when = await pickBestTime().catch(() => new Date());
     else if (mode instanceof Date) when = mode;
     const result = await metricool.schedulePost({ text: draft.caption, media, altTexts, igType: draft.igType, autoPublish: true, draft: false, when });
+    if (draft.photoPaths && draft.photoPaths.length) photos.recordUsed(draft.photoPaths);
     logger.info({ id: draft.id, kind: draft.kind, mode: mode instanceof Date ? 'date' : mode, via: 'rest' }, 'draft published via metricool REST');
     return result;
   }
@@ -159,6 +161,7 @@ async function publishDraft(draft, { mode = 'now' } = {}) {
     autoPublish: true,
   });
   if (!res.ok) throw new Error(res.error || 'publish failed');
+  if (draft.photoPaths && draft.photoPaths.length) photos.recordUsed(draft.photoPaths);
   logger.info({ id: draft.id, kind: draft.kind, postId: res.postId, via: 'agent-mcp', costUsd: res.costUsd }, 'draft published via Metricool MCP');
   return res;
 }

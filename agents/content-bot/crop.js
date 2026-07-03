@@ -22,10 +22,10 @@ const logger = createLogger('content-bot');
 
 const CROP_MODEL = process.env.CONTENT_CROP_MODEL || 'claude-haiku-4-5-20251001';
 
-const FOCUS_SYSTEM = `You place the crop for an Instagram vertical slide. You see one photo. The slide will be a vertical crop CENTRED on a single point — pick the point on the MAIN SUBJECT so it stays nicely in frame.
-The main subject is the FOREGROUND, in-focus, active person the photo is about — the child performing / training / posing / receiving a medal, or the coach with them. It is NOT the blurry seated spectators or people in the background; ignore them when choosing the point.
-Aim at the centre of that main subject — roughly their torso/face, usually a bit above the vertical middle.
-Reply STRICT JSON ONLY, no prose: {"focus_x":0..1,"focus_y":0..1} as fractions of the image width/height.`;
+const FOCUS_SYSTEM = `You mark the MAIN SUBJECT for an Instagram crop. You see one photo.
+The main subject is the FOREGROUND, in-focus, active person the photo is about — the child performing / training / posing / receiving a medal, together with the coach if they are physically interacting. It is NOT the blurry seated spectators or people in the background.
+Return the TIGHT BOUNDING BOX around the main subject's WHOLE BODY — head to toes, including extended arms and legs (a handstand includes the feet up top; a bridge includes both hands and feet on the mat).
+Reply STRICT JSON ONLY, no prose: {"x0":0..1,"y0":0..1,"x1":0..1,"y1":0..1} as fractions of image width/height (x0<x1, y0<y1).`;
 
 const clamp01 = (n) => Math.max(0, Math.min(1, n));
 
@@ -97,9 +97,9 @@ function uprightCanvas(img, orientation) {
   return c;
 }
 
-// Vision focal point of the MAIN subject (cheap: a downscaled preview). Falls
-// back to centre, slightly high (faces), on any failure.
-async function focalPoint(srcCanvas) {
+// Vision bounding box of the MAIN subject's whole body (cheap: a downscaled
+// preview). Falls back to a generous centre box on any failure.
+async function subjectBox(srcCanvas) {
   try {
     const sw = 480;
     const sh = Math.max(1, Math.round((srcCanvas.height * sw) / srcCanvas.width));
@@ -108,22 +108,24 @@ async function focalPoint(srcCanvas) {
     const b64 = small.toBuffer('image/jpeg', { quality: 0.7 }).toString('base64');
     const raw = await generateText({
       system: FOCUS_SYSTEM,
-      user: 'Where is the main subject? Return the JSON.',
+      user: 'Bounding box of the main subject? Return the JSON.',
       images: [{ data: b64, media_type: 'image/jpeg' }],
-      maxTokens: 60,
+      maxTokens: 80,
       model: CROP_MODEL,
     });
     const v = parseJson(raw);
-    if (v && typeof v.focus_x === 'number' && typeof v.focus_y === 'number') {
-      return { x: clamp01(v.focus_x), y: clamp01(v.focus_y), from: 'vision' };
+    if (v && [v.x0, v.y0, v.x1, v.y1].every((n) => typeof n === 'number') && v.x1 > v.x0 && v.y1 > v.y0) {
+      return { x0: clamp01(v.x0), y0: clamp01(v.y0), x1: clamp01(v.x1), y1: clamp01(v.y1), from: 'vision' };
     }
-  } catch (err) { logger.warn({ err: err.message }, 'crop focal point failed → centre fallback'); }
-  return { x: 0.5, y: 0.42, from: 'fallback' };
+  } catch (err) { logger.warn({ err: err.message }, 'crop subject box failed → centre fallback'); }
+  return { x0: 0.2, y0: 0.1, x1: 0.8, y1: 0.9, from: 'fallback' };
 }
 
 /**
- * Crop a photo buffer to an exact targetW×targetH FULL-BLEED image centred on
- * the main subject. @returns {Promise<Buffer>} JPEG.
+ * Crop a photo buffer to an exact targetW×targetH FULL-BLEED image that
+ * CONTAINS the main subject's whole body when geometrically possible.
+ * @returns {Promise<{buffer: Buffer, covered: boolean}>} covered=false means the
+ * body cannot fit a window of this ratio (caller should prefer another photo).
  */
 async function cropToRatio(buffer, targetW, targetH) {
   const ratio = targetW / targetH;
@@ -137,16 +139,25 @@ async function cropToRatio(buffer, targetW, targetH) {
   const W = src.width, H = src.height;
 
   // Largest window of the target ratio that fits the image (full height if the
-  // image is wider than the target, full width if taller), positioned so its
-  // centre sits on the subject's focal point.
+  // image is wider than the target, full width if taller).
   let cw, ch;
   if (W / H > ratio) { ch = H; cw = Math.round(ch * ratio); }
   else { cw = W; ch = Math.round(cw / ratio); }
-  const f = await focalPoint(src);
-  let cx = Math.round(f.x * W - cw / 2);
-  let cy = Math.round(f.y * H - ch / 2);
+
+  // Position the window to CONTAIN the subject's body box (centre on the box,
+  // then clamp inside the image). If the box is bigger than the window on some
+  // axis, full coverage is impossible — report covered=false so the caller can
+  // swap the photo instead of shipping an amputated crop.
+  const b = await subjectBox(src);
+  const bx0 = b.x0 * W, bx1 = b.x1 * W, by0 = b.y0 * H, by1 = b.y1 * H;
+  let cx = Math.round((bx0 + bx1) / 2 - cw / 2);
+  let cy = Math.round((by0 + by1) / 2 - ch / 2);
   cx = Math.max(0, Math.min(W - cw, cx));
   cy = Math.max(0, Math.min(H - ch, cy));
+  // 2% tolerance: a sliver of a hand at the very edge is not an amputation.
+  const tolX = 0.02 * cw, tolY = 0.02 * ch;
+  const covered = b.from !== 'vision'
+    || (bx0 >= cx - tolX && bx1 <= cx + cw + tolX && by0 >= cy - tolY && by1 <= cy + ch + tolY);
 
   const out = createCanvas(targetW, targetH);
   const ctx = out.getContext('2d');
@@ -154,8 +165,8 @@ async function cropToRatio(buffer, targetW, targetH) {
   if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
   if ('patternQuality' in ctx) ctx.patternQuality = 'best';
   ctx.drawImage(src, cx, cy, cw, ch, 0, 0, targetW, targetH);
-  logger.info({ orientation, src: `${W}x${H}`, target: `${targetW}x${targetH}`, focus: f.from, crop: `${cw}x${ch}@${cx},${cy}` }, 'photo pre-cropped (full-bleed)');
-  return out.toBuffer('image/jpeg', { quality: 0.92 });
+  logger.info({ orientation, src: `${W}x${H}`, target: `${targetW}x${targetH}`, box: b.from, covered, crop: `${cw}x${ch}@${cx},${cy}` }, 'photo pre-cropped (full-bleed)');
+  return { buffer: out.toBuffer('image/jpeg', { quality: 0.92 }), covered };
 }
 
 // 4:5 carousel slide (1080×1350).

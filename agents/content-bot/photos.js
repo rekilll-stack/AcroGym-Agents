@@ -29,7 +29,6 @@ const RANK_MODEL = process.env.CONTENT_RANK_MODEL || 'claude-haiku-4-5-20251001'
 const SELECT_MODEL = process.env.CONTENT_SELECT_MODEL || 'claude-sonnet-5';     // fallback vision rank
 const CANDIDATE_FOLDERS = [
   '/AcroGym/Marketing/Photos/Competitions May 2025',
-  '/AcroGym/Marketing/AcroGym Competiton 2026',
 ];
 
 // Take the FIRST balanced {...} object (models sometimes append a second one).
@@ -49,8 +48,11 @@ function loadCatalog() {
   try { return JSON.parse(fs.readFileSync(CATALOG_PATH, 'utf8')).photos || []; } catch { return []; }
 }
 
-// Recently-used photos — excluded next time so consecutive posts (and 🔄 Rebuild)
-// don't repeat the same shots. Rotates through the library.
+// Recently-PUBLISHED photos — excluded next time so consecutive posts don't
+// repeat the same shots. 🔴 Recorded at PUBLISH time (publish.js), NOT at
+// selection: unpublished drafts/rebuilds must not burn the best shots
+// (2026-07-03 — two dead drafts burned the top DSC set and the next build
+// fell back to weak phone photos).
 const RECENT_PATH = path.join(__dirname, '../../data/recent-photos.json');
 const RECENT_KEEP = 24;
 function recentExclude() {
@@ -89,6 +91,47 @@ COHESION (owner rule): the top picks must read as ONE consistent carousel — sa
 Reply STRICT JSON ONLY, exactly once: {"order":[idx, idx, ...]}. No prose. Output once and STOP.`;
 
 const HERO_SUBJECTS = new Set(['single_child', 'two_children', 'coach_with_child']);
+
+// Owner rule (2026-07-03): the cover must be a STRIKING, photogenic child — the
+// cover sells the post. One vision pass over cheap M-size previews of the top
+// hero candidates picks it; the old heuristic stays as the fallback.
+const COVER_SYSTEM = `You pick the COVER photo for a kids' gymnastics Instagram carousel. You see several numbered candidate photos (0-based, in the order given).
+Choose the single most EYE-CATCHING one: a photogenic, joyful child at a flattering angle, face clearly visible, sharp and well lit, a pose that reads instantly, background not messy. AVOID: unflattering mid-motion grimaces, awkward or unattractive angles, faces obscured or turned away, cluttered frames.
+Reply STRICT JSON ONLY, exactly once: {"cover": <index>}. No prose.`;
+
+async function pickCoverVision(cands) {
+  if (!cands || cands.length < 2) return null;
+  try {
+    const folders = [...new Set(cands.map((c) => c.path.slice(0, c.path.lastIndexOf('/')).replace(/^disk:/, '')))];
+    const previewByPath = new Map();
+    for (const f of folders) {
+      const items = await yandex.listImages(f, { limit: 200, previewSize: 'M' });
+      for (const it of items) if (it.preview) previewByPath.set(String(it.path).replace(/^disk:/, ''), it.preview);
+    }
+    const imgs = []; const idx = [];
+    for (let i = 0; i < cands.length; i++) {
+      const u = previewByPath.get(String(cands[i].path).replace(/^disk:/, ''));
+      if (!u) continue;
+      try {
+        const b = await yandex.fetchPreview(u);
+        imgs.push({ data: b.toString('base64'), media_type: 'image/jpeg' });
+        idx.push(i);
+      } catch { /* skip candidate without a fetchable preview */ }
+    }
+    if (imgs.length < 2) return null;
+    const raw = await generateText({
+      system: COVER_SYSTEM,
+      user: `You see ${imgs.length} numbered photos in the given order. Return the JSON.`,
+      images: imgs, maxTokens: 60, model: SELECT_MODEL,
+    });
+    const v = parseJson(raw);
+    if (v && Number.isInteger(v.cover) && v.cover >= 0 && v.cover < idx.length) {
+      logger.info({ cover: cands[idx[v.cover]].name, considered: idx.length }, 'cover picked by vision (photogenic rule)');
+      return cands[idx[v.cover]];
+    }
+  } catch (err) { logger.warn({ err: err.message }, 'cover vision pick failed → heuristic'); }
+  return null;
+}
 
 /**
  * Select the best `count` photos (download full-res). Returns
@@ -145,11 +188,13 @@ async function selectBest(count, { folder, exclude = [], topic = '', story = fal
   // slice a second person.
   const topRel = ordered.slice(0, Math.max(count * 3, 10));
   const heroOk = (p) => (story ? p.subject === 'single_child' : HERO_SUBJECTS.has(p.subject));
-  const cover = topRel.find((p) => p.faces_ok && p.joyful && heroOk(p))
+  const heuristicCover = topRel.find((p) => p.faces_ok && p.joyful && heroOk(p))
     || topRel.find((p) => p.faces_ok && heroOk(p))
     || topRel.find((p) => p.faces_ok && p.joyful)
     || topRel.find((p) => p.faces_ok)
     || ordered[0];
+  const heroCands = topRel.filter((p) => p.faces_ok && heroOk(p)).slice(0, 6);
+  const cover = (await pickCoverVision(heroCands)) || heuristicCover;
 
   // Build the set: vary POSES, never the STYLE. Owner rule (2026-07-03, after a
   // medals carousel got one medal-less slide): the set must read as one coherent
@@ -182,12 +227,17 @@ async function selectBest(count, { folder, exclude = [], topic = '', story = fal
 
   const photos = [];
   for (const p of final) photos.push({ buffer: await yandex.downloadBuffer(p.path), name: p.name, path: p.path });
-  recordUsed(final.map((p) => p.path));
   logger.info({
     chosen: final.length, fromCatalog: true, cover: final[0] && final[0].name,
     picks: final.map((p) => `${p.subject}:${p.name}`),
   }, 'catalog photo selection done');
-  return { photos, backups: ordered.slice(count, count + 3).map((p) => ({ path: p.path, name: p.name })), ranked: final.map((p) => p.path) };
+  return {
+    photos,
+    // Wider backup pool WITH quality flags: targeted slide fixes and crop swaps
+    // must be able to skip no-face shots (faces sell — owner rule 2026-07-03).
+    backups: ordered.slice(count, count + 8).map((p) => ({ path: p.path, name: p.name, faces_ok: p.faces_ok, joyful: p.joyful, subject: p.subject })),
+    ranked: final.map((p) => p.path),
+  };
 }
 
 // ── Fallback: live vision-sample ranking (used only if the catalog is absent) ──
@@ -235,9 +285,8 @@ async function selectBestVision(count, { folder, exclude = [], topic = '' } = {}
   if (!chosen.length) throw new Error('photo selection produced nothing');
   const photos = [];
   for (const c of chosen) photos.push({ buffer: await yandex.downloadBuffer(c.path), name: c.name, path: c.path });
-  recordUsed(chosen.map((c) => c.path));
   logger.info({ chosen: chosen.length, fromVision: !!order, fromCatalog: false }, 'vision photo selection done');
   return { photos, backups: ranked.slice(count, count + 3), ranked: ranked.map((c) => c.path) };
 }
 
-module.exports = { selectBest, selectBestVision, loadCatalog };
+module.exports = { selectBest, selectBestVision, loadCatalog, recordUsed };

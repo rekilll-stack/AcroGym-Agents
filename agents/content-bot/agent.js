@@ -197,6 +197,27 @@ async function buildStory({ templateDesignId, assetId, elements, headline, cta }
   return { ok: true, designId, url: urls[0], costUsd: run.costUsd, turns: run.turns, overBudget };
 }
 
+/**
+ * Replace ONE element's image fill in an EXISTING design (targeted slide fix —
+ * owner rule 2026-07-03: don't rebuild the whole carousel for one bad photo).
+ */
+async function updateFill({ designId, elementId, assetId }) {
+  const prompt = [
+    'You are a Canva production assistant. Use ONLY the Canva tools. Touch ONLY the element given.',
+    'Steps:',
+    `1. Start an editing transaction on the design ${designId}.`,
+    `2. update_fill the element "${elementId}" with image asset "${assetId}" (the full-bleed background photo — change nothing else).`,
+    '3. Commit the transaction.',
+    '4. Reply STRICT JSON ONLY, no prose: {"ok":true} or {"ok":false,"error":"<why>"}.',
+  ].join('\n');
+  const run = await runCli(prompt, { maxTurns: 8 });
+  const overBudget = run.costUsd > MAX_COST_USD;
+  if (!run.ok) return { ok: false, error: run.error || 'agent error', costUsd: run.costUsd, overBudget };
+  const parsed = parseStrictJson(run.result) || {};
+  logger.info({ designId, elementId, ok: parsed.ok === true, costUsd: run.costUsd }, 'designer agent: update fill');
+  return { ok: parsed.ok === true, error: parsed.error, costUsd: run.costUsd, overBudget };
+}
+
 // Local datetime string (no offset) in the brand timezone, for Metricool.
 function localDateTime(when = new Date(), tz = process.env.TIMEZONE || 'Asia/Qatar') {
   const d = new Date(when.toLocaleString('en-US', { timeZone: tz }));
@@ -256,4 +277,4 @@ async function publishPost({ media, caption, altTexts = [], igType = 'POST', whe
   return { ok: true, postId: parsed.postId, costUsd: run.costUsd, overBudget, turns: run.turns };
 }
 
-module.exports = { buildCarousel, buildStory, publishPost, canPublish, runCli, localDateTime, MODEL, MAX_COST_USD };
+module.exports = { buildCarousel, buildStory, updateFill, publishPost, canPublish, runCli, localDateTime, MODEL, MAX_COST_USD };

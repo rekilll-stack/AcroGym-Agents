@@ -119,7 +119,9 @@ Reply with STRICT JSON ONLY (no prose), every field present:
 {
  "single_photo": true|false,            // false if the slide shows 2+ different photos stitched/stacked/collaged
  "upright": true|false,                 // false if rotated/sideways/upside-down
- "faces_uncropped": true|false,         // false ONLY if the MAIN / foreground subject's face is cut off by the frame edge. In a WIDE establishing or action shot it is NORMAL for incidental people in the background or at the very edges to be clipped — do NOT fail for those; judge only the main subject(s) the slide is about.
+ "faces_uncropped": true|false,         // false if the MAIN / foreground subject's face is cut off by the frame edge. Blurry spectators clipped at the edges of the BACKGROUND are fine.
+ "limbs_uncropped": true|false,         // false if the MAIN subject's body is awkwardly amputated by the frame — feet, hands or head sliced off (e.g. a handstand with the feet cut off at the top of the frame). A deliberate waist-up portrait is fine; fail when the crop looks careless on a full-body pose.
+ "no_partial_bystanders": true|false,   // false if a CUT-OFF body part of ANOTHER person intrudes prominently into the FOREGROUND next to the main subject (e.g. someone's legs sticking in from the frame edge). Small clipped people in the blurry background are fine.
  "text_not_on_face": true|false,        // false if overlay text covers a face
  "text_legible": true|false,            // false if low contrast / hard to read
  "text_complete": true|false,           // false if text is clipped or broken mid-word
@@ -136,6 +138,7 @@ Reply with STRICT JSON ONLY (no prose), every field present:
  "grammar_ok": true|false,              // false ONLY for a CLEAR grammatical mistake in the overlay text. Do NOT flag style, tone, formality, word choice, or capitalisation preferences — those are fine.
  "photo_sharp": true|false,             // not blurry/pixelated
  "subject_clear": true|false,           // main subject (kids/coach/action) clearly visible
+ "face_visible": true|false,            // false if NO face is meaningfully visible on the slide — the main subject's head is buried/turned fully away AND nobody else's face reads (marketing rule: faces sell; a pose shot where the face is hidden behind the body fails this)
  "good_contrast": true|false,           // text stands out from the background
  "duotone_consistent": true|false,      // photo treatment is uniform across the whole slide (no half-bw/half-colour)
  "issues": ["короткая конкретная проблема НА РУССКОМ", ...] // [] если всё хорошо. Все строки в issues — на русском языке.
@@ -145,6 +148,8 @@ const VISION_FIELD_MSG = {
   single_photo: 'на слайде склеены два разных фото',
   upright: 'фото перевёрнуто/набок',
   faces_uncropped: 'лицо главного героя обрезано краем кадра',
+  limbs_uncropped: 'у главного героя обрезаны конечности краем кадра',
+  no_partial_bystanders: 'в передний план торчит обрезанный человек с края кадра',
   text_not_on_face: 'текст налезает на лицо',
   text_legible: 'текст плохо читается / низкий контраст',
   text_complete: 'текст обрезан или разорван посреди слова',
@@ -161,6 +166,7 @@ const VISION_FIELD_MSG = {
   grammar_ok: 'грамматическая ошибка в тексте',
   photo_sharp: 'фото размыто/в пикселях',
   subject_clear: 'главный объект не читается',
+  face_visible: 'на фото не видно лица (голова спрятана/отвёрнута)',
   good_contrast: 'плохой контраст текста и фона',
   duotone_consistent: 'неоднородная обработка фото (половина ч/б, половина цвет)',
 };
@@ -177,11 +183,18 @@ async function checkVisual(buffer, { context = '' } = {}) {
   const v = parseJson(raw);
   if (!v) return { ok: false, issues: ['проверка вернула нечитаемый ответ'], degraded: true };
   const issues = [];
+  const failedFields = [];
   for (const [field, msg] of Object.entries(VISION_FIELD_MSG)) {
-    if (v[field] === false) issues.push(msg);
+    if (v[field] === false) { issues.push(msg); failedFields.push(field); }
   }
   if (Array.isArray(v.issues)) for (const x of v.issues) if (x && !issues.some((i) => i.toLowerCase() === String(x).toLowerCase())) issues.push(x);
-  return { ok: issues.length === 0, issues: [...new Set(issues)] };
+  // A failure is PHOTO-related (fixable by swapping the photo, keeping the text)
+  // when a photo-quality field failed or a free-form issue talks about the photo.
+  const PHOTO_FIELDS = new Set(['single_photo', 'upright', 'faces_uncropped', 'limbs_uncropped', 'no_partial_bystanders',
+    'text_not_on_face', 'appropriate', 'child_safe', 'photo_sharp', 'subject_clear', 'face_visible', 'duotone_consistent']);
+  const photoRelated = failedFields.some((f) => PHOTO_FIELDS.has(f))
+    || (Array.isArray(v.issues) && v.issues.some((x) => /фото|кадр|геро|снимк|обрез/i.test(String(x))));
+  return { ok: issues.length === 0, issues: [...new Set(issues)], photoRelated };
 }
 
 // ── public: single slide ─────────────────────────────────────────
@@ -193,7 +206,7 @@ async function verifySlide(buffer, { context = '', expectedRatio, ratioLabel } =
   const issues = [...struct.issues, ...integ.issues, ...visual.issues];
   const ok = struct.ok && integ.ok && visual.ok;
   logger.info({ ok, issues, width: struct.width, height: struct.height }, 'slide verification');
-  return { ok, issues, width: struct.width, height: struct.height, hash: integ.hash };
+  return { ok, issues, photoRelated: !!visual.photoRelated, width: struct.width, height: struct.height, hash: integ.hash };
 }
 
 // ── public: whole carousel ───────────────────────────────────────

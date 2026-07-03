@@ -35,3 +35,9 @@ exports/*.pptx
 data/recent-photos.json
 data/content-plan.json
 data/reports/
+
+# ephemeral photo-rotation state, db backups, one-shot job flags, sheet dumps
+data/recent-photos.json
+data/run-job-once
+data/*.bak-*
+data/leads-sheet-backup-*.json
