@@ -84,7 +84,7 @@ async function buildWeeklyInsight(stats) {
           'Respond ONLY with valid JSON in this exact shape: {"en": "<english text>", "ru": "<russian text>"}',
         user:      JSON.stringify(stats, null, 2),
         maxTokens: 300,
-        model:     'claude-opus-4-8',
+        model:     'claude-sonnet-5',
       }),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Claude insight timeout (15s)')), 15000)

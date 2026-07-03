@@ -29,7 +29,7 @@ const BRIEF_PATH = path.join(__dirname, '../../data/competitor-brief.md');
 
 // The strategist model. Opus = the sharpest planner; plan generation is on-demand
 // and infrequent (~2 calls/request), so the extra cost is negligible.
-const STRATEGIST_MODEL = process.env.CONTENT_PLAN_MODEL || 'claude-opus-4-8';
+const STRATEGIST_MODEL = process.env.CONTENT_PLAN_MODEL || 'claude-sonnet-5';
 
 function loadBrief() {
   try { return fs.readFileSync(BRIEF_PATH, 'utf8'); } catch { return ''; }

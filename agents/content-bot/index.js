@@ -810,6 +810,31 @@ function start() {
     logger.error({ err: err.message }, 'autopilot calendar start failed');
   }
 
+  // ── One-shot job kick: if data/run-job-once holds a calendar job name, build
+  //    it on startup and remove the flag. Ops escape hatch to re-run a missed
+  //    cron IN-PROCESS (approval-card buttons need the bot's in-memory drafts).
+  //    Always routine:false — never auto-publishes.
+  try {
+    const kickPath = path.join(__dirname, '../../data/run-job-once');
+    if (ALLOWED.length && fs.existsSync(kickPath)) {
+      const name = fs.readFileSync(kickPath, 'utf8').trim();
+      fs.unlinkSync(kickPath);
+      const item = calendar.PLAN.find((p) => p.name === name);
+      if (!item) {
+        logger.warn({ name }, 'run-job-once: unknown job name');
+      } else {
+        logger.info({ name }, 'run-job-once: building');
+        calendar.buildAndRoute(bot, ALLOWED[0], { theme: item.theme, slides: item.slides, routine: false })
+          .catch(async (err) => {
+            logger.error({ err: err.message, name }, 'run-job-once failed');
+            await bot.sendMessage(ALLOWED[0], `⚠️ Ручной перезапуск «${name}» не собрался: ${err.message}`).catch(() => {});
+          });
+      }
+    }
+  } catch (err) {
+    logger.error({ err: err.message }, 'run-job-once check failed');
+  }
+
   logger.info('Content-bot running ✅ (C.2 text + autopilot: Canva→verify→Metricool gate)');
   return bot;
 }

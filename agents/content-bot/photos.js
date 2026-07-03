@@ -26,7 +26,7 @@ const logger = createLogger('content-bot');
 
 const CATALOG_PATH = path.join(__dirname, '../../data/photo-catalog.json');
 const RANK_MODEL = process.env.CONTENT_RANK_MODEL || 'claude-haiku-4-5-20251001'; // text-only topic rank (cheap)
-const SELECT_MODEL = process.env.CONTENT_SELECT_MODEL || 'claude-sonnet-4-6';     // fallback vision rank
+const SELECT_MODEL = process.env.CONTENT_SELECT_MODEL || 'claude-sonnet-5';     // fallback vision rank
 const CANDIDATE_FOLDERS = [
   '/AcroGym/Marketing/Photos/Competitions May 2025',
   '/AcroGym/Marketing/AcroGym Competiton 2026',
@@ -83,8 +83,9 @@ function sample(arr, n) {
 }
 
 const RANK_SYSTEM = `You choose photos for an AcroGym (kids' gymnastics & acrobatics, Doha) Instagram carousel about a given TOPIC.
-You are given the topic and a numbered list of available photos (each: subject type + caption + tags). All listed photos are already good quality and crop well to vertical — your only job is RELEVANCE to the topic.
+You are given the topic and a numbered list of available photos (each: subject type + caption + tags). All listed photos are already good quality and crop well to vertical — your job is RELEVANCE to the topic AND set COHESION.
 Return the indices of the photos that best fit the topic, MOST relevant first. A joyful child training, posing or competing fits almost any positive topic, so still return plenty even if the match isn't literal. Put the strongest single "hero" shot first.
+COHESION (owner rule): the top picks must read as ONE consistent carousel — same setting/session/styling (e.g. if the theme is medals, EVERY top pick shows medals; don't mix a training-hall shot into a competition set). Vary poses and framing, never the visual style.
 Reply STRICT JSON ONLY, exactly once: {"order":[idx, idx, ...]}. No prose. Output once and STOP.`;
 
 const HERO_SUBJECTS = new Set(['single_child', 'two_children', 'coach_with_child']);
@@ -150,8 +151,10 @@ async function selectBest(count, { folder, exclude = [], topic = '', story = fal
     || topRel.find((p) => p.faces_ok)
     || ordered[0];
 
-  // Build the set with VARIETY — a good carousel mixes shot types (a hero, an
-  // action, a coach/medal moment, an expression), not 4 near-identical poses.
+  // Build the set: vary POSES, never the STYLE. Owner rule (2026-07-03, after a
+  // medals carousel got one medal-less slide): the set must read as one coherent
+  // session/styling — the LLM rank already orders for cohesion, so the greedy
+  // pass must NOT veto same-style picks. Tag similarity blocks only near-clones.
   const tagSet = (p) => new Set((p.tags || []).map((t) => String(t).toLowerCase()));
   const jaccard = (a, b) => {
     const A = tagSet(a), B = tagSet(b);
@@ -166,7 +169,7 @@ async function selectBest(count, { folder, exclude = [], topic = '', story = fal
     if (chosen.some((c) => hamming(c.phash, p.phash) <= 8)) return false; // never a near-dupe frame
     if (diverse) {
       if ((subjCount[p.subject] || 0) >= 2) return false;            // ≤2 of the same subject type
-      if (chosen.some((c) => jaccard(c, p) >= 0.55)) return false;   // not too tag-similar to a chosen one
+      if (chosen.some((c) => jaccard(c, p) >= 0.85)) return false;   // only near-identical tag sets
     }
     chosen.push(p); subjCount[p.subject] = (subjCount[p.subject] || 0) + 1; return true;
   };

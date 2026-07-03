@@ -39,10 +39,11 @@ function endCost(s) {
   return s ? s.total : 0;
 }
 
-// Owner's call (2026-06-29): run EVERYTHING on Opus 4.8 for max quality. We force
-// the opus alias for all calls regardless of the per-module model arg. Override
-// with CONTENT_CLI_MODEL if a cheaper/faster model is ever needed.
-const FORCE_MODEL = process.env.CONTENT_CLI_MODEL || 'opus';
+// Owner's call (2026-07-02): run EVERYTHING on Sonnet 5 — cheaper than Opus and
+// smarter (supersedes the 2026-06-29 all-Opus call). We force the alias for all
+// calls regardless of the per-module model arg. Override with CONTENT_CLI_MODEL
+// if a different model is ever needed.
+const FORCE_MODEL = process.env.CONTENT_CLI_MODEL || 'sonnet';
 function cliModel(/* model */) {
   return FORCE_MODEL;
 }

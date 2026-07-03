@@ -24,14 +24,15 @@
 
 const { execFile } = require('child_process');
 const { createLogger } = require('../../shared/logger');
+const canva = require('./canva');
 
 const logger = createLogger('content-bot');
 
 const CLI = process.env.CLAUDE_CLI || `${process.env.HOME || '/home/admin'}/.npm-global/bin/claude`;
-// Owner's call (2026-06-29): everything on Opus 4.8. (Design is mechanical and
-// Haiku sufficed with exact element ids, but the owner wants 4.8 across the
-// board.) Override with CONTENT_DESIGNER_MODEL if Max quota throttles.
-const MODEL = process.env.CONTENT_DESIGNER_MODEL || 'opus';
+// Owner's call (2026-07-02): everything on Sonnet 5 — cheaper than Opus and at
+// least as good on this mechanical work; also brings the designer run back
+// under MAX_POST_COST_USD. Override with CONTENT_DESIGNER_MODEL if needed.
+const MODEL = process.env.CONTENT_DESIGNER_MODEL || 'sonnet';
 const MAX_TURNS = parseInt(process.env.CONTENT_DESIGNER_MAX_TURNS || '30', 10);
 const TIMEOUT_MS = parseInt(process.env.CONTENT_DESIGNER_TIMEOUT_MS || '300000', 10); // 5 min
 const MAX_COST_USD = parseFloat(process.env.MAX_POST_COST_USD || '0.5');
@@ -110,9 +111,7 @@ async function buildCarousel({ templateDesignId, slides }) {
     '   - then check each text fits: if it overflows its box/pill or breaks mid-word, use format_text to REDUCE its font size until it sits cleanly with NO clipped characters.',
     '   Do NOT fill or move any other element (the orange gradient overlay and the asterisk must stay untouched).',
     '4. Commit the transaction.',
-    `5. Export pages ${JSON.stringify(pages)} of the new design as PNG (export-design), width 1080 height 1350.`,
-    '6. Reply with STRICT JSON ONLY, no prose:',
-    '   {"designId":"<new id>","slides":[{"page":<n>,"url":"<export url>"}, ...]}',
+    '5. Reply with STRICT JSON ONLY, no prose: {"designId":"<the ACTUAL id of the new design returned by copy-design>"}',
     '',
     'Items:',
     JSON.stringify(spec, null, 2),
@@ -126,12 +125,25 @@ async function buildCarousel({ templateDesignId, slides }) {
     return { ok: false, error: run.error || 'agent error', costUsd: run.costUsd, overBudget };
   }
   const parsed = parseStrictJson(run.result);
-  if (!parsed || !Array.isArray(parsed.slides) || !parsed.slides.length) {
-    logger.error({ resultPreview: String(run.result).slice(0, 300) }, 'designer agent: no slides in result');
-    return { ok: false, error: 'agent returned no slides', costUsd: run.costUsd, overBudget };
+  const designId = parsed && parsed.designId;
+  if (!designId || !/^DA[A-Za-z0-9_-]{5,}$/.test(designId)) {
+    logger.error({ resultPreview: String(run.result).slice(0, 300) }, 'designer agent: no valid designId in result');
+    return { ok: false, error: 'agent returned no valid designId', costUsd: run.costUsd, overBudget };
   }
-  logger.info({ designId: parsed.designId, slides: parsed.slides.length, costUsd: run.costUsd, turns: run.turns, overBudget }, 'designer agent done');
-  return { ok: true, designId: parsed.designId, slides: parsed.slides, costUsd: run.costUsd, turns: run.turns, overBudget };
+  // 🔴 Export via REST ourselves — the agent must NOT transcribe pre-signed URLs
+  // into its answer (2026-07-02: it fabricated them → download 400). The export
+  // covers ALL pages of the design copy, so index by page number.
+  const urls = await canva.exportDesign(designId, 'png');
+  const built = [];
+  for (const page of pages) {
+    if (!urls[page - 1]) {
+      logger.error({ designId, page, exported: urls.length }, 'designer agent: export missing page');
+      return { ok: false, error: `export missing page ${page} (design has ${urls.length})`, costUsd: run.costUsd, overBudget };
+    }
+    built.push({ page, url: urls[page - 1] });
+  }
+  logger.info({ designId, slides: built.length, costUsd: run.costUsd, turns: run.turns, overBudget }, 'designer agent done');
+  return { ok: true, designId, slides: built, costUsd: run.costUsd, turns: run.turns, overBudget };
 }
 
 /**
@@ -159,8 +171,7 @@ async function buildStory({ templateDesignId, assetId, elements, headline, cta }
     '4. For each entry below, replace_text on that exact element_id with its text; if it overflows its box/pill or breaks mid-word, format_text to REDUCE the font size until it sits cleanly:',
     JSON.stringify(setText, null, 2),
     '5. Commit the transaction.',
-    '6. Export page 1 of the new design as PNG, width 1080 height 1920 (export-design).',
-    '7. Reply with STRICT JSON ONLY, no prose, using the ACTUAL ids/URLs returned by the tools (NOT the angle-bracket placeholders): {"designId":"...","url":"https://..."}',
+    '6. Reply with STRICT JSON ONLY, no prose: {"designId":"<the ACTUAL id of the new design returned by copy-design>"}',
   ].join('\n');
 
   logger.info({ templateDesignId, model: MODEL }, 'designer agent: building story');
@@ -171,12 +182,19 @@ async function buildStory({ templateDesignId, assetId, elements, headline, cta }
     return { ok: false, error: run.error || 'agent error', costUsd: run.costUsd, overBudget };
   }
   const parsed = parseStrictJson(run.result);
-  if (!parsed || !parsed.url || !/^https?:\/\//.test(parsed.url)) {
-    logger.error({ resultPreview: String(run.result).slice(0, 300) }, 'story agent: no valid url in result');
-    return { ok: false, error: 'agent returned no valid export url', costUsd: run.costUsd, overBudget };
+  const designId = parsed && parsed.designId;
+  if (!designId || !/^DA[A-Za-z0-9_-]{5,}$/.test(designId)) {
+    logger.error({ resultPreview: String(run.result).slice(0, 300) }, 'story agent: no valid designId in result');
+    return { ok: false, error: 'agent returned no valid designId', costUsd: run.costUsd, overBudget };
   }
-  logger.info({ designId: parsed.designId, costUsd: run.costUsd, turns: run.turns, overBudget }, 'designer agent: story done');
-  return { ok: true, designId: parsed.designId, url: parsed.url, costUsd: run.costUsd, turns: run.turns, overBudget };
+  // Same rule as buildCarousel: never let the agent transcribe export URLs.
+  const urls = await canva.exportDesign(designId, 'png');
+  if (!urls[0]) {
+    logger.error({ designId }, 'story agent: export returned no pages');
+    return { ok: false, error: 'export returned no pages', costUsd: run.costUsd, overBudget };
+  }
+  logger.info({ designId, costUsd: run.costUsd, turns: run.turns, overBudget }, 'designer agent: story done');
+  return { ok: true, designId, url: urls[0], costUsd: run.costUsd, turns: run.turns, overBudget };
 }
 
 // Local datetime string (no offset) in the brand timezone, for Metricool.

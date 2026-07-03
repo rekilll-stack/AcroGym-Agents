@@ -23,7 +23,10 @@ function getClient() {
   return _client;
 }
 
-const DEFAULT_MODEL      = 'claude-opus-4-8';
+// Owner's call (2026-07-02): everything on Sonnet 5 — cheaper than Opus 4.8
+// ($3/$15 vs $5/$25 per MTok; intro $2/$10 through 2026-08-31) and smarter on
+// agentic work. Supersedes the 2026-06-29 "everything on Opus" decision.
+const DEFAULT_MODEL      = 'claude-sonnet-5';
 const DEFAULT_MAX_TOKENS = 1024;
 const MAX_RETRIES        = 3;
 const BASE_DELAY_MS      = 1000;
@@ -101,12 +104,13 @@ function _estimateCost(model, inputTokens, outputTokens) {
   const pricing = {
     'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
     'claude-sonnet-4-6': { input: 3.0, output: 15.0 },
-    'claude-opus-4-8':   { input: 15.0, output: 75.0 }, // opus tier (approx); for cost-log estimate
-    'claude-opus-4-7':   { input: 15.0, output: 75.0 },
-    'claude-haiku-4-5':  { input: 0.25, output: 1.25 },
+    'claude-sonnet-5':   { input: 3.0, output: 15.0 }, // sticker; intro $2/$10 через 2026-08-31
+    'claude-opus-4-8':   { input: 5.0, output: 25.0 },
+    'claude-opus-4-7':   { input: 5.0, output: 25.0 },
+    'claude-haiku-4-5':  { input: 1.0, output: 5.0 },
     'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
   };
-  const p = pricing[model] || pricing['claude-sonnet-4-5'];
+  const p = pricing[model] || pricing['claude-sonnet-5'];
   return (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
 }
 

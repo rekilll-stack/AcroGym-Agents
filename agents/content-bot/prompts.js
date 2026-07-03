@@ -125,7 +125,7 @@ function buildContentPrompt(format, topic, lang = 'en') {
     system: f.system,
     user: langDirective + f.instruction(t),
     maxTokens: f.maxTokens,
-    model: 'claude-opus-4-8', // owner choice: top quality for brand-voice content (low volume)
+    model: 'claude-sonnet-5', // owner choice 2026-07-02: everything on Sonnet 5
   };
 }
 
@@ -220,7 +220,7 @@ function buildCaptionPrompt(contextText) {
       ? `Optional context from the user about this photo (may be in Russian): ${ctx}\n\nWrite the English Instagram caption now.`
       : 'Write the English Instagram caption for this photo now.',
     maxTokens: 600,
-    model: 'claude-opus-4-8',
+    model: 'claude-sonnet-5',
   };
 }
 
@@ -259,7 +259,7 @@ function buildHeadlinePrompt(topic) {
       "The user's theme may be in Russian or any language — understand it, then " +
       'write the 3 headlines ENTIRELY IN ENGLISH.\n\nTheme: ' + t,
     maxTokens: 150,
-    model: 'claude-opus-4-8',
+    model: 'claude-sonnet-5',
   };
 }
 
