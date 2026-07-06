@@ -820,7 +820,15 @@ function start() {
       const name = fs.readFileSync(kickPath, 'utf8').trim();
       fs.unlinkSync(kickPath);
       const item = calendar.PLAN.find((p) => p.name === name);
-      if (!item) {
+      if (name === 'plan-next') {
+        logger.info('run-job-once: building next planned content item');
+        calendar.buildNextPlanned(bot, ALLOWED[0])
+          .then((it) => { if (!it) logger.warn('run-job-once: no due plan item'); })
+          .catch(async (err) => {
+            logger.error({ err: err.message }, 'run-job-once plan-next failed');
+            await bot.sendMessage(ALLOWED[0], `⚠️ Ручной перезапуск планового поста не собрался: ${err.message}`).catch(() => {});
+          });
+      } else if (!item) {
         logger.warn({ name }, 'run-job-once: unknown job name');
       } else {
         logger.info({ name }, 'run-job-once: building');

@@ -129,7 +129,7 @@ async function buildStoryAndRoute(bot, ownerChatId, { theme, routine = false, fo
     const issues = [...vr.issues.map((x) => `сторис: ${x}`), ...cap.issues.map((x) => `подпись: ${x}`)];
     if (assembled.overBudget) issues.push(`стоимость: дороже лимита ($${(assembled.costUsd || 0).toFixed(2)})`);
     const verifyOk = vr.ok && cap.ok && !assembled.overBudget;
-    const cand = { assembled, issues, verifyOk, photoPaths: photoPathsArr };
+    const cand = { assembled, issues, verifyOk, photoPaths: [photo.path] };
     if (verifyOk) { best = cand; logger.info({ attempt }, 'story self-check passed'); break; }
     if (!best || issues.length < best.issues.length) best = cand;
     logger.warn({ attempt, issueCount: issues.length }, 'story self-check found issues');
@@ -143,6 +143,7 @@ async function buildStoryAndRoute(bot, ownerChatId, { theme, routine = false, fo
     kind: 'story', igType: 'STORY',
     caption: assembled.caption, slides: assembled.slides,
     theme, slidesCount: 1, storyFormat: true,
+    photoPaths,                 // burned (recorded as used) only on actual publish
     routine: routine && verifyOk,
     verify: { ok: verifyOk, issues },
     costUsd: totalCost,
