@@ -110,8 +110,10 @@ function copyTextHandler(greetingCache = null) {
       }
 
       if (text) {
-        await bot.sendMessage(query.message.chat.id, text);
-        await bot.answerCallbackQuery(query.id, { text: '📋 Text sent above ↑' });
+        // <pre> block → Telegram copies it to the clipboard on a single tap.
+        const esc = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        await bot.sendMessage(query.message.chat.id, `<pre>${esc}</pre>`, { parse_mode: 'HTML' });
+        await bot.answerCallbackQuery(query.id, { text: '📋 Tap the text above to copy it' });
       } else {
         await bot.answerCallbackQuery(query.id, {
           text: '⚠️ Draft not available. Greeting may not have been generated.',

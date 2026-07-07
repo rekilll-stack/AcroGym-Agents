@@ -136,10 +136,20 @@ function buildCard(lead, rowNumber, opts = {}) {
   const lines = [header, ''];
 
   if (lead.parent_name)  lines.push(`👤 Name: ${escHtml(lead.parent_name)}`);
-  if (lead.parent_phone) lines.push(`📱 Phone: ${escHtml(lead.parent_phone)}`);
+  // Phone in <code> → one tap copies it to the clipboard (Telegram behaviour);
+  // wa.me link → one tap opens a WhatsApp chat with that number (owner UX ask
+  // 2026-07-07: "нажимаешь на номер — открывается вотсап").
+  // Phone: tap the <code> number to copy it. The wa.me link lives ONCE, on the
+  // WhatsApp line (owner 2026-07-07: no duplicate links, English labels).
+  if (lead.parent_phone) {
+    lines.push(`📱 Phone: <code>${escHtml(lead.parent_phone)}</code>`);
+  }
 
   const wa = lead.parent_whatsapp || lead.parent_phone;
-  if (wa)                lines.push(`💬 WhatsApp: ${escHtml(wa)}`);
+  if (wa) {
+    const wn = lead.whatsapp_normalized || normalizePhone(wa);
+    lines.push(`💬 WhatsApp: <code>${escHtml(wa)}</code>` + (wn ? ` · <a href="https://wa.me/${wn}">open in WhatsApp</a>` : ''));
+  }
   if (lead.parent_email) lines.push(`✉️ Email: ${escHtml(lead.parent_email)}`);
   if (lead.qid)          lines.push(`🆔 QID: ${escHtml(lead.qid)}`);
   if (lead.child_age)    lines.push(`🎂 Child age: ${escHtml(lead.child_age)}`);
@@ -252,7 +262,7 @@ async function handleNew(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, 
 
   const card = buildCard(parsed, rowNumber, { header: headerLine }) + draft;
 
-  await sendToAdmin(card, { reply_markup: respondedKeyboard(leadId) });
+  await sendToAdmin(card, { reply_markup: respondedKeyboard(leadId), disable_web_page_preview: true });
   updateLeadStatusById(leadId, { status: 'notified', notified_at: new Date().toISOString() });
   logger.info({ rowNumber, leadId, client_type: parsed.client_type }, 'New lead — admin notified');
 }
@@ -266,7 +276,7 @@ async function handleReturning(rowNumber, parsed, phoneNorm, whatsappNorm, email
   const note   = '<i>This person has been with us before. Contact personally to discuss return terms.</i>';
   const card   = buildCard(parsed, rowNumber, { header, note });
 
-  await sendToAdmin(card, { reply_markup: contactedKeyboard(leadId) });
+  await sendToAdmin(card, { reply_markup: contactedKeyboard(leadId), disable_web_page_preview: true });
   updateLeadStatusById(leadId, { status: 'returning_notified', notified_at: new Date().toISOString() });
   logger.info({ rowNumber, leadId }, 'Returning client — admin notified');
 }
@@ -417,7 +427,7 @@ async function checkReminders() {
       const label  = lead.sheet_row_number ?? lead.id; // uid leads have no row number
       const header = `⏰ <b>Reminder: Lead #${label} still waiting (${REMINDER_HOURS}h)</b>`;
       const card   = buildCard(lead, label, { header });
-      await sendToAdmin(card, { reply_markup: respondedKeyboard(lead.id) });
+      await sendToAdmin(card, { reply_markup: respondedKeyboard(lead.id), disable_web_page_preview: true });
       updateLeadStatusById(lead.id, { reminder_sent_at: new Date().toISOString() });
       logger.info({ leadId: lead.id, rowNumber: lead.sheet_row_number }, 'Reminder sent');
     } catch (err) {
