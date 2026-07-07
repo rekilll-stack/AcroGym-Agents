@@ -145,10 +145,14 @@ function buildCard(lead, rowNumber, opts = {}) {
     lines.push(`📱 Phone: <code>${escHtml(lead.parent_phone)}</code>`);
   }
 
+  // WhatsApp: the NUMBER itself is the wa.me link — tap it to open the chat
+  // (owner 2026-07-07). The Phone line above stays tap-to-copy.
   const wa = lead.parent_whatsapp || lead.parent_phone;
   if (wa) {
     const wn = lead.whatsapp_normalized || normalizePhone(wa);
-    lines.push(`💬 WhatsApp: <code>${escHtml(wa)}</code>` + (wn ? ` · <a href="https://wa.me/${wn}">open in WhatsApp</a>` : ''));
+    lines.push(wn
+      ? `💬 WhatsApp: <a href="https://wa.me/${wn}">${escHtml(wa)}</a>`
+      : `💬 WhatsApp: <code>${escHtml(wa)}</code>`);
   }
   if (lead.parent_email) lines.push(`✉️ Email: ${escHtml(lead.parent_email)}`);
   if (lead.qid)          lines.push(`🆔 QID: ${escHtml(lead.qid)}`);
@@ -157,7 +161,7 @@ function buildCard(lead, rowNumber, opts = {}) {
 
   const receivedTs = lead.timestamp || lead.created_at || new Date().toISOString();
   lines.push(`⏰ Received: ${formatTime(receivedTs)}`);
-  if (lead.parent_phone || wa) lines.push('', '<i>💡 Tap a number to copy it</i>');
+  if (lead.parent_phone || wa) lines.push('', '<i>💡 Phone: tap to copy · WhatsApp: tap to open chat</i>');
 
   if (note) lines.push('', note);
 
