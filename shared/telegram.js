@@ -264,6 +264,27 @@ function startCallbackPolling() {
       logger.error({ err }, 'Telegram polling error');
     });
 
+    // Access requests (owner 2026-07-07, variant A onboarding): the admin bot
+    // has no message UI, so when someone OUTSIDE ADMIN_CHAT_IDS writes /start,
+    // ping the owner with their chat_id once, and acknowledge the requester.
+    const _accessPinged = new Set();
+    _pollingBot.on('message', async (msg) => {
+      try {
+        const allowed = parseChatIds('ADMIN_CHAT_IDS').map(String);
+        const id = String(msg.chat.id);
+        if (allowed.includes(id) || _accessPinged.has(id)) return;
+        _accessPinged.add(id);
+        const esc = (x) => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const who = [msg.from && msg.from.first_name, msg.from && msg.from.last_name].filter(Boolean).join(' ') || 'unknown';
+        const uname = msg.from && msg.from.username ? ` (@${esc(msg.from.username)})` : '';
+        await _pollingBot.sendMessage(allowed[0],
+          `🔑 <b>Запрос доступа к ассистенту</b>\n${esc(who)}${uname}\nchat_id: <code>${id}</code>`,
+          { parse_mode: 'HTML' }).catch(() => {});
+        await _pollingBot.sendMessage(msg.chat.id,
+          'Access request sent to the owner — you will be added shortly.').catch(() => {});
+      } catch (err) { logger.error({ err: err.message }, 'access-request notify failed'); }
+    });
+
     logger.info('Callback polling запущен (ADMIN_BOT)');
     return _pollingBot;
   } catch (err) {
