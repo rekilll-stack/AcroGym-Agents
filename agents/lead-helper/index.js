@@ -157,6 +157,7 @@ function buildCard(lead, rowNumber, opts = {}) {
 
   const receivedTs = lead.timestamp || lead.created_at || new Date().toISOString();
   lines.push(`⏰ Received: ${formatTime(receivedTs)}`);
+  if (lead.parent_phone || wa) lines.push('', '<i>💡 Tap a number to copy it</i>');
 
   if (note) lines.push('', note);
 
