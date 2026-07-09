@@ -139,7 +139,7 @@
     "health_responded": "• Отвечено: {{responded}}/{{total}} \\({{percent}}%\\)",
     "health_pending": "• Висят без ответа: {{count}}",
     "health_oldest_pending": "• Дольше всех ждёт: {{name}} — {{hours}} ч",
-    "section_long_pending": "🚨 *Долго висят \\(>24 ч\\)*",
+    "section_long_pending": "🚨 *Долго висят \\(\\>24 ч\\)*",
     "long_pending_item": "• {{name}} — {{hours}} ч",
     "section_responded_yesterday": "✅ *Отвечено вчера*",
     "responded_count": "• Лидов с ответом: {{count}}",
@@ -470,14 +470,14 @@
     "status_leads_label": "Лиды: {{count}} за месяц (цель 40)",
     "status_response_label": "Отклик: {{rate}}% ({{responded}}/{{total}})",
     "status_revenue_pending": "Выручка: данные in2 ожидаются (август 2026)",
-    "card_vs_prev_pos":          "+{{pct}}% к прошлому",
-    "card_vs_prev_neg":          "{{pct}}% к прошлому",
-    "card_vs_prev_zero":         "0% к прошлому",
-    "card_vs_no_prior":          "нет данных за прошлый месяц",
-    "card_no_activity":          "—",
-    "status_leads_no_activity":  "Лиды: активности не было (0 за месяц, цель 40)",
-    "status_response_none":      "Отклик: — (нет лидов)",
-    "chart_no_data":             "Нет активности за период",
-    "pie_no_data":               "Нет данных по источникам за период"
+    "card_vs_prev_pos": "+{{pct}}% к прошлому",
+    "card_vs_prev_neg": "{{pct}}% к прошлому",
+    "card_vs_prev_zero": "0% к прошлому",
+    "card_vs_no_prior": "нет данных за прошлый месяц",
+    "card_no_activity": "—",
+    "status_leads_no_activity": "Лиды: активности не было (0 за месяц, цель 40)",
+    "status_response_none": "Отклик: — (нет лидов)",
+    "chart_no_data": "Нет активности за период",
+    "pie_no_data": "Нет данных по источникам за период"
   }
 }

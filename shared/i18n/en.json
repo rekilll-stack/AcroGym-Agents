@@ -139,7 +139,7 @@
     "health_responded": "• Responded: {{responded}}/{{total}} \\({{percent}}%\\)",
     "health_pending": "• Still pending: {{count}}",
     "health_oldest_pending": "• Oldest pending: {{name}} — {{hours}}h waiting",
-    "section_long_pending": "🚨 *Long pending \\(>24h\\)*",
+    "section_long_pending": "🚨 *Long pending \\(\\>24h\\)*",
     "long_pending_item": "• {{name}} — {{hours}}h",
     "section_responded_yesterday": "✅ *Responded yesterday*",
     "responded_count": "• {{count}} lead\\(s\\) responded to\\.",
@@ -470,14 +470,14 @@
     "status_leads_label": "Leads: {{count}} this month (target 40)",
     "status_response_label": "Response rate: {{rate}}% ({{responded}}/{{total}})",
     "status_revenue_pending": "Revenue: in2 data pending (August 2026)",
-    "card_vs_prev_pos":          "+{{pct}}% vs prev",
-    "card_vs_prev_neg":          "{{pct}}% vs prev",
-    "card_vs_prev_zero":         "0% vs prev",
-    "card_vs_no_prior":          "no prior data",
-    "card_no_activity":          "—",
-    "status_leads_no_activity":  "Leads: no activity (0 this month, target 40)",
-    "status_response_none":      "Response rate: — (no leads)",
-    "chart_no_data":             "No daily activity for this period",
-    "pie_no_data":               "No source data for this period"
+    "card_vs_prev_pos": "+{{pct}}% vs prev",
+    "card_vs_prev_neg": "{{pct}}% vs prev",
+    "card_vs_prev_zero": "0% vs prev",
+    "card_vs_no_prior": "no prior data",
+    "card_no_activity": "—",
+    "status_leads_no_activity": "Leads: no activity (0 this month, target 40)",
+    "status_response_none": "Response rate: — (no leads)",
+    "chart_no_data": "No daily activity for this period",
+    "pie_no_data": "No source data for this period"
   }
 }
