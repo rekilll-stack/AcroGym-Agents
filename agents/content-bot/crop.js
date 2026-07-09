@@ -149,7 +149,12 @@ async function cropToRatio(buffer, targetW, targetH) {
   // axis, full coverage is impossible — report covered=false so the caller can
   // swap the photo instead of shipping an amputated crop.
   const b = await subjectBox(src);
-  const bx0 = b.x0 * W, bx1 = b.x1 * W, by0 = b.y0 * H, by1 = b.y1 * H;
+  // Pad the vision box by 6% per side: thin extended limbs (a raised arm, a
+  // pointed toe) are what bbox models most often miss (2026-07-09: a cover
+  // shipped with the hand cut at the wrist).
+  const padX = 0.06 * W, padY = 0.06 * H;
+  const bx0 = Math.max(0, b.x0 * W - padX), bx1 = Math.min(W, b.x1 * W + padX);
+  const by0 = Math.max(0, b.y0 * H - padY), by1 = Math.min(H, b.y1 * H + padY);
   let cx = Math.round((bx0 + bx1) / 2 - cw / 2);
   let cy = Math.round((by0 + by1) / 2 - ch / 2);
   cx = Math.max(0, Math.min(W - cw, cx));
@@ -173,6 +178,7 @@ async function cropToRatio(buffer, targetW, targetH) {
 // subject got amputated. Catches what the bbox geometry misses (coarse boxes on
 // small previews). Cheap: downscaled image, one short vision call.
 const CROP_CHECK_SYSTEM = `You see ONE photo cropped for an Instagram slide. Is the MAIN subject's body cut by the image edge — head, feet or hands sliced off mid-limb? A deliberate waist-up close-up portrait is fine (answer false); a full-body pose missing its feet/hands/head is cut (answer true).
+Pay special attention to EXTENDED LIMBS: a raised arm ending at the wrist with no hand visible, a leg ending at the ankle with no foot — these are cut:true even if the rest of the body is fully in frame.
 Reply STRICT JSON ONLY: {"cut":true|false}. No prose.`;
 async function checkCropCut(buffer) {
   try {
