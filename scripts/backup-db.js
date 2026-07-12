@@ -153,7 +153,11 @@ function restoreTest(gzPath) {
     logger.info({ core }, 'restore-test ok');
     return core;
   } finally {
-    try { fs.existsSync(tmp) && fs.unlinkSync(tmp); } catch (_) {}
+    // integrity_check leaves WAL/SHM siblings behind — remove all three, or
+    // data/ accumulates two orphan files per nightly run (154 found 2026-07-12).
+    for (const f of [tmp, `${tmp}-wal`, `${tmp}-shm`]) {
+      try { fs.existsSync(f) && fs.unlinkSync(f); } catch (_) {}
+    }
   }
 }
 
