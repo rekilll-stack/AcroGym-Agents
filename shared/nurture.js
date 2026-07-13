@@ -295,6 +295,13 @@ function enrollEligibleLeads(now = new Date()) {
     } catch { captured = { declared_count: null, children: [], needs_review: false }; }
 
     const { childrenCount, children, ageSegment } = buildChildren(captured, now);
+    // Website form gives a bare child_age (no DOB) — fall back to it so those
+    // leads don't land in the 'unknown' segment (fix 2026-07-13, lead #122).
+    let effectiveSegment = ageSegment;
+    if (effectiveSegment === 'unknown' && lead.child_age != null && lead.child_age !== '') {
+      const ageNum = parseInt(lead.child_age, 10);
+      if (Number.isFinite(ageNum)) effectiveSegment = segmentForAge(ageNum);
+    }
     const audienceAuto = deriveAudience(lead.client_type);
 
     const res = insertNurtureEnrollment({
@@ -302,7 +309,7 @@ function enrollEligibleLeads(now = new Date()) {
       audience:          audienceAuto,        // effective = auto until overridden
       audience_auto:     audienceAuto,
       audience_override: null,
-      age_segment:       ageSegment,
+      age_segment:       effectiveSegment,
       children_count:    childrenCount,
       children_json:     JSON.stringify(children),
       status:            'active',

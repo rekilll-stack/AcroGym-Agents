@@ -165,7 +165,9 @@
     "charts_caption": "📈 Trends for the past week",
     "chart_weekly_trend_title": "Last 7 days — leads per day",
     "chart_dow_title": "Day-of-week pattern (last 28 days)",
-    "chart_tod_title": "Time-of-day pattern (last 28 days)"
+    "chart_tod_title": "Time-of-day pattern (last 28 days)",
+    "section_week_funnel": "📈 *This week: sources → replies*",
+    "week_funnel_total": "*Total: {total} → {resp} \\\\({pct}%\\\\)*"
   },
   "weekly": {
     "title": "📅 *AcroGym Weekly Slice*",

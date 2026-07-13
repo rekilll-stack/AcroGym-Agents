@@ -305,14 +305,19 @@ function updateLeadStatusById(id, updates) {
   `).run({ ...updates, id });
 }
 
-function getLeadsNeedingReminder(reminderHours) {
+function getLeadsNeedingReminder(reminderHours, repeatHours = 24) {
+  // First nudge after reminderHours; then KEEP nudging every repeatHours until
+  // the lead is marked responded (owner ask 2026-07-13 — a single reminder let
+  // the first real lead sit unanswered for 5 days).
   return getDb().prepare(`
     SELECT * FROM leads
     WHERE status IN ('notified', 'returning_notified')
-      AND reminder_sent_at IS NULL
       AND notified_at IS NOT NULL
-      AND notified_at <= datetime('now', ? || ' hours')
-  `).all(`-${reminderHours}`);
+      AND (
+        (reminder_sent_at IS NULL AND notified_at <= datetime('now', ? || ' hours'))
+        OR (reminder_sent_at IS NOT NULL AND reminder_sent_at <= datetime('now', ? || ' hours'))
+      )
+  `).all(`-${reminderHours}`, `-${repeatHours}`);
 }
 
 /**
@@ -322,6 +327,23 @@ function getLeadsNeedingReminder(reminderHours) {
  * @param {{ phoneNorm, whatsappNorm, emailNorm, qid }} normalized
  * @returns {object|null}
  */
+/**
+ * Last-7-days funnel per source: leads in, replies out (owner ask 2026-07-13 —
+ * the digest's homegrown replacement for paid attribution tools).
+ * @returns {Array<{source, total, responded}>} ordered by total desc
+ */
+function getWeeklySourceFunnel() {
+  return getDb().prepare(`
+    SELECT COALESCE(NULLIF(source, ''), 'unknown') AS source,
+           COUNT(*) AS total,
+           SUM(CASE WHEN responded_at IS NOT NULL OR status = 'responded' THEN 1 ELSE 0 END) AS responded
+    FROM leads
+    WHERE created_at >= datetime('now', '-7 days')
+    GROUP BY COALESCE(NULLIF(source, ''), 'unknown')
+    ORDER BY total DESC
+  `).all();
+}
+
 function findExistingLead({ phoneNorm, whatsappNorm, emailNorm, qid }) {
   return getDb().prepare(`
     SELECT * FROM leads
@@ -1059,6 +1081,7 @@ module.exports = {
   updateLeadStatusById,
   updateLeadGreeting,
   getLeadsNeedingReminder,
+  getWeeklySourceFunnel,
   findExistingLead,
   getAllPending,
   countPending,

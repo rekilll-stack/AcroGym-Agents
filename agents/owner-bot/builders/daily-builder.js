@@ -25,6 +25,7 @@ const {
   getAllPending,
   getYesterdayResponded,
 } = require('../../../shared/db');
+const { getWeeklySourceFunnel } = require('../../../shared/db');
 const { generateText } = require('../../../shared/claude');
 
 const logger       = createLogger('owner-bot');
@@ -394,6 +395,25 @@ async function buildDigest({ dryRun = false, withCharts = false, lang = 'en' } =
     }
     text += '\n';
   }
+
+  // ── Weekly funnel: source → replies (owner ask 2026-07-13) ──
+  try {
+    const funnel = getWeeklySourceFunnel();
+    if (funnel.length) {
+      text += tr.t('daily.section_week_funnel') + '\n';
+      let wTotal = 0, wResp = 0;
+      for (const f of funnel) {
+        const pct = f.total ? Math.round((f.responded / f.total) * 100) : 0;
+        wTotal += f.total; wResp += f.responded;
+        text += `• ${escapeMd(f.source)}: ${f.total} → ${f.responded} \\(${pct}%\\)\n`;
+      }
+      if (funnel.length > 1) {
+        const tp = wTotal ? Math.round((wResp / wTotal) * 100) : 0;
+        text += tr.t('daily.week_funnel_total', { total: wTotal, resp: wResp, pct: tp }) + '\n';
+      }
+      text += '\n';
+    }
+  } catch (err) { logger.warn({ err: err.message }, 'week funnel section failed — skipped'); }
 
   // ── Form errors ───────────────────────────────────────────
   if (identErrors > 0) {

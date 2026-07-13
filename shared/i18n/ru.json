@@ -165,7 +165,9 @@
     "charts_caption": "📈 Тренды за последнюю неделю",
     "chart_weekly_trend_title": "Последние 7 дней — лиды по дням",
     "chart_dow_title": "Распределение по дням недели (28 дней)",
-    "chart_tod_title": "Распределение по часам (28 дней)"
+    "chart_tod_title": "Распределение по часам (28 дней)",
+    "section_week_funnel": "📈 *Неделя: источники → ответы*",
+    "week_funnel_total": "*Итого: {total} → {resp} \\\\({pct}%\\\\)*"
   },
   "weekly": {
     "title": "📅 *AcroGym — Недельный срез*",

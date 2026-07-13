@@ -430,7 +430,11 @@ async function checkReminders() {
   for (const lead of leads) {
     try {
       const label  = lead.sheet_row_number ?? lead.id; // uid leads have no row number
-      const header = `⏰ <b>Reminder: Lead #${label} still waiting (${REMINDER_HOURS}h)</b>`;
+      const waitedH = Math.round((Date.now() - new Date(lead.notified_at).getTime()) / 3600000);
+      // 48h+ unanswered = escalation, not a routine nudge (owner ask 2026-07-13).
+      const header = waitedH >= 48
+        ? `🚨 <b>Lead #${label} UNANSWERED for ${waitedH}h — needs action now</b>`
+        : `⏰ <b>Reminder: Lead #${label} still waiting (${waitedH}h)</b>`;
       const card   = buildCard(lead, label, { header });
       await sendToAdmin(card, { reply_markup: respondedKeyboard(lead.id), disable_web_page_preview: true });
       updateLeadStatusById(lead.id, { reminder_sent_at: new Date().toISOString() });
