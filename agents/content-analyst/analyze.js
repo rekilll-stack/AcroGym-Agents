@@ -69,7 +69,8 @@ async function insights(posts, { generate }) {
  * @returns {Promise<{summary, ranked, advice}>}
  */
 async function analyze(posts, deps = {}) {
-  const generate = deps.generate || require('../../shared/claude').generateText;
+  // Подписочный путь (шим content-bot/llm через `claude -p`, $0 API) — правило владельца.
+  const generate = deps.generate || require('../content-bot/llm').generateText;
   const summary = summarize(posts);
   const advice = summary.n ? await insights(posts, { generate }) : '';
   return { summary, ranked: rankPosts(posts), advice };

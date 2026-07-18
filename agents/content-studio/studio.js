@@ -37,7 +37,9 @@ const ROLE_TASKS = {
  * @returns {Promise<{transcript:Array, proposal:string}>}
  */
 async function runSession({ topic, deps = {} }) {
-  const generate = deps.generate || require('../../shared/claude').generateText;
+  // По умолчанию — ПОДПИСОЧНЫЙ путь (шим content-bot/llm через headless `claude -p`,
+  // Sonnet, $0 API), как решил владелец. Тесты инжектируют свой generate.
+  const generate = deps.generate || require('../content-bot/llm').generateText;
   const transcript = [];
   const post = (persona, text) =>
     transcript.push({ key: persona.key, name: persona.name, emoji: persona.emoji, text });
