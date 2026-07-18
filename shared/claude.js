@@ -75,7 +75,11 @@ async function generateText({ system, user, images = null, maxTokens = DEFAULT_M
       for (const s of _costScopes) s.total += costUSD; // accrue into any open cost scopes
       logger.info({ model, input, output, costUSD: costUSD.toFixed(6) }, 'Claude API вызов');
 
-      return response.content[0]?.text || '';
+      // ВАЖНО: у моделей с thinking (Sonnet 5 и др.) content[0] — блок 'thinking',
+      // а текст лежит дальше. Берём текстовый блок ПО ТИПУ, не по индексу [0],
+      // иначе ответ молча приходит пустым и вызывающий падает на fallback.
+      const textBlock = (response.content || []).find((b) => b.type === 'text');
+      return (textBlock && textBlock.text) || '';
 
     } catch (err) {
       lastError = err;
