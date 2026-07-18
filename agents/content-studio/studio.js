@@ -41,6 +41,7 @@ async function runSession({ topic, deps = {} }) {
   // Sonnet, $0 API), как решил владелец. Тесты инжектируют свой generate.
   const generate = deps.generate || require('../content-bot/llm').generateText;
   const onTurn = deps.onTurn; // опц. коллбэк(persona, text) — постить реплику вживую по мере генерации
+  const roles = (deps.roles && deps.roles.length) ? deps.roles : ORDER; // какие роли участвуют (у кого есть бот)
   const transcript = [];
   const post = async (persona, text) => {
     transcript.push({ key: persona.key, name: persona.name, emoji: persona.emoji, text });
@@ -55,8 +56,8 @@ async function runSession({ topic, deps = {} }) {
     task: 'Открой обсуждение: кратко сформулируй бриф по теме (1 цель + 1-2 вопроса команде). Идею сам не предлагай.',
   }));
 
-  // 2. Роли по очереди (каждый видит предыдущих)
-  for (const key of ORDER) {
+  // 2. Роли по очереди (каждый видит предыдущих) — только те, у кого есть бот
+  for (const key of roles) {
     await post(PERSONAS[key], await speak(PERSONAS[key], {
       topic, transcript, generate, task: ROLE_TASKS[key],
     }));

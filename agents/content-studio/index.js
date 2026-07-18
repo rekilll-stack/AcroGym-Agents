@@ -2,7 +2,7 @@
 /**
  * Content Studio — Telegram-обвязка мульти-агентной студии.
  *
- * 6 ботов (по роли) в общей группе. Владелец кидает тему командой
+ * Боты по ролям в общей группе. Владелец кидает тему командой
  * `/студия <тема>` (или /studio, /пост, /post) → команда обсуждает вживую
  * (каждая реплика от своего бота), в конце Модератор даёт финальное
  * предложение с кнопками ✅ Делаем / ↩️ Переделать. По ✅ концепт уходит
@@ -11,8 +11,10 @@
  * LLM — через подписочный шим (Sonnet, $0 API), см. studio.js.
  *
  * Токены: config/studio-bots.json = { moderator, smm, photo, copy, critic, audience }.
- * Если файла/токенов нет — процесс живёт и раз в 60с перечитывает конфиг;
- * как только токены появятся, студия сама активируется (без рестарта).
+ * Активируется, если есть МОДЕРАТОР + хотя бы один спикер; недостающие роли
+ * просто не участвуют. Если модератора/спикеров нет — процесс живёт и раз в
+ * 60с перечитывает конфиг, активируясь сам, как появятся токены.
+ * (Добавил роль в уже активную студию? Нужен pm2 restart content-studio.)
  */
 
 require('dotenv').config();
@@ -27,43 +29,34 @@ const logger = createLogger('content-studio');
 
 const CFG_PATH = path.join(__dirname, '../../config/studio-bots.json');
 const APPROVED_LOG = path.join(__dirname, '../../data/studio-approved.jsonl');
-const ROLE_KEYS = ['moderator', 'smm', 'photo', 'copy', 'critic', 'audience'];
+const SPEAKING = ['smm', 'photo', 'copy', 'critic', 'audience']; // порядок высказываний
 
 const OWNER_IDS = String(process.env.OWNER_CHAT_IDS || '216299177')
   .split(',').map((s) => Number(s.trim())).filter(Boolean);
-
-function isOwner(id) { return OWNER_IDS.includes(Number(id)); }
-
-function loadTokens() {
-  try {
-    const t = JSON.parse(fs.readFileSync(CFG_PATH, 'utf8'));
-    const missing = ROLE_KEYS.filter((k) => !t[k] || typeof t[k] !== 'string' || t[k].length < 20);
-    return { tokens: t, missing };
-  } catch (e) {
-    return { tokens: null, missing: ROLE_KEYS };
-  }
-}
-
+const isOwner = (id) => OWNER_IDS.includes(Number(id));
+const validTok = (t) => typeof t === 'string' && t.length >= 20;
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+function loadTokens() {
+  try { return JSON.parse(fs.readFileSync(CFG_PATH, 'utf8')); }
+  catch { return null; }
+}
+
 function activate(tokens) {
-  // Модератор слушает (polling), остальные — только шлют.
+  const speakers = SPEAKING.filter((k) => validTok(tokens[k]));
+  const roleKeys = ['moderator', ...speakers];
   const bots = {};
-  for (const k of ROLE_KEYS) {
-    bots[k] = new TelegramBot(tokens[k], { polling: k === 'moderator' });
-  }
+  for (const k of roleKeys) bots[k] = new TelegramBot(tokens[k], { polling: k === 'moderator' });
   const mod = bots.moderator;
-  const running = new Set();          // chatId сессий в работе (без наложений)
-  const lastProposal = new Map();     // chatId → текст финального предложения
+  const running = new Set();       // chatId сессий в работе
+  const lastProposal = new Map();  // chatId → финальное предложение
 
   async function say(roleKey, chatId, text) {
     const p = PERSONAS[roleKey];
     try {
       await bots[roleKey].sendMessage(chatId, `${p.emoji} <b>${esc(p.name)}</b>\n${esc(text)}`,
         { parse_mode: 'HTML' });
-    } catch (e) {
-      logger.error({ e: e.message, roleKey }, 'send failed');
-    }
+    } catch (e) { logger.error({ e: e.message, roleKey }, 'send failed'); }
   }
 
   mod.onText(/^\/(студия|studio|пост|post)\b\s*([\s\S]*)$/i, async (msg, m) => {
@@ -74,26 +67,22 @@ function activate(tokens) {
       await mod.sendMessage(chatId, 'Напиши тему: <code>/студия &lt;о чём пост&gt;</code>', { parse_mode: 'HTML' });
       return;
     }
-    if (running.has(chatId)) {
-      await mod.sendMessage(chatId, 'Секунду — предыдущая сессия ещё идёт 🙂');
-      return;
-    }
+    if (running.has(chatId)) { await mod.sendMessage(chatId, 'Секунду — предыдущая сессия ещё идёт 🙂'); return; }
     running.add(chatId);
-    logger.info({ chatId, topic }, 'studio session triggered');
+    logger.info({ chatId, topic, speakers }, 'studio session triggered');
     try {
-      await mod.sendMessage(chatId, `🎬 <b>Студия за работой.</b>\nТема: «${esc(topic)}»\nКоманда обсуждает…`,
-        { parse_mode: 'HTML' });
-
+      await mod.sendMessage(chatId,
+        `🎬 <b>Студия за работой.</b>\nТема: «${esc(topic)}»\nКоманда обсуждает…`, { parse_mode: 'HTML' });
       const { proposal } = await runSession({
         topic,
         deps: {
+          roles: speakers,
           onTurn: async (persona, text) => {
             await say(persona.key, chatId, text);
-            await new Promise((r) => setTimeout(r, 1500)); // пауза для читаемости
+            await new Promise((r) => setTimeout(r, 1500));
           },
         },
       });
-
       lastProposal.set(chatId, proposal);
       await mod.sendMessage(chatId, '👆 Решение команды. Твоё слово, судья:', {
         reply_markup: { inline_keyboard: [[
@@ -104,26 +93,21 @@ function activate(tokens) {
     } catch (e) {
       logger.error({ e: e.message, chatId }, 'session failed');
       await mod.sendMessage(chatId, `⚠️ Студия споткнулась: ${esc(e.message)}`);
-    } finally {
-      running.delete(chatId);
-    }
+    } finally { running.delete(chatId); }
   });
 
   mod.on('callback_query', async (q) => {
     try {
-      if (!isOwner(q.from && q.from.id)) {
-        return mod.answerCallbackQuery(q.id, { text: 'Судит только владелец 🙂' });
-      }
+      if (!isOwner(q.from && q.from.id)) return mod.answerCallbackQuery(q.id, { text: 'Судит только владелец 🙂' });
       const chatId = q.message.chat.id;
       if (q.data === 'studio:ok') {
         await mod.answerCallbackQuery(q.id, { text: 'Принято!' });
         const proposal = lastProposal.get(chatId) || '';
         try {
-          fs.appendFileSync(APPROVED_LOG,
-            JSON.stringify({ at: new Date().toISOString(), chatId, proposal }) + '\n');
+          fs.appendFileSync(APPROVED_LOG, JSON.stringify({ at: new Date().toISOString(), chatId, proposal }) + '\n');
         } catch (e) { logger.error({ e: e.message }, 'approved-log write failed'); }
         await mod.sendMessage(chatId,
-          '✅ <b>Утверждено.</b> Концепт записан в очередь на сборку — content-bot соберёт черновик поста.',
+          '✅ <b>Утверждено.</b> Концепт записан в очередь на сборку — content-bot соберёт черновик.',
           { parse_mode: 'HTML' });
         logger.info({ chatId }, 'proposal approved → queued');
       } else if (q.data === 'studio:redo') {
@@ -132,30 +116,26 @@ function activate(tokens) {
           '↩️ Понял. Напиши, что поменять, и запусти снова: <code>/студия &lt;тема с правками&gt;</code>',
           { parse_mode: 'HTML' });
       }
-    } catch (e) {
-      logger.error({ e: e.message }, 'callback failed');
-    }
+    } catch (e) { logger.error({ e: e.message }, 'callback failed'); }
   });
 
   mod.on('polling_error', (e) => logger.warn({ e: e.message }, 'moderator polling_error'));
-
-  logger.info({ owners: OWNER_IDS }, 'Content-studio running ✅ (жду /студия <тема> от владельца)');
+  logger.info({ owners: OWNER_IDS, speakers, missing: SPEAKING.filter((k) => !validTok(tokens[k])) },
+    'Content-studio running ✅ (жду /студия <тема> в группе)');
 }
 
 function start() {
-  const { tokens, missing } = loadTokens();
-  if (!missing.length) {
-    activate(tokens);
-    return;
-  }
-  logger.warn({ missing, cfg: CFG_PATH },
-    'studio-bots.json нет или неполон — студия СПИТ. Перечитываю конфиг каждые 60с; как появятся все 6 токенов, активируюсь сам.');
+  const tokens = loadTokens();
+  const ready = tokens && validTok(tokens.moderator) && SPEAKING.some((k) => validTok(tokens[k]));
+  if (ready) { activate(tokens); return; }
+  logger.warn({ cfg: CFG_PATH },
+    'нет модератора и/или спикеров — студия СПИТ, перечитываю конфиг каждые 60с и активируюсь сам.');
   const timer = setInterval(() => {
-    const r = loadTokens();
-    if (!r.missing.length) {
+    const t = loadTokens();
+    if (t && validTok(t.moderator) && SPEAKING.some((k) => validTok(t[k]))) {
       clearInterval(timer);
       logger.info('токены найдены — активирую студию');
-      activate(r.tokens);
+      activate(t);
     }
   }, 60000);
 }
@@ -166,5 +146,4 @@ process.on('uncaughtException', (err) => { logger.fatal({ err }, 'uncaught'); pr
 process.on('unhandledRejection', (reason) => { logger.error({ reason }, 'unhandled rejection'); });
 
 if (require.main === module) start();
-
 module.exports = { start, loadTokens };
