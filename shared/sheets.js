@@ -15,6 +15,39 @@ const logger = createLogger('sheets');
 // poll recovers automatically once Google is healthy again.
 const SHEETS_TIMEOUT_MS = Number(process.env.SHEETS_TIMEOUT_MS) || 30000;
 
+// Transient Google/network blips (a few-second timeout, a 429/5xx, a reset
+// socket) are the common case and recover on their own. Without a retry a
+// single blip fails the whole poll cycle → no heartbeat → the watchdog thinks
+// the agent "hung" and restarts it, which does nothing to fix a Google-side
+// stall. A short bounded retry absorbs blips so only a SUSTAINED outage ever
+// reaches the watchdog. Safe on reads (idempotent) and on updateCell (writing
+// the same cell the same value is idempotent too).
+const SHEETS_RETRIES = Math.max(1, Number(process.env.SHEETS_RETRIES) || 3);
+
+function isTransient(err) {
+  const msg  = String((err && err.message) || '');
+  const code = Number(err && (err.code || err.status || (err.response && err.response.status)));
+  return /timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|socket hang up|network|EPIPE/i.test(msg)
+    || [408, 429, 500, 502, 503, 504].includes(code);
+}
+
+async function withRetry(label, fn) {
+  let lastErr;
+  for (let attempt = 1; attempt <= SHEETS_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= SHEETS_RETRIES || !isTransient(err)) throw err;
+      const backoffMs = Math.min(1000 * 2 ** (attempt - 1), 5000); // 1s, 2s, 4s (cap 5s)
+      logger.warn({ err: err.message, attempt, retries: SHEETS_RETRIES, label },
+        `Sheets ${label}: transient error, retry in ${backoffMs}ms`);
+      await new Promise(r => setTimeout(r, backoffMs));
+    }
+  }
+  throw lastErr;
+}
+
 let _authClient = null;
 let _sheetsClient = null;
 
@@ -52,10 +85,10 @@ async function fetchAllResponses() {
   const sheetId  = process.env.GOOGLE_SHEET_ID;
   const tabName  = process.env.GOOGLE_SHEET_RESPONSES_TAB || 'Form Responses 1';
 
-  const res = await sheets.spreadsheets.values.get({
+  const res = await withRetry('read', () => sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
     range: tabName,
-  }, { timeout: SHEETS_TIMEOUT_MS });
+  }, { timeout: SHEETS_TIMEOUT_MS }));
 
   const rows = res.data.values || [];
   if (rows.length === 0) return [];
@@ -94,12 +127,12 @@ async function updateCell(row, column, value) {
   const tabName  = process.env.GOOGLE_SHEET_RESPONSES_TAB || 'Form Responses 1';
   const range    = `${tabName}!${column}${row}`;
 
-  await sheets.spreadsheets.values.update({
+  await withRetry('update', () => sheets.spreadsheets.values.update({
     spreadsheetId: sheetId,
     range,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [[value]] },
-  }, { timeout: SHEETS_TIMEOUT_MS });
+  }, { timeout: SHEETS_TIMEOUT_MS }));
 
   logger.debug({ range, value }, 'Ячейка обновлена');
 }

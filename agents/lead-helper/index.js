@@ -500,11 +500,23 @@ async function start() {
   setupCallbacks();
   startCallbackPolling();
 
-  await pollSheets();
+  await pollSheets().catch(err => logger.error({ err }, 'pollSheets unhandled (initial)'));
 
-  setInterval(async () => {
-    await pollSheets().catch(err => logger.error({ err }, 'pollSheets unhandled'));
-  }, POLL_INTERVAL);
+  // Self-scheduling loop (NOT setInterval): the next poll is queued only AFTER
+  // the current one finishes, so a slow Google cycle can never stack overlapping
+  // polls (which piled up sockets and could itself hang). The reschedule lives
+  // in `finally`, so one thrown cycle never kills the loop.
+  (function scheduleNextPoll() {
+    setTimeout(async () => {
+      try {
+        await pollSheets();
+      } catch (err) {
+        logger.error({ err }, 'pollSheets unhandled');
+      } finally {
+        scheduleNextPoll();
+      }
+    }, POLL_INTERVAL);
+  })();
 
   cron.schedule('*/10 * * * *', async () => {
     await checkReminders().catch(err => logger.error({ err }, 'checkReminders unhandled'));
