@@ -42,3 +42,4 @@ data/run-job-once
 data/*.bak-*
 data/leads-sheet-backup-*.json
 data/avoid-people/
+config/studio-bots.json

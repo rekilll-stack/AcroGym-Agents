@@ -40,21 +40,24 @@ async function runSession({ topic, deps = {} }) {
   // По умолчанию — ПОДПИСОЧНЫЙ путь (шим content-bot/llm через headless `claude -p`,
   // Sonnet, $0 API), как решил владелец. Тесты инжектируют свой generate.
   const generate = deps.generate || require('../content-bot/llm').generateText;
+  const onTurn = deps.onTurn; // опц. коллбэк(persona, text) — постить реплику вживую по мере генерации
   const transcript = [];
-  const post = (persona, text) =>
+  const post = async (persona, text) => {
     transcript.push({ key: persona.key, name: persona.name, emoji: persona.emoji, text });
+    if (onTurn) { try { await onTurn(persona, text); } catch (e) { logger.error({ e: e.message }, 'onTurn failed'); } }
+  };
 
   logger.info({ topic }, 'studio session start');
 
   // 1. Модератор — бриф
-  post(PERSONAS.moderator, await speak(PERSONAS.moderator, {
+  await post(PERSONAS.moderator, await speak(PERSONAS.moderator, {
     topic, transcript, generate, maxTokens: 500,
     task: 'Открой обсуждение: кратко сформулируй бриф по теме (1 цель + 1-2 вопроса команде). Идею сам не предлагай.',
   }));
 
   // 2. Роли по очереди (каждый видит предыдущих)
   for (const key of ORDER) {
-    post(PERSONAS[key], await speak(PERSONAS[key], {
+    await post(PERSONAS[key], await speak(PERSONAS[key], {
       topic, transcript, generate, task: ROLE_TASKS[key],
     }));
   }
@@ -66,7 +69,7 @@ async function runSession({ topic, deps = {} }) {
       'Сведи мнения команды в ОДНО финальное предложение поста: формат · тема/угол · какие кадры · ' +
       'черновик подписи (крючок + суть + призыв). Последней строкой: «На утверждение: ✅ делаем / ↩️ переделать».',
   });
-  post(PERSONAS.moderator, proposal);
+  await post(PERSONAS.moderator, proposal);
 
   logger.info({ topic, turns: transcript.length }, 'studio session done');
   return { transcript, proposal };
