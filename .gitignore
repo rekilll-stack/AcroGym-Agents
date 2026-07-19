@@ -43,3 +43,6 @@ data/*.bak-*
 data/leads-sheet-backup-*.json
 data/avoid-people/
 config/studio-bots.json
+data/studio-build/
+data/studio-state.json
+data/studio-approved.jsonl

@@ -29,6 +29,7 @@ const logger = createLogger('content-studio');
 
 const CFG_PATH = path.join(__dirname, '../../config/studio-bots.json');
 const APPROVED_LOG = path.join(__dirname, '../../data/studio-approved.jsonl');
+const BUILD_DIR = path.join(__dirname, '../../data/studio-build'); // очередь на сборку для content-bot
 const STATE_PATH = path.join(__dirname, '../../data/studio-state.json');
 const SPEAKING = ['smm', 'photo', 'copy', 'critic', 'audience']; // порядок высказываний
 
@@ -56,6 +57,7 @@ function activate(tokens) {
   const mod = bots.moderator;
   const running = new Set();       // chatId сессий в работе
   const lastProposal = new Map();  // chatId → финальное предложение
+  const lastTopic = new Map();     // chatId → тема (для сборки content-bot)
 
   async function say(roleKey, chatId, text) {
     const p = PERSONAS[roleKey];
@@ -111,6 +113,7 @@ function activate(tokens) {
         },
       });
       lastProposal.set(chatId, proposal);
+      lastTopic.set(chatId, topic);
       await mod.sendMessage(chatId, '👆 Решение команды. Твоё слово, судья:', {
         reply_markup: { inline_keyboard: [[
           { text: '✅ Делаем', callback_data: 'studio:ok' },
@@ -130,13 +133,20 @@ function activate(tokens) {
       if (q.data === 'studio:ok') {
         await mod.answerCallbackQuery(q.id, { text: 'Принято!' });
         const proposal = lastProposal.get(chatId) || '';
+        const theme = lastTopic.get(chatId) || '';
         try {
-          fs.appendFileSync(APPROVED_LOG, JSON.stringify({ at: new Date().toISOString(), chatId, proposal }) + '\n');
+          fs.appendFileSync(APPROVED_LOG, JSON.stringify({ at: new Date().toISOString(), chatId, theme, proposal }) + '\n');
         } catch (e) { logger.error({ e: e.message }, 'approved-log write failed'); }
+        // Запрос на сборку для content-bot (он следит за этой папкой и собирает черновик в ЭТУ группу).
+        try {
+          fs.mkdirSync(BUILD_DIR, { recursive: true });
+          fs.writeFileSync(path.join(BUILD_DIR, `${Date.now()}.json`),
+            JSON.stringify({ theme, chatId, at: new Date().toISOString() }));
+        } catch (e) { logger.error({ e: e.message }, 'build-request write failed'); }
         await mod.sendMessage(chatId,
-          '✅ <b>Утверждено.</b> Концепт записан в очередь на сборку — content-bot соберёт черновик.',
+          '✅ <b>Утверждено.</b> content-bot собирает черновик (фото + Canva) и пришлёт сюда — это ~1-2 минуты 🎨',
           { parse_mode: 'HTML' });
-        logger.info({ chatId }, 'proposal approved → queued');
+        logger.info({ chatId, theme }, 'proposal approved → build queued');
       } else if (q.data === 'studio:redo') {
         await mod.answerCallbackQuery(q.id, { text: 'Ок' });
         await mod.sendMessage(chatId,

@@ -544,7 +544,10 @@ function start() {
   bot.on('callback_query', async (query) => {
     const chatId = query.message && query.message.chat && query.message.chat.id;
     const data   = query.data || '';
-    if (!isAllowed(chatId)) {
+    // Кнопки поста (pub:*) разрешаем ВЛАДЕЛЬЦУ в любом чате (напр. группа студии) —
+    // чтобы черновик, который content-bot туда запостил, можно было опубликовать/пересобрать.
+    const ownerPub = ALLOWED.includes(String(query.from && query.from.id)) && data.startsWith('pub:');
+    if (!isAllowed(chatId) && !ownerPub) {
       await bot.answerCallbackQuery(query.id, { text: t('content.access_denied', uiLang(chatId)) }).catch(() => {});
       return;
     }
@@ -813,6 +816,35 @@ function start() {
   } catch (err) {
     logger.error({ err: err.message }, 'autopilot calendar start failed');
   }
+
+  // ── Студия: очередь на сборку по ✅. content-studio кладёт {theme,chatId} в
+  //    data/studio-build/*.json → собираем черновик и постим В ЭТУ группу студии
+  //    (кнопки pub:* владелец жмёт прямо там). routine:false — никогда не автопубликует.
+  const STUDIO_BUILD_DIR = path.join(__dirname, '../../data/studio-build');
+  let studioBusy = false;
+  setInterval(async () => {
+    if (studioBusy) return;
+    let files;
+    try { files = fs.existsSync(STUDIO_BUILD_DIR) ? fs.readdirSync(STUDIO_BUILD_DIR).filter((f) => f.endsWith('.json')).sort() : []; }
+    catch { return; }
+    if (!files.length) return;
+    studioBusy = true;
+    const fp = path.join(STUDIO_BUILD_DIR, files[0]);
+    let req = null;
+    try { req = JSON.parse(fs.readFileSync(fp, 'utf8')); } catch (e) { logger.error({ e: e.message }, 'studio build req parse'); }
+    try { fs.unlinkSync(fp); } catch { /* ignore */ }
+    if (req && req.theme && req.chatId) {
+      logger.info({ theme: req.theme, chatId: req.chatId }, 'studio: building approved concept');
+      try {
+        await bot.sendMessage(req.chatId, '🎨 Собираю черновик по утверждённому концепту…').catch(() => {});
+        await calendar.buildAndRoute(bot, req.chatId, { theme: req.theme, slides: 4, routine: false });
+      } catch (e) {
+        logger.error({ e: e.message }, 'studio build failed');
+        await bot.sendMessage(req.chatId, `⚠️ Не смог собрать черновик: ${e.message}`).catch(() => {});
+      }
+    }
+    studioBusy = false;
+  }, 8000);
 
   // ── One-shot job kick: if data/run-job-once holds a calendar job name, build
   //    it on startup and remove the flag. Ops escape hatch to re-run a missed
