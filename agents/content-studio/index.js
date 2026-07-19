@@ -32,6 +32,7 @@ const CFG_PATH = path.join(__dirname, '../../config/studio-bots.json');
 const APPROVED_LOG = path.join(__dirname, '../../data/studio-approved.jsonl');
 const BUILD_DIR = path.join(__dirname, '../../data/studio-build'); // очередь на сборку для content-bot
 const NOTIFY_DIR = path.join(__dirname, '../../data/studio-notify'); // приватный итог владельцу через content-bot
+const WEEK_QUEUE_PATH = path.join(__dirname, '../../data/studio-week-queue.json'); // темы недели для последовательной сборки
 const STATE_PATH = path.join(__dirname, '../../data/studio-state.json');
 const SPEAKING = ['smm', 'photo', 'copy', 'critic', 'audience']; // порядок высказываний
 
@@ -63,6 +64,7 @@ function activate(tokens) {
   mod.setMyCommands([
     { command: 'post', description: 'Обсудить пост — дальше напиши тему' },
     { command: 'brief', description: 'Планёрка на неделю (команда обсуждает)' },
+    { command: 'next', description: 'Собрать следующий пост из плана недели' },
     { command: 'english', description: 'Обсуждать на английском' },
     { command: 'russian', description: 'Обсуждать на русском' },
     { command: 'help', description: 'Как пользоваться студией' },
@@ -103,10 +105,42 @@ function activate(tokens) {
       // План недели — тоже в личку владельцу через content-bot.
       try { fs.mkdirSync(NOTIFY_DIR, { recursive: true }); fs.writeFileSync(path.join(NOTIFY_DIR, `${Date.now()}.json`), JSON.stringify({ kind: 'plan', topic: 'План на неделю', proposal })); }
       catch (e) { logger.error({ e: e.message }, 'plan notify write failed'); }
+      // Выделяем темы недели в очередь — собирать будем по ОДНОЙ в день (дневной крон).
+      try {
+        const gen = require('../content-bot/llm').generateText;
+        const raw = await gen({
+          system: 'Помощник контент-студии. Из плана недели выдели темы постов. Ответь ТОЛЬКО JSON-массивом строк (3-5 тем), без пояснений.',
+          user: `План недели:\n${proposal}\n\nВерни JSON-массив тем постов, напр. ["тема A","тема B"].`,
+        });
+        const m = String(raw || '').match(/\[[\s\S]*\]/);
+        const themes = m ? JSON.parse(m[0]) : [];
+        if (Array.isArray(themes) && themes.length) {
+          fs.writeFileSync(WEEK_QUEUE_PATH, JSON.stringify({ createdAt: new Date().toISOString(), chatId, queue: themes.slice(0, 7).map((t) => ({ theme: String(t).slice(0, 300), done: false })) }));
+          await bots.moderator.sendMessage(chatId, `🗓 Темы недели в очередь: <b>${themes.length}</b>. Собираю по одной в день (10:00), финал — тебе в личку.`, { parse_mode: 'HTML' }).catch(() => {});
+        }
+      } catch (e) { logger.error({ e: e.message }, 'week queue extract failed'); }
     } catch (e) { logger.error({ e: e.message }, 'weekly briefing session'); await bots.moderator.sendMessage(chatId, `⚠️ Планёрка споткнулась: ${e.message}`).catch(() => {}); }
     logger.info({ chatId }, 'weekly briefing done');
   }
   cron.schedule('0 9 * * 0', () => { weeklyBriefing().catch((e) => logger.error({ e: e.message }, 'weekly briefing cron')); }, { timezone: TZ });
+
+  // Последовательная сборка: раз в день берём ОДНУ тему из очереди недели → студия → финал в личку.
+  async function buildNextPlanned(targetChatId) {
+    let state; try { state = JSON.parse(fs.readFileSync(WEEK_QUEUE_PATH, 'utf8')); } catch { return false; }
+    if (!state || !Array.isArray(state.queue)) return false;
+    const next = state.queue.find((x) => !x.done);
+    const chatId = targetChatId || state.chatId || getState().groupChatId;
+    if (!chatId) { logger.warn('buildNextPlanned: нет группы'); return false; }
+    if (!next) { await bots.moderator.sendMessage(chatId, '🗓 Все темы недели уже собраны — новый план даст /brief.').catch(() => {}); return false; }
+    next.done = true;
+    try { fs.writeFileSync(WEEK_QUEUE_PATH, JSON.stringify(state)); } catch (e) { logger.error({ e: e.message }, 'week queue save'); }
+    try { fs.mkdirSync(BUILD_DIR, { recursive: true }); fs.writeFileSync(path.join(BUILD_DIR, `${Date.now()}.json`), JSON.stringify({ theme: next.theme, chatId, at: new Date().toISOString() })); }
+    catch (e) { logger.error({ e: e.message }, 'daily enqueue failed'); }
+    await bots.moderator.sendMessage(chatId, `🗓 <b>По плану на сегодня:</b> «${esc(next.theme)}»\ncontent-bot собирает, команда отревьюит, финал — тебе в личку.`, { parse_mode: 'HTML' }).catch(() => {});
+    logger.info({ theme: next.theme }, 'daily planned build enqueued');
+    return true;
+  }
+  cron.schedule('0 10 * * *', () => { buildNextPlanned().catch((e) => logger.error({ e: e.message }, 'daily build cron')); }, { timezone: TZ });
 
   mod.on('message', async (msg) => {
     if (!msg || (msg.from && msg.from.is_bot)) return;   // игнор реплик самих ботов команды
@@ -133,6 +167,11 @@ function activate(tokens) {
     if (/^\/?(брифинг|briefing|бриф|brief)$/i.test(cmdWord)) {
       await mod.sendMessage(chatId, '📊 Готовлю планёрку…').catch(() => {});
       await weeklyBriefing(chatId).catch(() => {});
+      return;
+    }
+    // Собрать следующий пост из плана недели (ручной триггер вместо ожидания 10:00).
+    if (/^\/?(next|след|следующий|дальше)$/i.test(cmdWord)) {
+      await buildNextPlanned(chatId).catch(() => {});
       return;
     }
     // Переключатель языка обсуждения: слово-токен или команда (/english, /russian).

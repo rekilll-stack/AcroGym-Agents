@@ -47,3 +47,4 @@ data/studio-build/
 data/studio-state.json
 data/studio-approved.jsonl
 data/studio-notify/
+data/studio-week-queue.json
