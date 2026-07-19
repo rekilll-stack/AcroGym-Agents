@@ -59,15 +59,22 @@ function activate(tokens) {
     } catch (e) { logger.error({ e: e.message, roleKey }, 'send failed'); }
   }
 
-  mod.onText(/^\/(студия|studio|пост|post)\b\s*([\s\S]*)$/i, async (msg, m) => {
-    if (!isOwner(msg.from && msg.from.id)) return;
+  mod.on('message', async (msg) => {
+    if (!msg || (msg.from && msg.from.is_bot)) return;   // игнор реплик самих ботов команды
+    if (!isOwner(msg.from && msg.from.id)) return;        // только владелец
     const chatId = msg.chat.id;
-    const topic = (m[2] || '').trim();
+    const raw = (msg.text || '').trim();
+    if (!raw) return;                                    // сервисные/пустые сообщения
+    // Тема = обычный текст. Если начал с /студия|/studio|/пост|/post — берём хвост; прочие /команды игнорим.
+    let topic = raw;
+    const cmd = raw.match(/^\/(студия|studio|пост|post)(?:@\S+)?\b\s*([\s\S]*)$/i);
+    if (cmd) topic = (cmd[2] || '').trim();
+    else if (raw.startsWith('/')) return;
     if (!topic) {
-      await mod.sendMessage(chatId, 'Напиши тему: <code>/студия &lt;о чём пост&gt;</code>', { parse_mode: 'HTML' });
+      await mod.sendMessage(chatId, 'Напиши тему поста обычным сообщением — и команда возьмётся 🙂');
       return;
     }
-    if (running.has(chatId)) { await mod.sendMessage(chatId, 'Секунду — предыдущая сессия ещё идёт 🙂'); return; }
+    if (running.has(chatId)) { await mod.sendMessage(chatId, 'Секунду — команда ещё дорабатывает прошлую тему 🙂'); return; }
     running.add(chatId);
     logger.info({ chatId, topic, speakers }, 'studio session triggered');
     try {
