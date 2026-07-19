@@ -82,17 +82,21 @@ async function runSession({ topic, deps = {} }) {
         : `${base} Это круг ${round}: ответь на мнения коллег выше — с чем согласен, с чем нет — и двигай команду к ЕДИНОМУ решению. Не повторяй уже сказанное.`;
       await post(PERSONAS[key], await speak(PERSONAS[key], { topic, transcript, generate, task, discussName }));
     }
-    if (round < MAX_ROUNDS) {
-      const check = await speak(PERSONAS.moderator, {
-        topic, transcript, generate, maxTokens: 220, discussName,
-        task: 'Команда сошлась в ЕДИНОМ мнении по посту или ещё спорит? Ответь СТРОГО первым словом ДА или НЕТ, затем одно короткое предложение.',
-      });
-      const consensus = /^\s*да\b/i.test(check);
-      await post(PERSONAS.moderator, consensus
-        ? 'Похоже, договорились — свожу итог. ✅'
-        : 'Ещё есть разногласия — даю команде ещё круг.');
-      if (consensus) break;
+    if (round >= MAX_ROUNDS) break;               // последний круг — сразу к синтезу
+    if (round < 2) {                              // минимум 2 круга: после первого ВСЕГДА идём на второй
+      await post(PERSONAS.moderator, 'Первый круг собран — обсудим спорное ещё круг.');
+      continue;
     }
+    // Со 2-го круга — проверка согласия; при согласии обрываем, иначе ещё круг (до MAX_ROUNDS=3).
+    const check = await speak(PERSONAS.moderator, {
+      topic, transcript, generate, maxTokens: 220, discussName,
+      task: 'Команда сошлась в ЕДИНОМ мнении или ещё спорит? Ответь СТРОГО первым словом ДА или НЕТ, затем одно короткое предложение.',
+    });
+    const consensus = /^\s*да\b/i.test(check);
+    await post(PERSONAS.moderator, consensus
+      ? 'Похоже, договорились — свожу итог. ✅'
+      : 'Ещё есть разногласия — даю команде ещё круг.');
+    if (consensus) break;
   }
 
   // 3. Модератор — финальное предложение владельцу
