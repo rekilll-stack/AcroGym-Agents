@@ -867,7 +867,7 @@ function start() {
           const buffer = draft && draft.slides && draft.slides[0] && draft.slides[0].buffer;
           if (buffer) await bot.sendPhoto(req.chatId, buffer, { caption: `Черновик — попытка ${attempt}/${MAX}` }).catch(() => {});
           let allPass = true;
-          const notes = [];  // замечания тех, кто против
+          const round1 = [];  // реплики 1-го круга панели (по картинке)
           if (buffer) {
             const b64 = buffer.toString('base64');
             const user =
@@ -881,22 +881,35 @@ function start() {
                   images: [{ data: b64, media_type: 'image/jpeg' }] }) || '').trim();
               } catch (e) { logger.error({ e: e.message, reviewer: r.name }, 'panel review failed'); verdict = 'ревью не удалось — засчитываю ДА'; }
               const ok = !verdict || /^\s*да\b/i.test(verdict) || /ревью не удалось/i.test(verdict);
-              if (!ok) { allPass = false; notes.push(`${r.name}: ${verdict}`); }
+              if (!ok) allPass = false;
+              round1.push(`${r.name}: ${verdict}`);
               await bot.sendMessage(req.chatId, `${r.emoji} <b>${r.name}</b>\n${verdict}`, { parse_mode: 'HTML' }).catch(() => {});
             }
           }
           if (allPass) { await bot.sendMessage(req.chatId, `✅ Вся команда одобрила (попытка ${attempt}). Твоё слово, судья:`).catch(() => {}); break; }
           if (attempt === MAX) { await bot.sendMessage(req.chatId, `⚠️ За ${MAX} попыток команда не сошлась. Решай сам:`).catch(() => {}); break; }
           if (studioStop.has(String(req.chatId))) { await bot.sendMessage(req.chatId, '🛑 Остановлено — пересборку не запускаю.').catch(() => {}); draft = null; break; }
-          // Модератор сводит замечания в КОНКРЕТНОЕ ТЗ для content-bot — чтобы пересборка была осмысленной, а не вслепую.
+          // 2-й круг: панель ОБСУЖДАЕТ замечания друг друга и сходится в ЕДИНОМ мнении (без картинки — по репликам).
+          const round2 = [];
+          const talk = round1.join('\n');
+          for (const r of PANEL) {
+            let t2 = '';
+            try {
+              t2 = String(await llm.generateText({ system: r.system,
+                user: `Тема: «${req.theme}». Мнения команды о собранном черновике:\n${talk}\n\nОтветь коллегам: с чем согласен и что ГЛАВНОЕ надо поменять. Двигай к ЕДИНОМУ решению. Коротко.` }) || '').trim();
+            } catch (e) { logger.error({ e: e.message, reviewer: r.name }, 'panel round2 failed'); t2 = '(без реплики)'; }
+            round2.push(`${r.name}: ${t2}`);
+            await bot.sendMessage(req.chatId, `${r.emoji} <b>${r.name}</b> (2-й круг)\n${t2}`, { parse_mode: 'HTML' }).catch(() => {});
+          }
+          // Модератор сводит СОГЛАСОВАННОЕ мнение команды в ОДНО конкретное ТЗ.
           try {
             const synth = String(await llm.generateText({
-              system: 'Ты — модератор контент-студии детского акро-зала AcroGym. Сведи замечания команды в КОРОТКОЕ конкретное ТЗ для пересборки поста: что поменять (фото/кадр, текст/подпись, подача). 2-4 пункта, по-русски, без воды.',
-              user: `Тема: «${req.theme}». Замечания команды к текущему черновику:\n${notes.join('\n')}\n\nДай ТЗ на пересборку.`,
+              system: 'Ты — модератор контент-студии детского акро-зала AcroGym. Сведи ОБСУЖДЕНИЕ команды в ОДНО короткое конкретное ТЗ для пересборки: что поменять (фото/кадр, текст/подпись, подача). 2-4 пункта, по-русски, без воды.',
+              user: `Тема: «${req.theme}».\nКруг 1:\n${round1.join('\n')}\n\nКруг 2 (сходятся):\n${round2.join('\n')}\n\nДай единое ТЗ на пересборку.`,
             }) || '').trim();
-            feedback = synth || notes.join('; ');
-          } catch (e) { logger.error({ e: e.message }, 'ТЗ synth failed'); feedback = notes.join('; '); }
-          await bot.sendMessage(req.chatId, `🎬 <b>Модератор → content-bot</b> (ТЗ на пересборку):\n${feedback}`, { parse_mode: 'HTML' }).catch(() => {});
+            feedback = synth || round1.join('; ');
+          } catch (e) { logger.error({ e: e.message }, 'ТЗ synth failed'); feedback = round1.join('; '); }
+          await bot.sendMessage(req.chatId, `🎬 <b>Модератор → content-bot</b> (единое ТЗ на пересборку):\n${feedback}`, { parse_mode: 'HTML' }).catch(() => {});
         }
         if (draft) await publish.route(bot, req.chatId, draft); // финальная карточка с твоими кнопками
         studioStop.delete(String(req.chatId)); // конец обработки — сбрасываем флаг
