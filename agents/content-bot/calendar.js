@@ -227,13 +227,13 @@ async function buildReelAndRoute(bot, ownerChatId, { theme, routine = false, fol
  * @param {string|number} ownerChatId
  * @param {object} opts { theme, slides, routine, folder }
  */
-async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = false, folder } = {}) {
+async function buildDraft(bot, ownerChatId, { theme, slides = 4, routine = false, folder, exclude = [] } = {}) {
   const MAX_ATTEMPTS = Math.max(1, parseInt(process.env.CONTENT_BUILD_ATTEMPTS || '2', 10));
   logger.info({ theme, slides, routine, maxAttempts: MAX_ATTEMPTS }, 'calendar: building carousel');
 
   let totalCost = 0;   // true $ across ALL attempts (API calls + design agent)
   let best = null;     // best attempt so far (passed, or fewest issues)
-  const exclude = [];  // photos already tried — auto-rebuild picks fresh ones
+  // exclude — уже испробованные фото (при пересборке берём свежие); передаётся снаружи для студийной петли
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const scope = beginCost(); // sum every Claude API call this attempt makes
@@ -321,6 +321,12 @@ async function buildAndRoute(bot, ownerChatId, { theme, slides = 4, routine = fa
       `⚠️ Пост собрался дороже лимита ($${(assembled.costUsd || 0).toFixed(2)} > $${agent.MAX_COST_USD}). Автопост отключён — проверь вручную.`).catch(() => {});
   }
 
+  return draft;
+}
+
+// Собрать И запостить карточку утверждения — прежнее поведение (build + route).
+async function buildAndRoute(bot, ownerChatId, opts = {}) {
+  const draft = await buildDraft(bot, ownerChatId, opts);
   return publish.route(bot, ownerChatId, draft);
 }
 
@@ -445,4 +451,4 @@ async function buildNextPlanned(bot, ownerChatId) {
   return item;
 }
 
-module.exports = { start, buildAndRoute, buildStoryAndRoute, buildReelAndRoute, buildNextPlanned, runResearchAndReport, generatePlan, pickPhotos, PLAN };
+module.exports = { start, buildDraft, buildAndRoute, buildStoryAndRoute, buildReelAndRoute, buildNextPlanned, runResearchAndReport, generatePlan, pickPhotos, PLAN };

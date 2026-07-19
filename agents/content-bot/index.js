@@ -836,10 +836,41 @@ function start() {
     if (req && req.theme && req.chatId) {
       logger.info({ theme: req.theme, chatId: req.chatId }, 'studio: building approved concept');
       try {
-        await bot.sendMessage(req.chatId, '🎨 Собираю черновик по утверждённому концепту…').catch(() => {});
-        await calendar.buildAndRoute(bot, req.chatId, { theme: req.theme, slides: 4, routine: false });
+        const llm = require('./llm');
+        const MAX = Math.max(1, parseInt(process.env.STUDIO_REVIEW_MAX || '5', 10));
+        const CRITIC_SYS =
+          'Ты — строгий контент-критик детского акро-зала AcroGym (Доха). Смотришь на УЖЕ СОБРАННЫЙ пост ' +
+          'Instagram (картинка) и решаешь, годится ли он к публикации: кадр, читаемость текста, брендфит, ' +
+          'безопасность и уважение к детям, цепляет ли родителя. Отвечай по-русски, коротко.';
+        const exclude = [];
+        let draft = null;
+        for (let attempt = 1; attempt <= MAX; attempt++) {
+          await bot.sendMessage(req.chatId,
+            attempt === 1 ? '🎨 Собираю черновик по утверждённому концепту…' : `🎨 Пересобираю (попытка ${attempt}/${MAX})…`).catch(() => {});
+          draft = await calendar.buildDraft(bot, req.chatId, { theme: req.theme, slides: 4, routine: false, exclude });
+          const buffer = draft && draft.slides && draft.slides[0] && draft.slides[0].buffer;
+          if (buffer) await bot.sendPhoto(req.chatId, buffer, { caption: `Черновик — попытка ${attempt}/${MAX}` }).catch(() => {});
+          let pass = true, verdict = '(картинка недоступна — пропускаю ревью)';
+          if (buffer) {
+            try {
+              const user =
+                `Тема поста: «${req.theme}».\nПодпись: «${String(draft.caption || '').slice(0, 400)}».\n\n` +
+                'Посмотри на собранный пост (картинка). Готов к публикации в Instagram детского акро-зала? ' +
+                'Ответь СТРОГО: первым словом ДА или НЕТ, затем 1-2 предложения почему. ' +
+                'ДА — только если реально хорошо; НЕТ — если есть что улучшить (и что именно).';
+              verdict = String(await llm.generateText({ system: CRITIC_SYS, user,
+                images: [{ data: buffer.toString('base64'), media_type: 'image/jpeg' }] }) || '').trim();
+              pass = /^\s*да\b/i.test(verdict);
+            } catch (e) { logger.error({ e: e.message }, 'studio review llm failed'); pass = true; verdict = 'ревью не удалось — пропускаю'; }
+          }
+          await bot.sendMessage(req.chatId, `🔍 <b>Критик</b>\n${verdict}`, { parse_mode: 'HTML' }).catch(() => {});
+          if (pass) { await bot.sendMessage(req.chatId, `✅ Команда одобрила (попытка ${attempt}). Твоё слово, судья:`).catch(() => {}); break; }
+          if (attempt === MAX) await bot.sendMessage(req.chatId, `⚠️ За ${MAX} попыток команда не сошлась. Решай сам:`).catch(() => {});
+          else await bot.sendMessage(req.chatId, '↩️ Критику не зашло — пересобираю на свежих фото…').catch(() => {});
+        }
+        if (draft) await publish.route(bot, req.chatId, draft); // финальная карточка с твоими кнопками
       } catch (e) {
-        logger.error({ e: e.message }, 'studio build failed');
+        logger.error({ e: e.message }, 'studio build/review failed');
         await bot.sendMessage(req.chatId, `⚠️ Не смог собрать черновик: ${e.message}`).catch(() => {});
       }
     }
