@@ -937,7 +937,12 @@ function start() {
       try { n = JSON.parse(fs.readFileSync(fp, 'utf8')); } catch { /* skip */ }
       try { fs.unlinkSync(fp); } catch { /* ignore */ }
       if (n && ALLOWED.length) {
-        const body = `📋 <b>Студия обсудила тему</b>\n«${escH(String(n.topic || '').slice(0, 200))}»\n\n${escH(String(n.proposal || '').slice(0, 3400))}\n\n👉 Решение ждёт в группе студии — ✅ Делаем / ↩️ Переделать.`;
+        const isPlan = n.kind === 'plan';
+        const head = isPlan
+          ? '🗓 <b>План на неделю (студия)</b>'
+          : `📋 <b>Студия обсудила тему</b>\n«${escH(String(n.topic || '').slice(0, 200))}»`;
+        const foot = isPlan ? '' : '\n\n👉 Решение ждёт в группе студии — ✅ Делаем / ↩️ Переделать.';
+        const body = `${head}\n\n${escH(String(n.proposal || '').slice(0, 3600))}${foot}`;
         bot.sendMessage(ALLOWED[0], body, { parse_mode: 'HTML' }).catch((e) => logger.error({ e: e.message }, 'studio notify DM'));
       }
     }

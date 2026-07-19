@@ -94,12 +94,15 @@ function activate(tokens) {
       `ТЕКУЩИЙ ПЛАН:\n${plan || '(плана нет — предложите темы)'}`;
     await bots.moderator.sendMessage(chatId, '📊 <b>Планёрка на неделю</b> — команда обсуждает…', { parse_mode: 'HTML' }).catch(() => {});
     try {
-      await runSession({ topic, deps: {
+      const { proposal } = await runSession({ topic, deps: {
         roles: speakers,
         lang: getLang(),
         mode: 'weekly',
         onTurn: async (persona, text) => { await say(persona.key, chatId, text); await new Promise((r) => setTimeout(r, 1200)); },
       } });
+      // План недели — тоже в личку владельцу через content-bot.
+      try { fs.mkdirSync(NOTIFY_DIR, { recursive: true }); fs.writeFileSync(path.join(NOTIFY_DIR, `${Date.now()}.json`), JSON.stringify({ kind: 'plan', topic: 'План на неделю', proposal })); }
+      catch (e) { logger.error({ e: e.message }, 'plan notify write failed'); }
     } catch (e) { logger.error({ e: e.message }, 'weekly briefing session'); await bots.moderator.sendMessage(chatId, `⚠️ Планёрка споткнулась: ${e.message}`).catch(() => {}); }
     logger.info({ chatId }, 'weekly briefing done');
   }
