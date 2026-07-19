@@ -59,6 +59,14 @@ function activate(tokens) {
   const bots = {};
   for (const k of roleKeys) bots[k] = new TelegramBot(tokens[k], { polling: k === 'moderator' });
   const mod = bots.moderator;
+  // Меню команд (показывается по «/» в чате).
+  mod.setMyCommands([
+    { command: 'post', description: 'Обсудить пост — дальше напиши тему' },
+    { command: 'brief', description: 'Планёрка на неделю (команда обсуждает)' },
+    { command: 'english', description: 'Обсуждать на английском' },
+    { command: 'russian', description: 'Обсуждать на русском' },
+    { command: 'help', description: 'Как пользоваться студией' },
+  ]).catch((e) => logger.warn({ e: e.message }, 'setMyCommands failed'));
   const running = new Set();       // chatId сессий в работе
   const lastProposal = new Map();  // chatId → финальное предложение
   const lastTopic = new Map();     // chatId → тема (для сборки content-bot)
@@ -104,17 +112,29 @@ function activate(tokens) {
     const raw = (msg.text || '').trim();
     if (!raw) return;                                    // сервисные/пустые сообщения
     const low = raw.toLowerCase();
+    const cmdWord = low.replace(/@[a-z0-9_]+$/i, '').trim(); // убрать @botname у команд в группе
     // Запоминаем группу студии — сюда пойдёт еженедельный брифинг.
     if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') setState({ groupChatId: chatId });
-    // Ручной триггер брифинга для теста.
-    if (/^(брифинг|briefing|бриф)$/i.test(low)) {
-      await mod.sendMessage(chatId, '📊 Готовлю брифинг…').catch(() => {});
+    // Помощь / список.
+    if (/^\/(help|start|команды|помощь)$/i.test(cmdWord)) {
+      await mod.sendMessage(chatId,
+        '🎬 <b>Контент-студия</b>\n' +
+        '• Просто напиши <b>тему</b> сообщением — команда обсудит и предложит пост.\n' +
+        '• /brief — планёрка на неделю (стратегия + план + конкуренты)\n' +
+        '• /english — обсуждать по-английски · /russian — по-русски (пост всегда English)\n' +
+        '• По ✅ content-bot соберёт черновик, команда его отревьюит; 🛑 Стоп прервёт.',
+        { parse_mode: 'HTML' }).catch(() => {});
+      return;
+    }
+    // Брифинг / планёрка недели.
+    if (/^\/?(брифинг|briefing|бриф|brief)$/i.test(cmdWord)) {
+      await mod.sendMessage(chatId, '📊 Готовлю планёрку…').catch(() => {});
       await weeklyBriefing(chatId).catch(() => {});
       return;
     }
-    // Переключатель языка обсуждения: короткое слово-токен («английский», «русский», en/ru, флаг).
-    const wantEn = /^(язык[:\s]+)?(англ\S*|english|eng|en)$/.test(low) || low === '🇬🇧';
-    const wantRu = /^(язык[:\s]+)?(рус\S*|russian|ru)$/.test(low) || low === '🇷🇺';
+    // Переключатель языка обсуждения: слово-токен или команда (/english, /russian).
+    const wantEn = /^\/?(язык[:\s]+)?(англ\S*|english|eng|en)$/i.test(cmdWord) || low === '🇬🇧';
+    const wantRu = /^\/?(язык[:\s]+)?(рус\S*|russian|ru)$/i.test(cmdWord) || low === '🇷🇺';
     if (wantEn || wantRu) {
       const l = wantEn ? 'en' : 'ru';
       setLang(l);
