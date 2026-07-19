@@ -45,6 +45,14 @@ async function runSession({ topic, deps = {} }) {
   const roles = (deps.roles && deps.roles.length) ? deps.roles : ORDER; // какие роли участвуют (у кого есть бот)
   const lang = deps.lang === 'en' ? 'en' : 'ru';        // язык ОБСУЖДЕНИЯ команды (пост ВСЕГДА на английском)
   const discussName = lang === 'en' ? 'английском' : 'русском';
+  const mode = deps.mode === 'weekly' ? 'weekly' : 'post'; // 'weekly' = планёрка недели, 'post' = обсуждение поста
+  const WEEKLY_TASKS = {
+    smm: 'Фокус недели и 3-4 темы постов — что и зачем.',
+    photo: 'Какие кадры/визуал нужны под темы недели.',
+    copy: 'Какие сообщения и крючки в постах недели, какой тон.',
+    critic: 'Что на этой неделе избегать — риски, клише, повторы.',
+    audience: 'Что родителям сейчас важно и интересно (реакция 3 родителей).',
+  };
   const transcript = [];
   const post = async (persona, text) => {
     transcript.push({ key: persona.key, name: persona.name, emoji: persona.emoji, text });
@@ -56,16 +64,20 @@ async function runSession({ topic, deps = {} }) {
   // 1. Модератор — бриф
   await post(PERSONAS.moderator, await speak(PERSONAS.moderator, {
     topic, transcript, generate, maxTokens: 500, discussName,
-    task: 'Открой обсуждение: кратко сформулируй бриф по теме (1 цель + 1-2 вопроса команде). Идею сам не предлагай.',
+    task: mode === 'weekly'
+      ? 'Открой планёрку на неделю: 1 цель недели + 1-2 вопроса команде. План сам не диктуй.'
+      : 'Открой обсуждение: кратко сформулируй бриф по теме (1 цель + 1-2 вопроса команде). Идею сам не предлагай.',
   }));
 
   // 2. Обсуждение НЕСКОЛЬКИМИ кругами — пока команда не сойдётся во мнении (или до предела кругов).
   const MAX_ROUNDS = Math.max(1, parseInt(process.env.STUDIO_DISCUSS_ROUNDS || '3', 10));
   for (let round = 1; round <= MAX_ROUNDS; round++) {
     for (const key of roles) {
-      const base = key === 'copy'
-        ? `${ROLE_TASKS.copy} ВАЖНО: сам ПОСТ (подпись) — ВСЕГДА на английском, независимо от языка обсуждения.`
-        : ROLE_TASKS[key];
+      const base = mode === 'weekly'
+        ? WEEKLY_TASKS[key]
+        : (key === 'copy'
+          ? `${ROLE_TASKS.copy} ВАЖНО: сам ПОСТ (подпись) — ВСЕГДА на английском, независимо от языка обсуждения.`
+          : ROLE_TASKS[key]);
       const task = round === 1 ? base
         : `${base} Это круг ${round}: ответь на мнения коллег выше — с чем согласен, с чем нет — и двигай команду к ЕДИНОМУ решению. Не повторяй уже сказанное.`;
       await post(PERSONAS[key], await speak(PERSONAS[key], { topic, transcript, generate, task, discussName }));
@@ -86,10 +98,11 @@ async function runSession({ topic, deps = {} }) {
   // 3. Модератор — финальное предложение владельцу
   const proposal = await speak(PERSONAS.moderator, {
     topic, transcript, generate, maxTokens: 900, discussName,
-    task:
-      'Сведи мнения команды в ОДНО финальное предложение поста: формат · тема/угол · какие кадры · ' +
-      'черновик подписи (крючок + суть + призыв) — ПОДПИСЬ ВСЕГДА НА АНГЛИЙСКОМ ЯЗЫКЕ. ' +
-      'Последней строкой: «На утверждение: ✅ делаем / ↩️ переделать».',
+    task: mode === 'weekly'
+      ? 'Сведи обсуждение в ПЛАН НА НЕДЕЛЮ: фокус недели + список постов (тема · формат · день) + 1-2 инсайта по конкурентам. Коротко и по делу.'
+      : 'Сведи мнения команды в ОДНО финальное предложение поста: формат · тема/угол · какие кадры · ' +
+        'черновик подписи (крючок + суть + призыв) — ПОДПИСЬ ВСЕГДА НА АНГЛИЙСКОМ ЯЗЫКЕ. ' +
+        'Последней строкой: «На утверждение: ✅ делаем / ↩️ переделать».',
   });
   await post(PERSONAS.moderator, proposal);
 

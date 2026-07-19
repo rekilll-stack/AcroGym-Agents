@@ -80,21 +80,20 @@ function activate(tokens) {
     let competitors = '', plan = '';
     try { competitors = fs.readFileSync(path.join(dataDir, 'competitor-brief.md'), 'utf8').slice(0, 4000); } catch { /* нет данных */ }
     try { plan = fs.readFileSync(path.join(dataDir, 'content-plan.json'), 'utf8').slice(0, 2000); } catch { /* нет данных */ }
-    const generate = require('../content-bot/llm').generateText;
-    const system = PERSONAS.smm.system + ' Сейчас готовишь ЕЖЕНЕДЕЛЬНЫЙ брифинг для команды и владельца.';
-    const user =
-      'Собери короткий брифинг на неделю по-русски, строго 3 блока:\n' +
-      '🎯 Стратегия недели — на чём акцент.\n🗓 План постов — что и когда.\n' +
-      '🔍 Конкуренты — что делают залы Дохи, что перенять/избежать.\n\n' +
-      `Данные:\nКОНКУРЕНТЫ (brief):\n${competitors || '(нет свежих данных — дай общие рекомендации)'}\n\n` +
-      `ПЛАН (content-plan.json):\n${plan || '(плана нет — предложи 3-4 темы на неделю)'}\n\nКоротко и по делу.`;
-    let text = '';
-    try { text = String(await generate({ system, user, maxTokens: 900 }) || '').trim(); }
-    catch (e) { logger.error({ e: e.message }, 'weekly briefing llm'); text = 'Не смог собрать брифинг (LLM недоступен).'; }
-    const smmBot = bots.smm || mod;
-    await smmBot.sendMessage(chatId, `📊 <b>СММ — брифинг на неделю</b>\n\n${esc(text).slice(0, 3800)}`, { parse_mode: 'HTML' })
-      .catch((e) => logger.error({ e: e.message }, 'weekly briefing send'));
-    logger.info({ chatId }, 'weekly briefing sent');
+    const topic =
+      'Планёрка на неделю для Instagram @acrogymqatar: на чём фокус, что постить, что учесть у конкурентов.\n\n' +
+      `Данные — КОНКУРЕНТЫ (brief):\n${competitors || '(нет свежих — дай общие рекомендации)'}\n\n` +
+      `ТЕКУЩИЙ ПЛАН:\n${plan || '(плана нет — предложите темы)'}`;
+    await bots.moderator.sendMessage(chatId, '📊 <b>Планёрка на неделю</b> — команда обсуждает…', { parse_mode: 'HTML' }).catch(() => {});
+    try {
+      await runSession({ topic, deps: {
+        roles: speakers,
+        lang: getLang(),
+        mode: 'weekly',
+        onTurn: async (persona, text) => { await say(persona.key, chatId, text); await new Promise((r) => setTimeout(r, 1200)); },
+      } });
+    } catch (e) { logger.error({ e: e.message }, 'weekly briefing session'); await bots.moderator.sendMessage(chatId, `⚠️ Планёрка споткнулась: ${e.message}`).catch(() => {}); }
+    logger.info({ chatId }, 'weekly briefing done');
   }
   cron.schedule('0 9 * * 0', () => { weeklyBriefing().catch((e) => logger.error({ e: e.message }, 'weekly briefing cron')); }, { timezone: TZ });
 
