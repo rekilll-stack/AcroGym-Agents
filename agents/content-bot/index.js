@@ -364,6 +364,10 @@ function start() {
   bot.on('message', async (msg) => {
     const chatId = msg.chat && msg.chat.id;
     if (!isAllowed(chatId)) {
+      // В группах/супергруппах МОЛЧИМ (не спамим access denied) — content-bot там пассивен,
+      // постит только по триггеру студии. Access denied оставляем только для личек (чужой DM).
+      const isGroup = msg.chat && (msg.chat.type === 'group' || msg.chat.type === 'supergroup');
+      if (isGroup) return;
       logger.warn({ chatId, from: msg.from && msg.from.username }, 'denied: chat_id not allow-listed');
       await bot.sendMessage(chatId, t('content.access_denied', uiLang(chatId))).catch(() => {});
       return;
