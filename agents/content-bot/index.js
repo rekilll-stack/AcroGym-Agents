@@ -911,7 +911,11 @@ function start() {
           } catch (e) { logger.error({ e: e.message }, 'ТЗ synth failed'); feedback = round1.join('; '); }
           await bot.sendMessage(req.chatId, `🎬 <b>Модератор → content-bot</b> (единое ТЗ на пересборку):\n${feedback}`, { parse_mode: 'HTML' }).catch(() => {});
         }
-        if (draft) await publish.route(bot, req.chatId, draft); // финальная карточка с твоими кнопками
+        // Финал: обсуждение/ревью остаётся в группе, а ГОТОВЫЙ пост с кнопками уходит тебе в ЛИЧКУ.
+        if (draft && !studioStop.has(String(req.chatId))) {
+          await bot.sendMessage(req.chatId, '✅ Готово — финальный пост отправил тебе в личный content-чат (там копируй/публикуй как обычно).').catch(() => {});
+          if (ALLOWED.length) await publish.route(bot, ALLOWED[0], draft); // карточка pub:* в личку владельцу
+        }
         studioStop.delete(String(req.chatId)); // конец обработки — сбрасываем флаг
       } catch (e) {
         logger.error({ e: e.message }, 'studio build/review failed');
