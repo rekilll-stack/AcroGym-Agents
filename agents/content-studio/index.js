@@ -90,36 +90,34 @@ function activate(tokens) {
     let competitors = '', plan = '';
     try { competitors = fs.readFileSync(path.join(dataDir, 'competitor-brief.md'), 'utf8').slice(0, 4000); } catch { /* нет данных */ }
     try { plan = fs.readFileSync(path.join(dataDir, 'content-plan.json'), 'utf8').slice(0, 2000); } catch { /* нет данных */ }
-    const topic =
-      'Планёрка на неделю для Instagram @acrogymqatar: на чём фокус, что постить, что учесть у конкурентов.\n\n' +
-      `Данные — КОНКУРЕНТЫ (brief):\n${competitors || '(нет свежих — дай общие рекомендации)'}\n\n` +
-      `ТЕКУЩИЙ ПЛАН:\n${plan || '(плана нет — предложите темы)'}`;
-    await bots.moderator.sendMessage(chatId, '📊 <b>Планёрка на неделю</b> — команда обсуждает…', { parse_mode: 'HTML' }).catch(() => {});
+    // МОДЕЛЬ: планирует ОДИН заточенный СММ-агент (чисто и структурно), не 6-агентное обсуждение.
+    await bots.smm.sendMessage(chatId, '📊 <b>СММ готовит план на неделю…</b>', { parse_mode: 'HTML' }).catch(() => {});
+    const gen = require('../content-bot/llm').generateText;
+    const SMM_PLAN_SYS =
+      'Ты — СММ-стратег детского акро-зала AcroGym (Доха, премиальный молл Lagoona; акробатика для мальчиков и девочек 3+; ' +
+      'отстройка от Olympic Stars (только девочки) и MyGym (генералист)). Готовишь ЧЁТКИЙ план контента на неделю. ' +
+      'Структура строго: 🧭 Стратегия (угол против конкурентов, 2-3 строки) → Пиллары (3-4) → Хуки на вовлечение (2-3) → ' +
+      'Чего избегать (2-3) → Cadence → 📅 План постов (4-5; каждый: [тег] тема + 1 строка «зачем»). ' +
+      'Пиши по-русски, конкретно, без воды. Итоговый ПОСТ/подпись — на английском.';
+    let proposal = '';
     try {
-      const { proposal } = await runSession({ topic, deps: {
-        roles: speakers,
-        lang: getLang(),
-        mode: 'weekly',
-        onTurn: async (persona, text) => { await say(persona.key, chatId, text); await new Promise((r) => setTimeout(r, 1200)); },
-      } });
-      // План недели — тоже в личку владельцу через content-bot.
-      try { fs.mkdirSync(NOTIFY_DIR, { recursive: true }); fs.writeFileSync(path.join(NOTIFY_DIR, `${Date.now()}.json`), JSON.stringify({ kind: 'plan', topic: 'План на неделю', proposal })); }
-      catch (e) { logger.error({ e: e.message }, 'plan notify write failed'); }
-      // Выделяем темы недели в очередь — собирать будем по ОДНОЙ в день (дневной крон).
-      try {
-        const gen = require('../content-bot/llm').generateText;
-        const raw = await gen({
-          system: 'Помощник контент-студии. Из плана недели выдели темы постов. Ответь ТОЛЬКО JSON-массивом строк (3-5 тем), без пояснений.',
-          user: `План недели:\n${proposal}\n\nВерни JSON-массив тем постов, напр. ["тема A","тема B"].`,
-        });
-        const m = String(raw || '').match(/\[[\s\S]*\]/);
-        const themes = m ? JSON.parse(m[0]) : [];
-        if (Array.isArray(themes) && themes.length) {
-          fs.writeFileSync(WEEK_QUEUE_PATH, JSON.stringify({ createdAt: new Date().toISOString(), chatId, queue: themes.slice(0, 7).map((t) => ({ theme: String(t).slice(0, 300), done: false })) }));
-          await bots.moderator.sendMessage(chatId, `🗓 Темы недели в очередь: <b>${themes.length}</b>. Собираю по одной в день (10:00), финал — тебе в личку.`, { parse_mode: 'HTML' }).catch(() => {});
-        }
-      } catch (e) { logger.error({ e: e.message }, 'week queue extract failed'); }
-    } catch (e) { logger.error({ e: e.message }, 'weekly briefing session'); await bots.moderator.sendMessage(chatId, `⚠️ Планёрка споткнулась: ${e.message}`).catch(() => {}); }
+      proposal = String(await gen({ system: SMM_PLAN_SYS, maxTokens: 1500,
+        user: `Данные.\nКОНКУРЕНТЫ (brief):\n${competitors || '(нет свежих)'}\n\nТЕКУЩИЙ ПЛАН:\n${plan || '(нет)'}\n\nДай план на неделю в указанной структуре.` }) || '').trim();
+    } catch (e) { logger.error({ e: e.message }, 'weekly plan gen'); proposal = 'Не смог собрать план (LLM недоступен).'; }
+    await bots.smm.sendMessage(chatId, `📊 <b>СММ — план на неделю</b>\n\n${esc(proposal).slice(0, 3800)}`, { parse_mode: 'HTML' }).catch(() => {});
+    // План — в личку владельцу.
+    try { fs.mkdirSync(NOTIFY_DIR, { recursive: true }); fs.writeFileSync(path.join(NOTIFY_DIR, `${Date.now()}.json`), JSON.stringify({ kind: 'plan', topic: 'План на неделю', proposal })); }
+    catch (e) { logger.error({ e: e.message }, 'plan notify write failed'); }
+    // Темы недели в очередь — собираем по ОДНОЙ в день.
+    try {
+      const raw2 = await gen({ system: 'Из плана недели выдели темы постов. Ответь ТОЛЬКО JSON-массивом строк (3-5), без пояснений.', user: `План:\n${proposal}\n\nJSON-массив тем постов.` });
+      const m = String(raw2 || '').match(/\[[\s\S]*\]/);
+      const themes = m ? JSON.parse(m[0]) : [];
+      if (Array.isArray(themes) && themes.length) {
+        fs.writeFileSync(WEEK_QUEUE_PATH, JSON.stringify({ createdAt: new Date().toISOString(), chatId, queue: themes.slice(0, 7).map((t) => ({ theme: String(t).slice(0, 300), done: false })) }));
+        await bots.smm.sendMessage(chatId, `🗓 Темы недели в очередь: <b>${themes.length}</b>. Собираю по одной в день (10:00), финал — тебе в личку.`, { parse_mode: 'HTML' }).catch(() => {});
+      }
+    } catch (e) { logger.error({ e: e.message }, 'week queue extract failed'); }
     logger.info({ chatId }, 'weekly briefing done');
   }
   cron.schedule('0 9 * * 0', () => { weeklyBriefing().catch((e) => logger.error({ e: e.message }, 'weekly briefing cron')); }, { timezone: TZ });
@@ -184,49 +182,24 @@ function activate(tokens) {
         `Язык обсуждения теперь: ${langLabel(l)}. (Итоговый пост всегда на английском 🇬🇧.) Пиши тему 🙂`);
       return;
     }
-    // Тема = обычный текст. Если начал с /студия|/studio|/пост|/post — берём хвост; прочие /команды игнорим.
+    // Тема = обычный текст (или /пост <тема>). МОДЕЛЬ: content-bot планирует+собирает, студия РЕВЬЮИТ готовое.
     let topic = raw;
     const cmd = raw.match(/^\/(студия|studio|пост|post)(?:@\S+)?\b\s*([\s\S]*)$/i);
     if (cmd) topic = (cmd[2] || '').trim();
     else if (raw.startsWith('/')) return;
     if (!topic) {
-      await mod.sendMessage(chatId, 'Напиши тему поста обычным сообщением — и команда возьмётся 🙂');
+      await mod.sendMessage(chatId, 'Напиши тему поста обычным сообщением — content-bot соберёт, команда отревьюит 🙂');
       return;
     }
-    if (running.has(chatId)) { await mod.sendMessage(chatId, 'Секунду — команда ещё дорабатывает прошлую тему 🙂'); return; }
-    running.add(chatId);
-    logger.info({ chatId, topic, speakers }, 'studio session triggered');
+    // Без обсуждения-ради-плана: сразу в очередь на сборку → content-bot собирает → панель ревьюит → финал в личку.
     try {
-      const lang = getLang();
-      await mod.sendMessage(chatId,
-        `🎬 <b>Студия за работой.</b>\nТема: «${esc(topic)}»\nОбсуждение: ${langLabel(lang)} · пост: 🇬🇧 English\nКоманда обсуждает…`,
-        { parse_mode: 'HTML' });
-      const { proposal } = await runSession({
-        topic,
-        deps: {
-          roles: speakers,
-          lang,
-          onTurn: async (persona, text) => {
-            await say(persona.key, chatId, text);
-            await new Promise((r) => setTimeout(r, 1500));
-          },
-        },
-      });
-      lastProposal.set(chatId, proposal);
-      lastTopic.set(chatId, topic);
-      // Приватный итог владельцу через content-bot (чтобы не следить за группой).
-      try { fs.mkdirSync(NOTIFY_DIR, { recursive: true }); fs.writeFileSync(path.join(NOTIFY_DIR, `${Date.now()}.json`), JSON.stringify({ topic, proposal })); }
-      catch (e) { logger.error({ e: e.message }, 'notify write failed'); }
-      await mod.sendMessage(chatId, '👆 Решение команды. Твоё слово, судья:', {
-        reply_markup: { inline_keyboard: [[
-          { text: '✅ Делаем', callback_data: 'studio:ok' },
-          { text: '↩️ Переделать', callback_data: 'studio:redo' },
-        ]] },
-      });
+      fs.mkdirSync(BUILD_DIR, { recursive: true });
+      fs.writeFileSync(path.join(BUILD_DIR, `${Date.now()}.json`), JSON.stringify({ theme: topic, chatId, at: new Date().toISOString() }));
+      await mod.sendMessage(chatId, `🎬 Принято: «${esc(topic)}».\ncontent-bot собирает пост, команда отревьюит, финал — тебе в личку.`, { parse_mode: 'HTML' });
     } catch (e) {
-      logger.error({ e: e.message, chatId }, 'session failed');
-      await mod.sendMessage(chatId, `⚠️ Студия споткнулась: ${esc(e.message)}`);
-    } finally { running.delete(chatId); }
+      logger.error({ e: e.message, chatId }, 'topic enqueue failed');
+      await mod.sendMessage(chatId, `⚠️ Не смог поставить в очередь: ${esc(e.message)}`).catch(() => {});
+    }
   });
 
   mod.on('callback_query', async (q) => {
