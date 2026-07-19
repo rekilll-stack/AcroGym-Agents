@@ -42,6 +42,8 @@ async function runSession({ topic, deps = {} }) {
   const generate = deps.generate || require('../content-bot/llm').generateText;
   const onTurn = deps.onTurn; // опц. коллбэк(persona, text) — постить реплику вживую по мере генерации
   const roles = (deps.roles && deps.roles.length) ? deps.roles : ORDER; // какие роли участвуют (у кого есть бот)
+  const lang = deps.lang === 'en' ? 'en' : 'ru';                        // язык ПОДПИСИ поста (обсуждение всегда по-русски)
+  const langName = lang === 'en' ? 'английском' : 'русском';
   const transcript = [];
   const post = async (persona, text) => {
     transcript.push({ key: persona.key, name: persona.name, emoji: persona.emoji, text });
@@ -58,9 +60,10 @@ async function runSession({ topic, deps = {} }) {
 
   // 2. Роли по очереди (каждый видит предыдущих) — только те, у кого есть бот
   for (const key of roles) {
-    await post(PERSONAS[key], await speak(PERSONAS[key], {
-      topic, transcript, generate, task: ROLE_TASKS[key],
-    }));
+    const task = key === 'copy'
+      ? `${ROLE_TASKS.copy} ВАЖНО: черновик подписи пиши на ${langName} языке.`
+      : ROLE_TASKS[key];
+    await post(PERSONAS[key], await speak(PERSONAS[key], { topic, transcript, generate, task }));
   }
 
   // 3. Модератор — финальное предложение владельцу
@@ -68,7 +71,8 @@ async function runSession({ topic, deps = {} }) {
     topic, transcript, generate, maxTokens: 900,
     task:
       'Сведи мнения команды в ОДНО финальное предложение поста: формат · тема/угол · какие кадры · ' +
-      'черновик подписи (крючок + суть + призыв). Последней строкой: «На утверждение: ✅ делаем / ↩️ переделать».',
+      `черновик подписи (крючок + суть + призыв) НА ${langName.toUpperCase()} ЯЗЫКЕ. ` +
+      'Последней строкой: «На утверждение: ✅ делаем / ↩️ переделать».',
   });
   await post(PERSONAS.moderator, proposal);
 

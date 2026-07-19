@@ -29,7 +29,13 @@ const logger = createLogger('content-studio');
 
 const CFG_PATH = path.join(__dirname, '../../config/studio-bots.json');
 const APPROVED_LOG = path.join(__dirname, '../../data/studio-approved.jsonl');
+const STATE_PATH = path.join(__dirname, '../../data/studio-state.json');
 const SPEAKING = ['smm', 'photo', 'copy', 'critic', 'audience']; // порядок высказываний
+
+// Язык ПОДПИСИ поста (обсуждение всегда по-русски). Персистентно, по умолчанию русский.
+function getLang() { try { return JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')).lang === 'en' ? 'en' : 'ru'; } catch { return 'ru'; } }
+function setLang(l) { try { fs.writeFileSync(STATE_PATH, JSON.stringify({ lang: l })); } catch (e) { /* ignore */ } }
+const langLabel = (l) => (l === 'en' ? '🇬🇧 English' : '🇷🇺 Русский');
 
 const OWNER_IDS = String(process.env.OWNER_CHAT_IDS || '216299177')
   .split(',').map((s) => Number(s.trim())).filter(Boolean);
@@ -65,6 +71,16 @@ function activate(tokens) {
     const chatId = msg.chat.id;
     const raw = (msg.text || '').trim();
     if (!raw) return;                                    // сервисные/пустые сообщения
+    // Переключатель языка поста: короткое слово-токен («английский», «русский», en/ru, флаг).
+    const low = raw.toLowerCase();
+    const wantEn = /^(язык[:\s]+)?(англ\S*|english|eng|en)$/.test(low) || low === '🇬🇧';
+    const wantRu = /^(язык[:\s]+)?(рус\S*|russian|ru)$/.test(low) || low === '🇷🇺';
+    if (wantEn || wantRu) {
+      const l = wantEn ? 'en' : 'ru';
+      setLang(l);
+      await mod.sendMessage(msg.chat.id, `Язык поста теперь: ${langLabel(l)}. Пиши тему — подпись будет на нём 🙂`);
+      return;
+    }
     // Тема = обычный текст. Если начал с /студия|/studio|/пост|/post — берём хвост; прочие /команды игнорим.
     let topic = raw;
     const cmd = raw.match(/^\/(студия|studio|пост|post)(?:@\S+)?\b\s*([\s\S]*)$/i);
@@ -78,12 +94,15 @@ function activate(tokens) {
     running.add(chatId);
     logger.info({ chatId, topic, speakers }, 'studio session triggered');
     try {
+      const lang = getLang();
       await mod.sendMessage(chatId,
-        `🎬 <b>Студия за работой.</b>\nТема: «${esc(topic)}»\nКоманда обсуждает…`, { parse_mode: 'HTML' });
+        `🎬 <b>Студия за работой.</b>\nТема: «${esc(topic)}»\nЯзык поста: ${langLabel(lang)}\nКоманда обсуждает…`,
+        { parse_mode: 'HTML' });
       const { proposal } = await runSession({
         topic,
         deps: {
           roles: speakers,
+          lang,
           onTurn: async (persona, text) => {
             await say(persona.key, chatId, text);
             await new Promise((r) => setTimeout(r, 1500));
