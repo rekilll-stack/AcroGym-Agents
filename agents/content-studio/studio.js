@@ -59,12 +59,28 @@ async function runSession({ topic, deps = {} }) {
     task: 'Открой обсуждение: кратко сформулируй бриф по теме (1 цель + 1-2 вопроса команде). Идею сам не предлагай.',
   }));
 
-  // 2. Роли по очереди (каждый видит предыдущих) — только те, у кого есть бот
-  for (const key of roles) {
-    const task = key === 'copy'
-      ? `${ROLE_TASKS.copy} ВАЖНО: сам ПОСТ (подпись) — ВСЕГДА на английском, независимо от языка обсуждения.`
-      : ROLE_TASKS[key];
-    await post(PERSONAS[key], await speak(PERSONAS[key], { topic, transcript, generate, task, discussName }));
+  // 2. Обсуждение НЕСКОЛЬКИМИ кругами — пока команда не сойдётся во мнении (или до предела кругов).
+  const MAX_ROUNDS = Math.max(1, parseInt(process.env.STUDIO_DISCUSS_ROUNDS || '3', 10));
+  for (let round = 1; round <= MAX_ROUNDS; round++) {
+    for (const key of roles) {
+      const base = key === 'copy'
+        ? `${ROLE_TASKS.copy} ВАЖНО: сам ПОСТ (подпись) — ВСЕГДА на английском, независимо от языка обсуждения.`
+        : ROLE_TASKS[key];
+      const task = round === 1 ? base
+        : `${base} Это круг ${round}: ответь на мнения коллег выше — с чем согласен, с чем нет — и двигай команду к ЕДИНОМУ решению. Не повторяй уже сказанное.`;
+      await post(PERSONAS[key], await speak(PERSONAS[key], { topic, transcript, generate, task, discussName }));
+    }
+    if (round < MAX_ROUNDS) {
+      const check = await speak(PERSONAS.moderator, {
+        topic, transcript, generate, maxTokens: 220, discussName,
+        task: 'Команда сошлась в ЕДИНОМ мнении по посту или ещё спорит? Ответь СТРОГО первым словом ДА или НЕТ, затем одно короткое предложение.',
+      });
+      const consensus = /^\s*да\b/i.test(check);
+      await post(PERSONAS.moderator, consensus
+        ? 'Похоже, договорились — свожу итог. ✅'
+        : 'Ещё есть разногласия — даю команде ещё круг.');
+      if (consensus) break;
+    }
   }
 
   // 3. Модератор — финальное предложение владельцу
