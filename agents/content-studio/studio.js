@@ -21,8 +21,17 @@ async function speak(persona, { topic, transcript, task, generate, maxTokens = 1
     `Обсуждение команды до этого момента:\n${renderTranscript(transcript)}\n\n` +
     `Твоя задача сейчас: ${task}\n\n` +
     `Веди ОБСУЖДЕНИЕ на ${discussName} языке. (Сам пост/подпись — всегда на английском.)`;
-  const text = await generate({ system: persona.system, user, model: MODEL, maxTokens });
-  return String(text || '').trim();
+  // Устойчивость: один сбой/пустой ответ шима не должен ронять ВСЮ сессию —
+  // ретрай, и запасная реплика, чтобы дискуссия дошла до синтеза и личного итога.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const text = String(await generate({ system: persona.system, user, model: MODEL, maxTokens }) || '').trim();
+      if (text) return text;
+    } catch (e) {
+      logger.warn({ e: e.message, persona: persona.name, attempt }, 'speak failed — retry/fallback');
+    }
+  }
+  return '(пропускаю — не удалось получить реплику)';
 }
 
 const ROLE_TASKS = {
