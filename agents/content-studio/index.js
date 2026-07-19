@@ -78,7 +78,8 @@ function activate(tokens) {
     if (wantEn || wantRu) {
       const l = wantEn ? 'en' : 'ru';
       setLang(l);
-      await mod.sendMessage(msg.chat.id, `Язык поста теперь: ${langLabel(l)}. Пиши тему — подпись будет на нём 🙂`);
+      await mod.sendMessage(msg.chat.id,
+        `Язык обсуждения теперь: ${langLabel(l)}. (Итоговый пост всегда на английском 🇬🇧.) Пиши тему 🙂`);
       return;
     }
     // Тема = обычный текст. Если начал с /студия|/studio|/пост|/post — берём хвост; прочие /команды игнорим.
@@ -96,7 +97,7 @@ function activate(tokens) {
     try {
       const lang = getLang();
       await mod.sendMessage(chatId,
-        `🎬 <b>Студия за работой.</b>\nТема: «${esc(topic)}»\nЯзык поста: ${langLabel(lang)}\nКоманда обсуждает…`,
+        `🎬 <b>Студия за работой.</b>\nТема: «${esc(topic)}»\nОбсуждение: ${langLabel(lang)} · пост: 🇬🇧 English\nКоманда обсуждает…`,
         { parse_mode: 'HTML' });
       const { proposal } = await runSession({
         topic,
