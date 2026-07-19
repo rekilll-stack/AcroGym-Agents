@@ -61,6 +61,8 @@ function isAllowed(chatId) {
   return ALLOWED.includes(String(chatId));
 }
 
+const studioStop = new Set(); // chatId студий, которым владелец нажал 🛑 Стоп — петля остановится
+
 // Interface language for a chat — the shared preference, collapsed to a single
 // UI language ('both'/unset/unknown → en; only explicit 'ru' → ru).
 function uiLang(chatId) {
@@ -546,9 +548,15 @@ function start() {
     const data   = query.data || '';
     // Кнопки поста (pub:*) разрешаем ВЛАДЕЛЬЦУ в любом чате (напр. группа студии) —
     // чтобы черновик, который content-bot туда запостил, можно было опубликовать/пересобрать.
-    const ownerPub = ALLOWED.includes(String(query.from && query.from.id)) && data.startsWith('pub:');
-    if (!isAllowed(chatId) && !ownerPub) {
+    const ownerAct = ALLOWED.includes(String(query.from && query.from.id)) && (data.startsWith('pub:') || data === 'studio:stop');
+    if (!isAllowed(chatId) && !ownerAct) {
       await bot.answerCallbackQuery(query.id, { text: t('content.access_denied', uiLang(chatId)) }).catch(() => {});
+      return;
+    }
+    if (data === 'studio:stop') {
+      studioStop.add(String(chatId));
+      await bot.answerCallbackQuery(query.id, { text: '🛑 Останавливаю…' }).catch(() => {});
+      await bot.sendMessage(chatId, '🛑 Останавливаю студию — текущая сборка завершится, дальше не пойдёт.').catch(() => {});
       return;
     }
     const lang = uiLang(chatId);
@@ -846,11 +854,16 @@ function start() {
         const exclude = [];
         let draft = null;
         let feedback = '';  // накопленное ТЗ от команды для следующей пересборки
+        studioStop.delete(String(req.chatId)); // свежий старт — сбрасываем возможный старый флаг
+        const STOP_KB = { reply_markup: { inline_keyboard: [[{ text: '🛑 Стоп', callback_data: 'studio:stop' }]] } };
         for (let attempt = 1; attempt <= MAX; attempt++) {
+          if (studioStop.has(String(req.chatId))) { await bot.sendMessage(req.chatId, '🛑 Остановлено по твоей команде.').catch(() => {}); draft = null; break; }
           await bot.sendMessage(req.chatId,
-            attempt === 1 ? '🎨 Собираю черновик по утверждённому концепту…' : `🎨 Пересобираю с учётом правок (попытка ${attempt}/${MAX})…`).catch(() => {});
+            attempt === 1 ? '🎨 Собираю черновик по утверждённому концепту…' : `🎨 Пересобираю с учётом правок (попытка ${attempt}/${MAX})…`,
+            STOP_KB).catch(() => {});
           const briefTheme = feedback ? `${req.theme}\n\nПРАВКИ ОТ КОМАНДЫ (обязательно учесть): ${feedback}` : req.theme;
           draft = await calendar.buildDraft(bot, req.chatId, { theme: briefTheme, slides: 4, routine: false, exclude });
+          if (studioStop.has(String(req.chatId))) { await bot.sendMessage(req.chatId, '🛑 Остановлено (сборка завершилась, дальше не иду).').catch(() => {}); draft = null; break; }
           const buffer = draft && draft.slides && draft.slides[0] && draft.slides[0].buffer;
           if (buffer) await bot.sendPhoto(req.chatId, buffer, { caption: `Черновик — попытка ${attempt}/${MAX}` }).catch(() => {});
           let allPass = true;
@@ -874,6 +887,7 @@ function start() {
           }
           if (allPass) { await bot.sendMessage(req.chatId, `✅ Вся команда одобрила (попытка ${attempt}). Твоё слово, судья:`).catch(() => {}); break; }
           if (attempt === MAX) { await bot.sendMessage(req.chatId, `⚠️ За ${MAX} попыток команда не сошлась. Решай сам:`).catch(() => {}); break; }
+          if (studioStop.has(String(req.chatId))) { await bot.sendMessage(req.chatId, '🛑 Остановлено — пересборку не запускаю.').catch(() => {}); draft = null; break; }
           // Модератор сводит замечания в КОНКРЕТНОЕ ТЗ для content-bot — чтобы пересборка была осмысленной, а не вслепую.
           try {
             const synth = String(await llm.generateText({
@@ -885,6 +899,7 @@ function start() {
           await bot.sendMessage(req.chatId, `🎬 <b>Модератор → content-bot</b> (ТЗ на пересборку):\n${feedback}`, { parse_mode: 'HTML' }).catch(() => {});
         }
         if (draft) await publish.route(bot, req.chatId, draft); // финальная карточка с твоими кнопками
+        studioStop.delete(String(req.chatId)); // конец обработки — сбрасываем флаг
       } catch (e) {
         logger.error({ e: e.message }, 'studio build/review failed');
         await bot.sendMessage(req.chatId, `⚠️ Не смог собрать черновик: ${e.message}`).catch(() => {});
