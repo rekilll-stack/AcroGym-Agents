@@ -21,6 +21,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
+const cron = require('node-cron');
 const { createLogger } = require('../../shared/logger');
 const { PERSONAS } = require('./personas');
 const { runSession } = require('./studio');
@@ -30,12 +31,15 @@ const logger = createLogger('content-studio');
 const CFG_PATH = path.join(__dirname, '../../config/studio-bots.json');
 const APPROVED_LOG = path.join(__dirname, '../../data/studio-approved.jsonl');
 const BUILD_DIR = path.join(__dirname, '../../data/studio-build'); // очередь на сборку для content-bot
+const NOTIFY_DIR = path.join(__dirname, '../../data/studio-notify'); // приватный итог владельцу через content-bot
 const STATE_PATH = path.join(__dirname, '../../data/studio-state.json');
 const SPEAKING = ['smm', 'photo', 'copy', 'critic', 'audience']; // порядок высказываний
 
 // Язык ПОДПИСИ поста (обсуждение всегда по-русски). Персистентно, по умолчанию русский.
-function getLang() { try { return JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')).lang === 'en' ? 'en' : 'ru'; } catch { return 'ru'; } }
-function setLang(l) { try { fs.writeFileSync(STATE_PATH, JSON.stringify({ lang: l })); } catch (e) { /* ignore */ } }
+function getState() { try { return JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')) || {}; } catch { return {}; } }
+function setState(patch) { try { fs.writeFileSync(STATE_PATH, JSON.stringify({ ...getState(), ...patch })); } catch (e) { /* ignore */ } }
+function getLang() { return getState().lang === 'en' ? 'en' : 'ru'; }
+function setLang(l) { setState({ lang: l }); }
 const langLabel = (l) => (l === 'en' ? '🇬🇧 English' : '🇷🇺 Русский');
 
 const OWNER_IDS = String(process.env.OWNER_CHAT_IDS || '216299177')
@@ -67,14 +71,49 @@ function activate(tokens) {
     } catch (e) { logger.error({ e: e.message, roleKey }, 'send failed'); }
   }
 
+  // Еженедельный брифинг стратегии от 📊 СММ в группу (данные content-bot + LLM).
+  const TZ = process.env.TIMEZONE || 'Asia/Qatar';
+  async function weeklyBriefing(targetChatId) {
+    const chatId = targetChatId || getState().groupChatId;
+    if (!chatId) { logger.warn('weekly briefing: группа ещё не известна (напиши что-нибудь в группе)'); return; }
+    const dataDir = path.join(__dirname, '../../data');
+    let competitors = '', plan = '';
+    try { competitors = fs.readFileSync(path.join(dataDir, 'competitor-brief.md'), 'utf8').slice(0, 4000); } catch { /* нет данных */ }
+    try { plan = fs.readFileSync(path.join(dataDir, 'content-plan.json'), 'utf8').slice(0, 2000); } catch { /* нет данных */ }
+    const generate = require('../content-bot/llm').generateText;
+    const system = PERSONAS.smm.system + ' Сейчас готовишь ЕЖЕНЕДЕЛЬНЫЙ брифинг для команды и владельца.';
+    const user =
+      'Собери короткий брифинг на неделю по-русски, строго 3 блока:\n' +
+      '🎯 Стратегия недели — на чём акцент.\n🗓 План постов — что и когда.\n' +
+      '🔍 Конкуренты — что делают залы Дохи, что перенять/избежать.\n\n' +
+      `Данные:\nКОНКУРЕНТЫ (brief):\n${competitors || '(нет свежих данных — дай общие рекомендации)'}\n\n` +
+      `ПЛАН (content-plan.json):\n${plan || '(плана нет — предложи 3-4 темы на неделю)'}\n\nКоротко и по делу.`;
+    let text = '';
+    try { text = String(await generate({ system, user, maxTokens: 900 }) || '').trim(); }
+    catch (e) { logger.error({ e: e.message }, 'weekly briefing llm'); text = 'Не смог собрать брифинг (LLM недоступен).'; }
+    const smmBot = bots.smm || mod;
+    await smmBot.sendMessage(chatId, `📊 <b>СММ — брифинг на неделю</b>\n\n${esc(text).slice(0, 3800)}`, { parse_mode: 'HTML' })
+      .catch((e) => logger.error({ e: e.message }, 'weekly briefing send'));
+    logger.info({ chatId }, 'weekly briefing sent');
+  }
+  cron.schedule('0 9 * * 0', () => { weeklyBriefing().catch((e) => logger.error({ e: e.message }, 'weekly briefing cron')); }, { timezone: TZ });
+
   mod.on('message', async (msg) => {
     if (!msg || (msg.from && msg.from.is_bot)) return;   // игнор реплик самих ботов команды
     if (!isOwner(msg.from && msg.from.id)) return;        // только владелец
     const chatId = msg.chat.id;
     const raw = (msg.text || '').trim();
     if (!raw) return;                                    // сервисные/пустые сообщения
-    // Переключатель языка поста: короткое слово-токен («английский», «русский», en/ru, флаг).
     const low = raw.toLowerCase();
+    // Запоминаем группу студии — сюда пойдёт еженедельный брифинг.
+    if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') setState({ groupChatId: chatId });
+    // Ручной триггер брифинга для теста.
+    if (/^(брифинг|briefing|бриф)$/i.test(low)) {
+      await mod.sendMessage(chatId, '📊 Готовлю брифинг…').catch(() => {});
+      await weeklyBriefing(chatId).catch(() => {});
+      return;
+    }
+    // Переключатель языка обсуждения: короткое слово-токен («английский», «русский», en/ru, флаг).
     const wantEn = /^(язык[:\s]+)?(англ\S*|english|eng|en)$/.test(low) || low === '🇬🇧';
     const wantRu = /^(язык[:\s]+)?(рус\S*|russian|ru)$/.test(low) || low === '🇷🇺';
     if (wantEn || wantRu) {
@@ -114,6 +153,9 @@ function activate(tokens) {
       });
       lastProposal.set(chatId, proposal);
       lastTopic.set(chatId, topic);
+      // Приватный итог владельцу через content-bot (чтобы не следить за группой).
+      try { fs.mkdirSync(NOTIFY_DIR, { recursive: true }); fs.writeFileSync(path.join(NOTIFY_DIR, `${Date.now()}.json`), JSON.stringify({ topic, proposal })); }
+      catch (e) { logger.error({ e: e.message }, 'notify write failed'); }
       await mod.sendMessage(chatId, '👆 Решение команды. Твоё слово, судья:', {
         reply_markup: { inline_keyboard: [[
           { text: '✅ Делаем', callback_data: 'studio:ok' },

@@ -908,6 +908,24 @@ function start() {
     studioBusy = false;
   }, 8000);
 
+  // ── Студия: приватный итог владельцу в личку после обсуждения (чтобы не следить за группой).
+  const STUDIO_NOTIFY_DIR = path.join(__dirname, '../../data/studio-notify');
+  const escH = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  setInterval(() => {
+    let files;
+    try { files = fs.existsSync(STUDIO_NOTIFY_DIR) ? fs.readdirSync(STUDIO_NOTIFY_DIR).filter((f) => f.endsWith('.json')).sort() : []; } catch { return; }
+    for (const f of files) {
+      const fp = path.join(STUDIO_NOTIFY_DIR, f);
+      let n = null;
+      try { n = JSON.parse(fs.readFileSync(fp, 'utf8')); } catch { /* skip */ }
+      try { fs.unlinkSync(fp); } catch { /* ignore */ }
+      if (n && ALLOWED.length) {
+        const body = `📋 <b>Студия обсудила тему</b>\n«${escH(String(n.topic || '').slice(0, 200))}»\n\n${escH(String(n.proposal || '').slice(0, 3400))}\n\n👉 Решение ждёт в группе студии — ✅ Делаем / ↩️ Переделать.`;
+        bot.sendMessage(ALLOWED[0], body, { parse_mode: 'HTML' }).catch((e) => logger.error({ e: e.message }, 'studio notify DM'));
+      }
+    }
+  }, 8000);
+
   // ── One-shot job kick: if data/run-job-once holds a calendar job name, build
   //    it on startup and remove the flag. Ops escape hatch to re-run a missed
   //    cron IN-PROCESS (approval-card buttons need the bot's in-memory drafts).
