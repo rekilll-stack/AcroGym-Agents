@@ -838,35 +838,51 @@ function start() {
       try {
         const llm = require('./llm');
         const MAX = Math.max(1, parseInt(process.env.STUDIO_REVIEW_MAX || '5', 10));
-        const CRITIC_SYS =
-          'Ты — строгий контент-критик детского акро-зала AcroGym (Доха). Смотришь на УЖЕ СОБРАННЫЙ пост ' +
-          'Instagram (картинка) и решаешь, годится ли он к публикации: кадр, читаемость текста, брендфит, ' +
-          'безопасность и уважение к детям, цепляет ли родителя. Отвечай по-русски, коротко.';
+        const PANEL = [
+          { emoji: '🔍', name: 'Критик', system: 'Ты — строгий контент-критик детского акро-зала AcroGym (Доха). Смотришь на СОБРАННЫЙ пост Instagram (картинка): кадр, читаемость текста, брендфит, безопасность и уважение к детям. По-русски, коротко.' },
+          { emoji: '👀', name: 'Зрители', system: 'Ты озвучиваешь фокус-группу родителей-подписчиков AcroGym (Доха). Смотришь на собранный пост Instagram (картинка) их глазами: зацепит ли родителя, захочется ли записать ребёнка. По-русски, коротко.' },
+          { emoji: '📊', name: 'СММ', system: 'Ты — СММ-стратег детского акро-зала AcroGym (Доха). Смотришь на собранный пост Instagram (картинка) для продвижения: охват/вовлечённость/заявки. По-русски, коротко.' },
+        ];
         const exclude = [];
         let draft = null;
+        let feedback = '';  // накопленное ТЗ от команды для следующей пересборки
         for (let attempt = 1; attempt <= MAX; attempt++) {
           await bot.sendMessage(req.chatId,
-            attempt === 1 ? '🎨 Собираю черновик по утверждённому концепту…' : `🎨 Пересобираю (попытка ${attempt}/${MAX})…`).catch(() => {});
-          draft = await calendar.buildDraft(bot, req.chatId, { theme: req.theme, slides: 4, routine: false, exclude });
+            attempt === 1 ? '🎨 Собираю черновик по утверждённому концепту…' : `🎨 Пересобираю с учётом правок (попытка ${attempt}/${MAX})…`).catch(() => {});
+          const briefTheme = feedback ? `${req.theme}\n\nПРАВКИ ОТ КОМАНДЫ (обязательно учесть): ${feedback}` : req.theme;
+          draft = await calendar.buildDraft(bot, req.chatId, { theme: briefTheme, slides: 4, routine: false, exclude });
           const buffer = draft && draft.slides && draft.slides[0] && draft.slides[0].buffer;
           if (buffer) await bot.sendPhoto(req.chatId, buffer, { caption: `Черновик — попытка ${attempt}/${MAX}` }).catch(() => {});
-          let pass = true, verdict = '(картинка недоступна — пропускаю ревью)';
+          let allPass = true;
+          const notes = [];  // замечания тех, кто против
           if (buffer) {
-            try {
-              const user =
-                `Тема поста: «${req.theme}».\nПодпись: «${String(draft.caption || '').slice(0, 400)}».\n\n` +
-                'Посмотри на собранный пост (картинка). Готов к публикации в Instagram детского акро-зала? ' +
-                'Ответь СТРОГО: первым словом ДА или НЕТ, затем 1-2 предложения почему. ' +
-                'ДА — только если реально хорошо; НЕТ — если есть что улучшить (и что именно).';
-              verdict = String(await llm.generateText({ system: CRITIC_SYS, user,
-                images: [{ data: buffer.toString('base64'), media_type: 'image/jpeg' }] }) || '').trim();
-              pass = /^\s*да\b/i.test(verdict);
-            } catch (e) { logger.error({ e: e.message }, 'studio review llm failed'); pass = true; verdict = 'ревью не удалось — пропускаю'; }
+            const b64 = buffer.toString('base64');
+            const user =
+              `Тема поста: «${req.theme}».\nПодпись: «${String(draft.caption || '').slice(0, 400)}».\n\n` +
+              'Посмотри на СОБРАННЫЙ пост (картинка). Годится к публикации в Instagram детского акро-зала? ' +
+              'Ответь СТРОГО: первым словом ДА или НЕТ. Если НЕТ — 1-2 предложения ЧТО КОНКРЕТНО не так и ЧТО ПОМЕНЯТЬ.';
+            for (const r of PANEL) {
+              let verdict = '';
+              try {
+                verdict = String(await llm.generateText({ system: r.system, user,
+                  images: [{ data: b64, media_type: 'image/jpeg' }] }) || '').trim();
+              } catch (e) { logger.error({ e: e.message, reviewer: r.name }, 'panel review failed'); verdict = 'ревью не удалось — засчитываю ДА'; }
+              const ok = !verdict || /^\s*да\b/i.test(verdict) || /ревью не удалось/i.test(verdict);
+              if (!ok) { allPass = false; notes.push(`${r.name}: ${verdict}`); }
+              await bot.sendMessage(req.chatId, `${r.emoji} <b>${r.name}</b>\n${verdict}`, { parse_mode: 'HTML' }).catch(() => {});
+            }
           }
-          await bot.sendMessage(req.chatId, `🔍 <b>Критик</b>\n${verdict}`, { parse_mode: 'HTML' }).catch(() => {});
-          if (pass) { await bot.sendMessage(req.chatId, `✅ Команда одобрила (попытка ${attempt}). Твоё слово, судья:`).catch(() => {}); break; }
-          if (attempt === MAX) await bot.sendMessage(req.chatId, `⚠️ За ${MAX} попыток команда не сошлась. Решай сам:`).catch(() => {});
-          else await bot.sendMessage(req.chatId, '↩️ Критику не зашло — пересобираю на свежих фото…').catch(() => {});
+          if (allPass) { await bot.sendMessage(req.chatId, `✅ Вся команда одобрила (попытка ${attempt}). Твоё слово, судья:`).catch(() => {}); break; }
+          if (attempt === MAX) { await bot.sendMessage(req.chatId, `⚠️ За ${MAX} попыток команда не сошлась. Решай сам:`).catch(() => {}); break; }
+          // Модератор сводит замечания в КОНКРЕТНОЕ ТЗ для content-bot — чтобы пересборка была осмысленной, а не вслепую.
+          try {
+            const synth = String(await llm.generateText({
+              system: 'Ты — модератор контент-студии детского акро-зала AcroGym. Сведи замечания команды в КОРОТКОЕ конкретное ТЗ для пересборки поста: что поменять (фото/кадр, текст/подпись, подача). 2-4 пункта, по-русски, без воды.',
+              user: `Тема: «${req.theme}». Замечания команды к текущему черновику:\n${notes.join('\n')}\n\nДай ТЗ на пересборку.`,
+            }) || '').trim();
+            feedback = synth || notes.join('; ');
+          } catch (e) { logger.error({ e: e.message }, 'ТЗ synth failed'); feedback = notes.join('; '); }
+          await bot.sendMessage(req.chatId, `🎬 <b>Модератор → content-bot</b> (ТЗ на пересборку):\n${feedback}`, { parse_mode: 'HTML' }).catch(() => {});
         }
         if (draft) await publish.route(bot, req.chatId, draft); // финальная карточка с твоими кнопками
       } catch (e) {
