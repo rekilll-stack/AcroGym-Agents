@@ -1,0 +1,1542 @@
+{
+  "count": 138,
+  "templates": [
+    {
+      "key": "welcome_ages_3_5",
+      "name": "Welcome — Ages 3–5",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! This is AcroGym 🤸 Thank you for your interest for {{2}} — at this age, gymnastics is all about play, coordination and confidence in a safe, encouraging space. I'd love to tell you more or answer any questions — just reply here anytime.",
+      "variables": [
+        "{{1}} parent name",
+        "{{2}} child's name"
+      ],
+      "footer": "AcroGym · The Pearl, Doha"
+    },
+    {
+      "key": "welcome_ages_6_9",
+      "name": "Welcome — Ages 6–9",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! This is AcroGym 🤸 Thanks for your interest for {{2}} — our developmental gymnastics program builds real strength, flexibility and focus, with small groups and personal attention from our coaches. Happy to answer anything — reply here anytime.",
+      "variables": [
+        "{{1}} parent name",
+        "{{2}} child's name"
+      ],
+      "footer": "AcroGym · The Pearl, Doha"
+    },
+    {
+      "key": "welcome_ages_10_14",
+      "name": "Welcome — Ages 10–14",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! This is AcroGym 🤸 Thanks for {{2}}'s interest in acrobatics — our program is built for young athletes who want to train seriously, with technique, structure and real progression toward competition-level skill. Let me know if you have questions — I'm here.",
+      "variables": [
+        "{{1}} parent name",
+        "{{2}} child's name"
+      ],
+      "footer": "AcroGym · The Pearl, Doha"
+    },
+    {
+      "key": "touch_2_gentle_follow_up_ages_3_5",
+      "name": "Touch 2 — Gentle Follow-up — Ages 3–5",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just checking in about {{2}} — still thinking about gymnastics? Happy to answer any questions, whenever's good for you.",
+      "variables": [
+        "{{1}} parent name",
+        "{{2}} child's name"
+      ]
+    },
+    {
+      "key": "touch_2_gentle_follow_up_ages_6_9",
+      "name": "Touch 2 — Gentle Follow-up — Ages 6–9",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just checking in — still thinking about gymnastics for {{2}}? Happy to answer any questions about our programs, coaches or how it all works, whenever suits you.",
+      "variables": [
+        "{{1}} parent name",
+        "{{2}} child's name"
+      ]
+    },
+    {
+      "key": "touch_2_gentle_follow_up_ages_10_14",
+      "name": "Touch 2 — Gentle Follow-up — Ages 10–14",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, checking in — is {{2}} still interested in training with us? Happy to talk through what a serious training path looks like, whenever works for you.",
+      "variables": [
+        "{{1}} parent name",
+        "{{2}} child's name"
+      ]
+    },
+    {
+      "key": "touch_3_program_highlight_ages_3_5",
+      "name": "Touch 3 — Program Highlight — Ages 3–5",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! A quick share: our classes stay small so every child gets real attention while they play and build coordination. If that sounds good for {{2}}, happy to help whenever you're ready.",
+      "variables": [
+        "{{1}} parent name",
+        "{{2}} child's name"
+      ]
+    },
+    {
+      "key": "touch_3_program_highlight_ages_6_9",
+      "name": "Touch 3 — Program Highlight — Ages 6–9",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! A quick share: our program is built around small groups so every child gets real attention from a coach — not just a big class. If that sounds like a good fit for {{2}}, I'd love to help you get started whenever you're ready.",
+      "variables": [
+        "{{1}} parent name",
+        "{{2}} child's name"
+      ]
+    },
+    {
+      "key": "touch_3_program_highlight_ages_10_14",
+      "name": "Touch 3 — Program Highlight — Ages 10–14",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! A quick share: our program gives serious young athletes real coaching attention and a structured path toward technique and competition. If that fits what {{2}} is looking for, happy to help whenever you're ready.",
+      "variables": [
+        "{{1}} parent name",
+        "{{2}} child's name"
+      ]
+    },
+    {
+      "key": "touch_4_meet_the_coach",
+      "name": "Touch 4 — Meet the Coach",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! Our head coach, Kristina, is a Master of Sports and European Championships medalist with over 10 years coaching children — but what parents notice most is how patiently she works with every child at their own pace. Happy to share more, just ask.",
+      "variables": [
+        "{{1}} parent name"
+      ]
+    },
+    {
+      "key": "touch_5_opening_soon",
+      "name": "Touch 5 — Opening Soon",
+      "category": "1 · Lead Nurture — First Touch & Reminders",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! We're getting closer to opening at The Pearl, Doha, and preparing to welcome our first families. If you'd like to secure {{2}}'s spot early, I'm happy to help whenever you're ready.",
+      "variables": [
+        "{{1}} parent name",
+        "{{2}} child's name"
+      ]
+    },
+    {
+      "key": "booking_confirmed",
+      "name": "Booking Confirmed",
+      "category": "2 · Booking & Scheduling",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, this confirms {{2}}'s first visit at AcroGym: {{3}} at {{4}}. We're looking forward to it! Comfortable sportswear is all you need — see you soon.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} date",
+        "{{4}} time"
+      ]
+    },
+    {
+      "key": "reminder_day_before",
+      "name": "Reminder — Day Before",
+      "category": "2 · Booking & Scheduling",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just a reminder — {{2}}'s first visit at AcroGym is tomorrow at {{3}}. Let me know if anything changes on your end!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} time"
+      ]
+    },
+    {
+      "key": "missed_visit_follow_up_ages_3_5",
+      "name": "Missed-Visit Follow-up — Ages 3–5",
+      "category": "2 · Booking & Scheduling",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we missed {{2}} today — hope everything's okay! No worries at all, happy to find another time whenever works.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "missed_visit_follow_up_ages_6_9",
+      "name": "Missed-Visit Follow-up — Ages 6–9",
+      "category": "2 · Booking & Scheduling",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we missed {{2}} today — hope everything's okay! Happy to find another time whenever works for you.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "missed_visit_follow_up_ages_10_14",
+      "name": "Missed-Visit Follow-up — Ages 10–14",
+      "category": "2 · Booking & Scheduling",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, noticed {{2}} missed today's session — hope all's well. Let me know when works to reschedule.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "reschedule_offer",
+      "name": "Reschedule Offer",
+      "category": "2 · Booking & Scheduling",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, no problem at all — let's find a better time for {{2}}'s visit. What day works best for you this week?",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "thank_you_after_first_class_ages_3_5",
+      "name": "Thank You After First Class — Ages 3–5",
+      "category": "3 · Post-Visit Follow-up",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, it was lovely having {{2}} in class today! How did they find it? Happy to answer anything about next steps.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "thank_you_after_first_class_ages_6_9",
+      "name": "Thank You After First Class — Ages 6–9",
+      "category": "3 · Post-Visit Follow-up",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, it was great having {{2}} at AcroGym! How did they find it? I'd love to hear, and happy to answer anything about next steps.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "thank_you_after_first_class_ages_10_14",
+      "name": "Thank You After First Class — Ages 10–14",
+      "category": "3 · Post-Visit Follow-up",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, good first session for {{2}} today. How did they feel about it? Happy to talk through what a regular schedule could look like.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "ready_to_continue_ages_3_5",
+      "name": "Ready to Continue? — Ages 3–5",
+      "category": "3 · Post-Visit Follow-up",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, hope {{2}} had fun with us! If you'd like to keep coming back, just let me know and I'll sort out a regular time.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "ready_to_continue_ages_6_9",
+      "name": "Ready to Continue? — Ages 6–9",
+      "category": "3 · Post-Visit Follow-up",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, hope {{2}} enjoyed their time with us! If you'd like to continue and set up a regular schedule, just let me know and I'll take care of the details.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "ready_to_continue_ages_10_14",
+      "name": "Ready to Continue? — Ages 10–14",
+      "category": "3 · Post-Visit Follow-up",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, hope {{2}} felt good about the session! If they'd like to keep building on it, let me know and we'll set up a regular schedule.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "welcome_to_the_family_ages_3_5",
+      "name": "Welcome to the Family — Ages 3–5",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Welcome, {{1}}! So glad {{2}} is joining us — lots of fun and new skills ahead. Your coach will be in touch with the schedule.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "welcome_to_the_family_ages_6_9",
+      "name": "Welcome to the Family — Ages 6–9",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Welcome to AcroGym, {{1}}! So glad {{2}} is joining us. Your coach will be in touch with the class schedule — excited to see {{2}} grow with us.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "welcome_to_the_family_ages_10_14",
+      "name": "Welcome to the Family — Ages 10–14",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Welcome, {{1}}! Glad to have {{2}} on board — looking forward to helping them build real skill over time. Your coach will follow up with the schedule.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "class_schedule_change",
+      "name": "Class Schedule Change",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, a quick note: {{2}}'s class schedule has changed to {{3}}. Sorry for any inconvenience — let me know if this doesn't work and we'll sort something out.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} new schedule"
+      ]
+    },
+    {
+      "key": "child_s_birthday_ages_3_5",
+      "name": "Child's Birthday — Ages 3–5",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just wanted to say happy birthday to {{2}} today 🎂 Hope it's a really lovely one — see you both soon!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "child_s_birthday_ages_6_9",
+      "name": "Child's Birthday — Ages 6–9",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, happy birthday to {{2}}! Hope today's a great day — looking forward to hearing all about it at the next class.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "child_s_birthday_ages_10_14",
+      "name": "Child's Birthday — Ages 10–14",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, happy birthday to {{2}}. Hope you both have a great day — see you soon.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "renewal_reminder",
+      "name": "Renewal Reminder",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just a heads-up that {{2}}'s membership is coming up for renewal. Message me whenever you'd like to sort it out — happy to help.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "attendance_check_in_ages_3_5",
+      "name": "Attendance Check-in — Ages 3–5",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we've missed {{2}} the last little while — hope all is well! Happy to help find a schedule that fits better if that's useful.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "attendance_check_in_ages_6_9",
+      "name": "Attendance Check-in — Ages 6–9",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we've missed {{2}} in class the last little while — hope all is well! Let me know if there's anything I can help with, or if you'd like to pick a schedule that fits better.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "attendance_check_in_ages_10_14",
+      "name": "Attendance Check-in — Ages 10–14",
+      "category": "4 · Ongoing Client Care",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, noticed {{2}} has missed a few sessions recently — just checking in. Let me know if anything's changed, or if a different schedule would work better.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "auto_acknowledgment",
+      "name": "Auto-Acknowledgment",
+      "category": "5 · General & Support",
+      "meta_category": "utility",
+      "body": "Thanks for reaching out to AcroGym! We've got your message and will reply personally as soon as we can.",
+      "variables": [],
+      "footer": "AcroGym · The Pearl, Doha"
+    },
+    {
+      "key": "holiday_closure_notice",
+      "name": "Holiday / Closure Notice",
+      "category": "5 · General & Support",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, a quick note that AcroGym will be closed on {{2}}. Classes resume on {{3}} — see you then!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} closure date",
+        "{{3}} resume date"
+      ]
+    },
+    {
+      "key": "grand_opening",
+      "name": "Grand Opening",
+      "category": "6 · Announcements",
+      "meta_category": "marketing",
+      "body": "AcroGym is opening in The Pearl, Doha this September! Developmental gymnastics and acrobatics for ages 3–14, with expert coaching in a safe, modern space. Message us to learn more or reserve {{1}}'s spot.",
+      "variables": [
+        "{{1}} child's name"
+      ]
+    },
+    {
+      "key": "new_program_added",
+      "name": "New Program Added",
+      "category": "6 · Announcements",
+      "meta_category": "marketing",
+      "body": "AcroGym now offers {{1}} — a great fit if {{2}} is ready for the next step. Message us anytime to find out more.",
+      "variables": [
+        "{{1}} program name",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "event_competition",
+      "name": "Event / Competition",
+      "category": "6 · Announcements",
+      "meta_category": "marketing",
+      "body": "AcroGym is holding {{1}} on {{2}} — a great chance to see our young athletes in action. Let us know if you'd like to join or find out more.",
+      "variables": [
+        "{{1}} event name",
+        "{{2}} date"
+      ]
+    },
+    {
+      "key": "qatar_national_day",
+      "name": "Qatar National Day",
+      "category": "7 · Qatar Holidays & Greetings",
+      "meta_category": "marketing",
+      "body": "Happy Qatar National Day! 🇶🇦 Wishing {{1}} and your family a wonderful celebration from all of us at AcroGym.",
+      "variables": [
+        "{{1}} parent/family name"
+      ]
+    },
+    {
+      "key": "eid_al_fitr",
+      "name": "Eid al-Fitr",
+      "category": "7 · Qatar Holidays & Greetings",
+      "meta_category": "marketing",
+      "body": "Eid Mubarak! 🌙 Wishing {{1}} and your family a joyful Eid al-Fitr, from everyone at AcroGym.",
+      "variables": [
+        "{{1}} parent/family name"
+      ]
+    },
+    {
+      "key": "eid_al_adha",
+      "name": "Eid al-Adha",
+      "category": "7 · Qatar Holidays & Greetings",
+      "meta_category": "marketing",
+      "body": "Eid Mubarak! 🐑 Wishing {{1}} and your family a blessed Eid al-Adha, from everyone at AcroGym.",
+      "variables": [
+        "{{1}} parent/family name"
+      ]
+    },
+    {
+      "key": "qatar_national_sport_day",
+      "name": "Qatar National Sport Day",
+      "category": "7 · Qatar Holidays & Greetings",
+      "meta_category": "utility",
+      "body": "Happy National Sport Day! 🤸 A perfect day to celebrate movement, health and the joy of sport — just what we do every day at AcroGym. Hope {{1}} has an active and fun day!",
+      "variables": [
+        "{{1}} child's name"
+      ]
+    },
+    {
+      "key": "ramadan_greeting_adjusted_hours",
+      "name": "Ramadan — Greeting + Adjusted Hours",
+      "category": "7 · Qatar Holidays & Greetings",
+      "meta_category": "utility",
+      "body": "Ramadan Kareem! 🌙 During Ramadan, AcroGym classes will run on adjusted hours: {{1}}. Thank you for your understanding, and we look forward to seeing {{2}} on the mat.",
+      "variables": [
+        "{{1}} adjusted hours",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "new_year",
+      "name": "New Year",
+      "category": "7 · Qatar Holidays & Greetings",
+      "meta_category": "marketing",
+      "body": "Happy New Year from AcroGym! 🎊 Wishing {{1}} a year full of growth, confidence and new skills. See you on the mat in {{2}}!",
+      "variables": [
+        "{{1}} child/parent",
+        "{{2}} year"
+      ]
+    },
+    {
+      "key": "competition_registration_open_ages_3_5",
+      "name": "Competition Registration Open — Ages 3–5",
+      "category": "8 · Competitions & Achievements",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we're planning a fun little in-house competition — a low-pressure way for {{2}} to show what they've learned. Let me know if you'd like to join in.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "competition_registration_open_ages_6_9",
+      "name": "Competition Registration Open — Ages 6–9",
+      "category": "8 · Competitions & Achievements",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, registration is open for our upcoming internal competition — a fun, supportive way for {{2}} to show off what they've learned. Let me know if you'd like to sign up!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "competition_registration_open_ages_10_14",
+      "name": "Competition Registration Open — Ages 10–14",
+      "category": "8 · Competitions & Achievements",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, registration is open for our upcoming competition — a good opportunity for {{2}} to test their progress. Let me know if you'd like to sign up.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "competition_reminder",
+      "name": "Competition Reminder",
+      "category": "8 · Competitions & Achievements",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just a reminder — {{2}}'s competition is on {{3}} at {{4}}. We can't wait to cheer them on!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} date",
+        "{{4}} time"
+      ]
+    },
+    {
+      "key": "thanks_for_participating_ages_3_5",
+      "name": "Thanks for Participating — Ages 3–5",
+      "category": "8 · Competitions & Achievements",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} had such a fun time at the competition today — just showing up and giving it a go is a wonderful thing at this age. So proud!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "thanks_for_participating_ages_6_9",
+      "name": "Thanks for Participating — Ages 6–9",
+      "category": "8 · Competitions & Achievements",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} did wonderfully at the competition today — I'm so proud of the effort and courage it takes just to compete. Thank you for being part of it.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "thanks_for_participating_ages_10_14",
+      "name": "Thanks for Participating — Ages 10–14",
+      "category": "8 · Competitions & Achievements",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} represented AcroGym really well at the competition today — the discipline behind that performance doesn't go unnoticed. Proud of the effort.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "level_up_progress_ages_3_5",
+      "name": "Level-Up / Progress — Ages 3–5",
+      "category": "8 · Competitions & Achievements",
+      "meta_category": "utility",
+      "body": "Great news, {{1}}! {{2}} is ready to move up to the next group — a big step for a little one, and so much fun ahead.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "level_up_progress_ages_6_9",
+      "name": "Level-Up / Progress — Ages 6–9",
+      "category": "8 · Competitions & Achievements",
+      "meta_category": "utility",
+      "body": "Great news, {{1}}! {{2}} has made real progress and is moving up to the next group. Well done to {{2}} — we're excited to keep building on this!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "level_up_progress_ages_10_14",
+      "name": "Level-Up / Progress — Ages 10–14",
+      "category": "8 · Competitions & Achievements",
+      "meta_category": "utility",
+      "body": "Great news, {{1}} — {{2}} has progressed enough to move up to the next level, working toward more advanced technique and competition-level skill.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "class_cancelled_coach_unavailable",
+      "name": "Class Cancelled — Coach Unavailable",
+      "category": "9 · Class Changes & Cancellations",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, unfortunately {{2}}'s class on {{3}} is cancelled due to coach availability. Sorry for the short notice — we'll help find a makeup session.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} date"
+      ]
+    },
+    {
+      "key": "class_cancelled_weather_facility",
+      "name": "Class Cancelled — Weather / Facility",
+      "category": "9 · Class Changes & Cancellations",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, due to {{2}}, today's class is cancelled. Apologies for the inconvenience — we'll be back to normal at the next scheduled session.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} reason — e.g. \"weather conditions\", \"facility maintenance\""
+      ]
+    },
+    {
+      "key": "coach_substitution_notice",
+      "name": "Coach Substitution Notice",
+      "category": "9 · Class Changes & Cancellations",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just a heads-up that {{2}} will have a substitute coach for the next class while {{3}} is away. Same great program, in good hands!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} regular coach"
+      ]
+    },
+    {
+      "key": "severe_weather_closure",
+      "name": "Severe Weather Closure",
+      "category": "9 · Class Changes & Cancellations",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, due to severe weather conditions, AcroGym will be closed today for everyone's safety. We'll be back to normal at the next scheduled class.",
+      "variables": [
+        "{{1}} parent"
+      ]
+    },
+    {
+      "key": "welcome_back_ages_3_5",
+      "name": "Welcome Back — Ages 3–5",
+      "category": "10 · Attendance & Feedback",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, so happy to see {{2}} back! Hope everything's been good — let's get them settled back in.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "welcome_back_ages_6_9",
+      "name": "Welcome Back — Ages 6–9",
+      "category": "10 · Attendance & Feedback",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, so happy to see {{2}} back with us! Hope everything's been well. Let us know if there's anything we can help with to get back into the rhythm.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "welcome_back_ages_10_14",
+      "name": "Welcome Back — Ages 10–14",
+      "category": "10 · Attendance & Feedback",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, good to have {{2}} back training. Hope everything's been well — happy to help them ease back into it.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "how_s_it_going_ages_3_5",
+      "name": "How's It Going? — Ages 3–5",
+      "category": "10 · Attendance & Feedback",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just checking in — how's {{2}} finding it so far? Would love to hear, or answer anything on your mind.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "how_s_it_going_ages_6_9",
+      "name": "How's It Going? — Ages 6–9",
+      "category": "10 · Attendance & Feedback",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just checking in — how do you feel {{2}} is enjoying AcroGym so far? Always happy to hear your thoughts or answer any questions.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "how_s_it_going_ages_10_14",
+      "name": "How's It Going? — Ages 10–14",
+      "category": "10 · Attendance & Feedback",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, checking in on how {{2}}'s finding the training so far — happy to hear your thoughts or adjust anything that would help.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "feedback_request",
+      "name": "Feedback Request",
+      "category": "10 · Attendance & Feedback",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we'd love to hear how your experience with AcroGym has been so far — any feedback helps us do better for {{2}} and every child here. Thank you!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "new_term_starting",
+      "name": "New Term Starting",
+      "category": "11 · Enrollment & Terms",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, a new term at AcroGym starts on {{2}} — a great time to lock in {{3}}'s spot for the season. Let me know if you'd like to continue!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} start date",
+        "{{3}} child"
+      ]
+    },
+    {
+      "key": "waitlist_spot_opened",
+      "name": "Waitlist Spot Opened",
+      "category": "11 · Enrollment & Terms",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, good news — a spot has opened up for {{2}} in the group you were interested in! Let me know if you'd still like to join, and I'll get it confirmed.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "summer_holiday_break_notice",
+      "name": "Summer / Holiday Break Notice",
+      "category": "11 · Enrollment & Terms",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just a note that AcroGym will be on break from {{2}} to {{3}}. We'll be back and ready to welcome {{4}} once classes resume!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} break start",
+        "{{3}} break end",
+        "{{4}} child"
+      ]
+    },
+    {
+      "key": "registration_required_to_continue",
+      "name": "Registration Required to Continue",
+      "category": "11 · Enrollment & Terms",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, one last step — completing registration for {{2}} is required before joining classes. It only takes a few minutes; happy to help if anything's unclear.",
+      "variables": [
+        "{{1}} parent/participant",
+        "{{2}} child/self"
+      ]
+    },
+    {
+      "key": "adult_program_welcome",
+      "name": "Adult Program — Welcome",
+      "category": "12 · Adult Classes",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! This is AcroGym 🤸 Thanks for your interest in our adult classes — a great way to build strength, flexibility and confidence, at your own pace and level. Happy to answer anything — reply here anytime.",
+      "variables": [
+        "{{1}} participant's name"
+      ],
+      "footer": "AcroGym · The Pearl, Doha"
+    },
+    {
+      "key": "adult_program_registration_reminder",
+      "name": "Adult Program — Registration Reminder",
+      "category": "12 · Adult Classes",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just a nudge — registration is required before your first adult class. Takes just a few minutes, and I'm happy to help if you get stuck.",
+      "variables": [
+        "{{1}} participant's name"
+      ]
+    },
+    {
+      "key": "adult_program_class_confirmed",
+      "name": "Adult Program — Class Confirmed",
+      "category": "12 · Adult Classes",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, you're all set for your first adult class: {{2}} at {{3}}. Comfortable sportswear is all you need — looking forward to it!",
+      "variables": [
+        "{{1}} participant",
+        "{{2}} date",
+        "{{3}} time"
+      ]
+    },
+    {
+      "key": "camp_registration_open",
+      "name": "Camp Registration Open",
+      "category": "13 · Summer Camp",
+      "meta_category": "marketing",
+      "body": "Hi {{1}}, registration for our summer camp is now open! A fun, active few weeks for {{2}} to build skills and make friends. Let me know if you'd like a spot.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "camp_registration_closing_soon",
+      "name": "Camp Registration Closing Soon",
+      "category": "13 · Summer Camp",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just a heads-up — summer camp registration for {{2}} closes on {{3}}. Let me know if you'd still like to secure a spot.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} deadline"
+      ]
+    },
+    {
+      "key": "camp_confirmed_what_to_bring",
+      "name": "Camp Confirmed — What to Bring",
+      "category": "13 · Summer Camp",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} is all set for summer camp from {{3}} to {{4}}. Comfortable clothes, a water bottle and a snack are all they need — see you then!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} start date",
+        "{{4}} end date"
+      ]
+    },
+    {
+      "key": "camp_wrap_up_thank_you",
+      "name": "Camp Wrap-up — Thank You",
+      "category": "13 · Summer Camp",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, that's a wrap on summer camp! Thank you for letting {{2}} spend it with us — we hope they had a fantastic time and hope to see them again soon.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "minor_injury_notice",
+      "name": "Minor Injury Notice",
+      "category": "14 · Safety & Incidents",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just to let you know — {{2}} had a small bump during class today. They're doing fine and were looked after right away, but wanted you to be aware. Happy to share more details if you'd like.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "health_safety_update",
+      "name": "Health & Safety Update",
+      "category": "14 · Safety & Incidents",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, a quick update: we've introduced {{2}} to keep every child even safer during class. As always, {{3}}'s wellbeing is our top priority.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} new measure",
+        "{{3}} child"
+      ]
+    },
+    {
+      "key": "illness_precaution_notice",
+      "name": "Illness Precaution Notice",
+      "category": "14 · Safety & Incidents",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, a quick note: if {{2}} is feeling unwell, please keep them home and let us know — we'll help arrange a makeup session. Thanks for helping us keep everyone healthy!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "thank_you_for_enrolling",
+      "name": "Thank You for Enrolling",
+      "category": "15 · Gratitude & Milestones",
+      "meta_category": "utility",
+      "body": "Thank you, {{1}}, for choosing AcroGym for {{2}}! We're honored to be part of their journey and can't wait to help them grow stronger and more confident.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "thank_you_for_referring_a_friend",
+      "name": "Thank You for Referring a Friend",
+      "category": "15 · Gratitude & Milestones",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, thank you so much for recommending AcroGym! It means a lot to us, and we'll take great care of your friend's family too.",
+      "variables": [
+        "{{1}} parent"
+      ]
+    },
+    {
+      "key": "skill_badge_earned_ages_3_5",
+      "name": "Skill Badge Earned — Ages 3–5",
+      "category": "15 · Gratitude & Milestones",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} earned a new badge today for {{3}} — such a fun milestone at this age. Really lovely to see!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} skill name"
+      ]
+    },
+    {
+      "key": "skill_badge_earned_ages_6_9",
+      "name": "Skill Badge Earned — Ages 6–9",
+      "category": "15 · Gratitude & Milestones",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} just earned a new skill badge in class today — {{3}}. Real progress, and I'm proud of the hard work behind it.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} skill name"
+      ]
+    },
+    {
+      "key": "skill_badge_earned_ages_10_14",
+      "name": "Skill Badge Earned — Ages 10–14",
+      "category": "15 · Gratitude & Milestones",
+      "meta_category": "utility",
+      "body": "Great news, {{1}} — {{2}} earned a new skill badge today for {{3}}, a solid step in their technical progression. Well-earned.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} skill name"
+      ]
+    },
+    {
+      "key": "training_anniversary",
+      "name": "Training Anniversary",
+      "category": "15 · Gratitude & Milestones",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, hard to believe it's been a year since {{2}} joined AcroGym! Thank you for being part of our journey — here's to many more.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "thank_you_to_founding_families",
+      "name": "Thank You to Founding Families",
+      "category": "15 · Gratitude & Milestones",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, thank you for being one of our very first families at AcroGym. Your trust means everything as we get started, and we can't wait to welcome {{2}} to the mat.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "end_of_term_thank_you",
+      "name": "End-of-Term Thank You",
+      "category": "15 · Gratitude & Milestones",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, as this term wraps up, thank you for being part of the AcroGym family. It's been a pleasure watching {{2}} grow, and we're looking forward to what's next.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "payment_received",
+      "name": "Payment Received",
+      "category": "16 · Payments & Billing",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, this confirms we've received your payment for {{2}} — thank you! Let us know if you need a receipt for your records.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} what it's for"
+      ]
+    },
+    {
+      "key": "payment_issue_please_update",
+      "name": "Payment Issue — Please Update",
+      "category": "16 · Payments & Billing",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we weren't able to process the payment for {{2}}'s membership. No rush — just let us know a good way to sort it out.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "family_discount_available",
+      "name": "Family Discount Available",
+      "category": "16 · Payments & Billing",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just so you know — we offer a discount for families enrolling more than one child. Happy to share the details if that's useful for you.",
+      "variables": [
+        "{{1}} parent"
+      ]
+    },
+    {
+      "key": "photo_video_consent_request",
+      "name": "Photo/Video Consent Request",
+      "category": "17 · Media & Community",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we sometimes take photos and videos during class to share progress and celebrate our students. Are you comfortable with {{2}} being included? Just let us know either way.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "check_out_this_moment",
+      "name": "Check Out This Moment",
+      "category": "17 · Media & Community",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we captured a great moment from {{2}}'s class today — want us to send it over?",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "open_house_invitation",
+      "name": "Open House Invitation",
+      "category": "17 · Media & Community",
+      "meta_category": "marketing",
+      "body": "Hi {{1}}, we're opening our doors for parents to come watch a class in action on {{2}}. Would love to have you there to see {{3}} in their element!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} date",
+        "{{3}} child"
+      ]
+    },
+    {
+      "key": "parent_orientation_invite",
+      "name": "Parent Orientation Invite",
+      "category": "17 · Media & Community",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, before {{2}}'s first class, we'd love to invite you to a short orientation on {{3}} — a chance to meet the coaches and ask anything.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} date"
+      ]
+    },
+    {
+      "key": "refer_a_friend",
+      "name": "Refer a Friend",
+      "category": "17 · Media & Community",
+      "meta_category": "marketing",
+      "body": "Hi {{1}}, if you know another family who'd love AcroGym for their child, we'd really appreciate the introduction — and we'll make sure they're well taken care of.",
+      "variables": [
+        "{{1}} parent"
+      ]
+    },
+    {
+      "key": "uniform_ready_for_pickup",
+      "name": "Uniform Ready for Pickup",
+      "category": "18 · Gear & Logistics",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}}'s AcroGym uniform is ready for pickup at the front desk whenever suits you!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "gear_reminder",
+      "name": "Gear Reminder",
+      "category": "18 · Gear & Logistics",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, quick reminder for next class — please bring {{2}} for {{3}}. See you then!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} item",
+        "{{3}} child"
+      ]
+    },
+    {
+      "key": "lost_found",
+      "name": "Lost & Found",
+      "category": "18 · Gear & Logistics",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we found {{2}} left behind after {{3}}'s last class — let us know if it's yours and we'll keep it safe until you're next in.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} item",
+        "{{3}} child"
+      ]
+    },
+    {
+      "key": "cancellation_confirmation",
+      "name": "Cancellation Confirmation",
+      "category": "19 · Withdrawal & Win-back",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, this confirms {{2}}'s membership has been cancelled as requested. Thank you for the time you spent with us — you're always welcome back.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "exit_feedback_request",
+      "name": "Exit Feedback Request",
+      "category": "19 · Withdrawal & Win-back",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, sorry to see {{2}} go. If you have a moment, we'd genuinely appreciate knowing what we could have done better — it helps us improve for every family.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "we_miss_you_win_back",
+      "name": "We Miss You (Win-back)",
+      "category": "19 · Withdrawal & Win-back",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, it's been a while since {{2}} trained with us — we'd love to have them back whenever you're ready. No pressure, just wanted you to know the door's always open.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "individual_training_welcome_ages_3_5",
+      "name": "Individual Training — Welcome — Ages 3–5",
+      "category": "20 · Individual & Private Training",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! This is AcroGym 🤸 Thanks for your interest in individual sessions for {{2}} — some kids do really well with one-on-one attention at their own pace. Happy to help you get started.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "individual_training_welcome_ages_6_9",
+      "name": "Individual Training — Welcome — Ages 6–9",
+      "category": "20 · Individual & Private Training",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! This is AcroGym 🤸 Thanks for your interest in individual training for {{2}} — one-on-one sessions are a great way to focus on specific skills, technique or competition prep at their own pace. Happy to help you get started.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "individual_training_welcome_ages_10_14",
+      "name": "Individual Training — Welcome — Ages 10–14",
+      "category": "20 · Individual & Private Training",
+      "meta_category": "utility",
+      "body": "Hi {{1}}! This is AcroGym 🤸 Thanks for your interest in individual training for {{2}} — a focused way to work on specific technique or competition prep with dedicated coaching. Happy to help you get started.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "individual_session_confirmed",
+      "name": "Individual Session Confirmed",
+      "category": "20 · Individual & Private Training",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}}'s individual session is confirmed for {{3}} at {{4}}. Looking forward to it!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} date",
+        "{{4}} time"
+      ]
+    },
+    {
+      "key": "scheduling_flexibility_note",
+      "name": "Scheduling Flexibility Note",
+      "category": "20 · Individual & Private Training",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, individual sessions for {{2}} can be scheduled around your availability — just let me know what days and times usually work best and I'll find a fit.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "new_kids_class_introduced",
+      "name": "New Kids Class Introduced",
+      "category": "21 · New Kids Classes",
+      "meta_category": "marketing",
+      "body": "Hi {{1}}, exciting news — we've added a new class, {{2}}, for kids ages {{3}}! Let me know if you'd like to learn more or get {{4}} signed up.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} class name",
+        "{{3}} age range",
+        "{{4}} child"
+      ]
+    },
+    {
+      "key": "merch_line_announcement",
+      "name": "Merch Line Announcement",
+      "category": "22 · Merchandise & Branded Gear",
+      "meta_category": "marketing",
+      "body": "AcroGym now has branded gear! Leotards, socks, training diaries and more — a fun way for {{1}} to show their AcroGym pride. Ask me anytime for details.",
+      "variables": [
+        "{{1}} child's name"
+      ]
+    },
+    {
+      "key": "branded_item_available",
+      "name": "Branded Item Available",
+      "category": "22 · Merchandise & Branded Gear",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just so you know — our branded {{2}} is available now. Let me know if you'd like to order one for {{3}}.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} item",
+        "{{3}} child"
+      ]
+    },
+    {
+      "key": "merch_order_ready_for_pickup",
+      "name": "Merch Order Ready for Pickup",
+      "category": "22 · Merchandise & Branded Gear",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}}'s {{3}} is ready for pickup at the front desk whenever suits you!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} item"
+      ]
+    },
+    {
+      "key": "gym_rules_conduct_reminder",
+      "name": "Gym Rules & Conduct Reminder",
+      "category": "23 · Gym Policies & Conduct",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, a quick reminder of our gym guidelines: respectful behavior, following the coach's instructions, and taking care of the equipment help keep class safe and fun for everyone. Thanks for helping {{2}} settle in!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "payment_booking_policy_overview",
+      "name": "Payment & Booking Policy Overview",
+      "category": "23 · Gym Policies & Conduct",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, a quick overview of how things work at AcroGym: classes are booked in advance, payment is due {{2}}, and changes or cancellations should be made at least {{3}} ahead. Happy to answer anything!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} when payment is due",
+        "{{3}} notice period"
+      ]
+    },
+    {
+      "key": "general_news_update",
+      "name": "General News Update",
+      "category": "24 · General News",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, a quick update from AcroGym: {{2}}. Let us know if you have any questions!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} the news"
+      ]
+    },
+    {
+      "key": "facility_improvement_news",
+      "name": "Facility Improvement News",
+      "category": "24 · General News",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, exciting update — we've added {{2}} to the gym to make training even better for {{3}}. Can't wait for you to see it!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} improvement",
+        "{{3}} child"
+      ]
+    },
+    {
+      "key": "media_feature",
+      "name": "Media Feature",
+      "category": "24 · General News",
+      "meta_category": "marketing",
+      "body": "AcroGym was just featured in {{1}}! Thank you for being part of our story — come celebrate with us on the mat.",
+      "variables": [
+        "{{1}} publication/media name"
+      ]
+    },
+    {
+      "key": "first_day_nerves_ages_3_5",
+      "name": "First-Day Nerves — Ages 3–5",
+      "category": "25 · Encouragement & Emotional Support",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, looking forward to meeting {{2}} tomorrow! Little ones are sometimes shy on day one — totally normal, and our coaches are wonderful at making them feel safe and happy fast.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "first_day_nerves_ages_6_9",
+      "name": "First-Day Nerves — Ages 6–9",
+      "category": "25 · Encouragement & Emotional Support",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, looking forward to meeting {{2}} tomorrow! A few first-day nerves are completely normal — our coaches make sure every child feels welcome from the first minute.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "first_day_nerves_ages_10_14",
+      "name": "First-Day Nerves — Ages 10–14",
+      "category": "25 · Encouragement & Emotional Support",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, looking forward to meeting {{2}} tomorrow! Starting a new sport can feel a bit daunting at first — our coaches will make sure they're set up to feel confident quickly.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "courage_recognition_ages_3_5",
+      "name": "Courage Recognition — Ages 3–5",
+      "category": "25 · Encouragement & Emotional Support",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} was so brave trying something new in class today — even a little wobble is a big step at this age. Just wanted you to know.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "courage_recognition_ages_6_9",
+      "name": "Courage Recognition — Ages 6–9",
+      "category": "25 · Encouragement & Emotional Support",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} tried something really challenging in class today and didn't give up — that kind of courage matters more than getting it perfect. Just wanted you to know!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "courage_recognition_ages_10_14",
+      "name": "Courage Recognition — Ages 10–14",
+      "category": "25 · Encouragement & Emotional Support",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} pushed through a genuinely difficult skill in training today without backing down — that discipline is what separates good athletes from great ones.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "new_friendship_note_ages_3_5",
+      "name": "New Friendship Note — Ages 3–5",
+      "category": "25 · Encouragement & Emotional Support",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} has been playing well with the other kids in class — lovely to see them enjoying it together!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "new_friendship_note_ages_6_9",
+      "name": "New Friendship Note — Ages 6–9",
+      "category": "25 · Encouragement & Emotional Support",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}} has been making friends in class — it's lovely to see the group growing closer together. Just a nice moment we wanted to share.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "new_friendship_note_ages_10_14",
+      "name": "New Friendship Note — Ages 10–14",
+      "category": "25 · Encouragement & Emotional Support",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, {{2}}'s been building good relationships with the group — nice to see that camaraderie develop alongside the training.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "medical_allergy_info_request",
+      "name": "Medical/Allergy Info Request",
+      "category": "26 · Administrative & Compliance",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, before {{2}}'s first class, could you let us know about any allergies, medical conditions or things our coaches should be aware of? Helps us keep them safe.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "liability_waiver_reminder",
+      "name": "Liability Waiver Reminder",
+      "category": "26 · Administrative & Compliance",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, just a reminder to complete the waiver form for {{2}} before their first class — takes a minute, and it's required for participation.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "emergency_contact_update_request",
+      "name": "Emergency Contact Update Request",
+      "category": "26 · Administrative & Compliance",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, could you confirm the emergency contact details on file for {{2}} are still up to date? Just want to make sure we can always reach the right person.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "authorized_pickup_change",
+      "name": "Authorized Pickup Change",
+      "category": "26 · Administrative & Compliance",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, thanks for letting us know — we've noted that {{2}} will be picked up by {{3}} going forward.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child",
+        "{{3}} authorized person"
+      ]
+    },
+    {
+      "key": "follow_us_on_social_media",
+      "name": "Follow Us on Social Media",
+      "category": "27 · Marketing & Social",
+      "meta_category": "marketing",
+      "body": "Hi {{1}}, if you'd like to see more from AcroGym — training moments, tips and updates — find us on Instagram! Link's on our site whenever you're ready.",
+      "variables": [
+        "{{1}} parent"
+      ]
+    },
+    {
+      "key": "feature_request",
+      "name": "Feature Request",
+      "category": "27 · Marketing & Social",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, we'd love to feature {{2}} in an upcoming video or post — would you be comfortable with that? Totally your call, just checking first.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "loyalty_priority_access",
+      "name": "Loyalty Priority Access",
+      "category": "27 · Marketing & Social",
+      "meta_category": "utility",
+      "body": "Hi {{1}}, as a returning AcroGym family, you get first choice on spots for the next term before we open it up more widely. Let me know if you'd like to lock in {{2}}'s place.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "seasonal_tie_in_back_to_school",
+      "name": "Seasonal Tie-in — Back to School",
+      "category": "27 · Marketing & Social",
+      "meta_category": "marketing",
+      "body": "Hi {{1}}, a new school year is a great time for {{2}} to build a new routine — gymnastics is a fun way to start it off right. Happy to help you get going whenever you're ready.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "new_coach_joining",
+      "name": "New Coach Joining",
+      "category": "28 · Business Milestones & Team",
+      "meta_category": "marketing",
+      "body": "Hi {{1}}, exciting news — a new coach has joined the AcroGym team, bringing more expertise to every class. Excited for you and {{2}} to meet them!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} child"
+      ]
+    },
+    {
+      "key": "business_milestone",
+      "name": "Business Milestone",
+      "category": "28 · Business Milestones & Team",
+      "meta_category": "marketing",
+      "body": "Hi {{1}}, we just welcomed our {{2}}th student at AcroGym — thank you for being part of this journey with us!",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} milestone number"
+      ]
+    },
+    {
+      "key": "partnership_announcement",
+      "name": "Partnership Announcement",
+      "category": "28 · Business Milestones & Team",
+      "meta_category": "marketing",
+      "body": "Hi {{1}}, we're excited to share that AcroGym has partnered with {{2}} — more details soon, but wanted our families to be the first to know.",
+      "variables": [
+        "{{1}} parent",
+        "{{2}} partner name"
+      ]
+    },
+    {
+      "key": "international_children_s_day",
+      "name": "International Children's Day",
+      "category": "29 · More Calendar Greetings",
+      "meta_category": "marketing",
+      "body": "Happy Children's Day! 🎈 Today's all about celebrating kids like {{1}} — their energy, curiosity and joy. Wishing them a wonderful day.",
+      "variables": [
+        "{{1}} child's name"
+      ]
+    },
+    {
+      "key": "mother_s_father_s_day",
+      "name": "Mother's / Father's Day",
+      "category": "29 · More Calendar Greetings",
+      "meta_category": "marketing",
+      "body": "Happy {{1}}'s Day! From all of us at AcroGym — thank you for supporting {{2}}'s journey with us every step of the way.",
+      "variables": [
+        "{{1}} \"Mother\" / \"Father\"",
+        "{{2}} child"
+      ]
+    }
+  ]
+}
