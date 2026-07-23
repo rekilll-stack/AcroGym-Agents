@@ -257,9 +257,13 @@ async function handleNew(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, 
     updateLeadGreeting(leadId, greetingText); // persist to DB — survives restarts
   }
 
+  // Display number = position among real leads (row 2 = the first data row,
+  // after the header) — NOT the raw sheet row, which would show "#2" for the
+  // very first lead and shift confusingly whenever a test row gets deleted.
+  const displayNum = rowNumber - 1;
   const headerLine = topNote
-    ? `${topNote}\n\n📩 <b>New Lead #${rowNumber}</b>`
-    : `📩 <b>New Lead #${rowNumber}</b>`;
+    ? `${topNote}\n\n📩 <b>New Lead #${displayNum}</b>`
+    : `📩 <b>New Lead #${displayNum}</b>`;
 
   const draft = greetingText
     ? `\n\n✍️ <b>Draft message for client:</b>\n${greetingText}`
@@ -277,7 +281,7 @@ async function handleReturning(rowNumber, parsed, phoneNorm, whatsappNorm, email
   if (!result || result.changes === 0) return;
   const leadId = result.lastInsertRowid;
 
-  const header = `↩️ <b>Returning Client — Lead #${rowNumber}</b>`;
+  const header = `↩️ <b>Returning Client — Lead #${rowNumber - 1}</b>`;
   const note   = '<i>This person has been with us before. Contact personally to discuss return terms.</i>';
   const card   = buildCard(parsed, rowNumber, { header, note });
 
@@ -321,7 +325,7 @@ async function processNewRow(rowNumber, headers, values, colMap) {
       await sendToAdmin(
         `⚠️ <b>Duplicate form submission</b>\n` +
         `👤 ${parsed.parent_name || '(no name)'} submitted the form again.\n` +
-        `Previous lead: #${dup.sheet_row_number ?? dup.id}, ${daysSince} day(s) ago.\n` +
+        `Previous lead: #${dup.sheet_row_number != null ? dup.sheet_row_number - 1 : dup.id}, ${daysSince} day(s) ago.\n` +
         `Previous status: ${dup.status}`
       );
       logger.info({ rowNumber, dupId: dup.id, daysSince }, 'Duplicate recent lead — short alert sent');
@@ -429,7 +433,9 @@ async function checkReminders() {
 
   for (const lead of leads) {
     try {
-      const label  = lead.sheet_row_number ?? lead.id; // uid leads have no row number
+      // Display number = position among real leads (row 2 = lead #1); uid-based
+      // (Meta) leads have no row number, so those fall back to the internal id.
+      const label  = lead.sheet_row_number != null ? lead.sheet_row_number - 1 : lead.id;
       const waitedH = Math.round((Date.now() - new Date(lead.notified_at).getTime()) / 3600000);
       // 48h+ unanswered = escalation, not a routine nudge (owner ask 2026-07-13).
       const header = waitedH >= 48
