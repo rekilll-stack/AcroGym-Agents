@@ -9,13 +9,26 @@ const BRAND =
   "AcroGym, a children's gymnastics center opening September 2026 in The Pearl, " +
   "Qatar. Brand voice: reliability, energy, movement, safety, professionalism.";
 
-// Per-segment angle for the model.
+// Per-segment angle for the model. Segments mirror the REAL class grid
+// (owner + head coach, 25.07.2026): 2-3 / 3-4 / 4-5 / 6-8 / 10-14 — these are
+// different classes, not one "3-5 babies" bucket. A boundary age belongs to the
+// OLDER group (3 → 3-4; 4 and 5 → 4-5, per owner: "4-5 относится к 4-5").
 const SEGMENT_GUIDANCE = {
-  '3-5':
-    'The child is 3-5 years old. Emphasis: play, balance and first confident ' +
-    'movements; coordination and motor skills; a safe, caring environment.',
-  '6-9':
-    'The child is 6-9 years old. Emphasis: building real gymnastics skills, ' +
+  '2-3':
+    'The child is 2-3 years old (toddler class). Emphasis: playful movement ' +
+    'exploration — crawling, climbing and first balance games; body awareness ' +
+    'and coordination basics in a soft, safe, caring environment.',
+  '3-4':
+    'The child is 3-4 years old. Emphasis: playful but structured classes — ' +
+    'balance, coordination, learning to follow the coach, first gymnastics ' +
+    'shapes and rolls through games; growing confidence and independence.',
+  '4-5':
+    'The child is 4-5 years old — NOT a toddler format. Emphasis: real ' +
+    'gymnastics foundations — proper rolls, bridges and handstand prep, ' +
+    'strength and flexibility basics, focus and discipline built through fun. ' +
+    'Refer to the child as "your child" — NOT "little one".',
+  '6-8':
+    'The child is 6-8 years old. Emphasis: building real gymnastics skills, ' +
     'strength and confidence through structured, energetic classes kids love.',
   '10-14':
     'The child is 10-14 years old. Emphasis: sport acrobatics — technique, ' +
@@ -24,16 +37,30 @@ const SEGMENT_GUIDANCE = {
     'young athlete" — NOT "little one" (they are a teen/pre-teen).',
 };
 
-// Approved verbatim texts (owner-signed). Used as the static fallback when
-// Claude is unavailable, AND as the style anchor the prompt follows.
+// Static fallback when Claude is unavailable, AND the style anchor the prompt
+// follows. 6-8/10-14/neutral are owner-signed (June); 2-3/3-4/4-5 drafted
+// 25.07.2026 on the owner's "сам изучи и добавь" after the coach corrected the
+// age grid (a 5-y-o got a "little ones 3-5" draft — wrong, not a baby format).
 const FALLBACK = {
-  '3-5': (p) =>
-    `Hi ${p}! 🤸 Thank you so much for your interest in AcroGym. At this age, ` +
-    `gymnastics is all about play, balance and those first confident movements — ` +
-    `building coordination and motor skills in a safe, caring environment. Our team ` +
+  '2-3': (p) =>
+    `Hi ${p}! 🤸 Thank you so much for your interest in AcroGym. For toddlers, ` +
+    `classes are all about playful movement — crawling, climbing and first balance ` +
+    `games that build body awareness and coordination in a soft, safe space. Our team ` +
     `will be in touch soon to tell you everything. We'd love to welcome your little one!\n` +
     `— AcroGym Team 🤸`,
-  '6-9': (p) =>
+  '3-4': (p) =>
+    `Hi ${p}! 🤸 Thank you so much for your interest in AcroGym. At this age classes ` +
+    `are playful but structured — balance games, coordination and those first gymnastics ` +
+    `shapes and rolls, all learned through play with caring coaches. Our team will be in ` +
+    `touch soon with all the details. We'd love to welcome your little one!\n` +
+    `— AcroGym Team 🤸`,
+  '4-5': (p) =>
+    `Hi ${p}! 🤸 Thanks so much for reaching out to AcroGym. At this age kids are ready ` +
+    `for real gymnastics foundations — rolls, bridges and first handstands, building ` +
+    `strength, flexibility and focus while having fun. Our team will get back to you soon ` +
+    `with all the details. We can't wait to welcome your child!\n` +
+    `— AcroGym Team 🤸`,
+  '6-8': (p) =>
     `Hi ${p}! 🤸 Thanks so much for reaching out to AcroGym. This is a wonderful ` +
     `age to build real gymnastics skills, strength and confidence — through structured, ` +
     `energetic classes that kids genuinely love. Our team will get back to you soon with ` +
@@ -61,8 +88,10 @@ function ageSegment(raw) {
   const m = String(raw).match(/\d{1,2}/);
   if (!m) return null;
   const age = parseInt(m[0], 10);
-  if (age >= 3 && age <= 5) return '3-5';
-  if (age >= 6 && age <= 9) return '6-9';
+  if (age === 2) return '2-3';
+  if (age === 3) return '3-4';               // boundary age → older group
+  if (age === 4 || age === 5) return '4-5';  // 5 is NOT a baby format (coach, 25.07)
+  if (age >= 6 && age <= 9) return '6-8';    // no separate 9-y group — closest tone
   if (age >= 10 && age <= 14) return '10-14';
   return null; // out of range -> neutral draft
 }
@@ -99,7 +128,7 @@ function buildGreetingPrompt({ parentName, childAge } = {}) {
       'signature, but rephrase it naturally in your own words (do not copy verbatim):\n\n' +
       exemplar,
     maxTokens: 400,
-    model: 'claude-sonnet-5',
+    model: 'claude-opus-5',
   };
 }
 
@@ -159,11 +188,19 @@ const DRIP_TOUCH = {
 // as the style anchor the prompt follows.
 const DRIP_FALLBACK = {
   2: {
-    '3-5': (p) =>
+    '2-3': (p) =>
       `Hi ${p}! Just following up since you got in touch about AcroGym. If you're ` +
-      `wondering how classes work for the little ones — the play, the balance games, ` +
-      `those first confident steps — I'd be glad to walk you through it. Reply whenever suits you. 🤸`,
-    '6-9': (p) =>
+      `wondering how toddler classes work — the movement games, the climbing, those ` +
+      `first balance wins — I'd be glad to walk you through it. Reply whenever suits you. 🤸`,
+    '3-4': (p) =>
+      `Hi ${p}! Just following up since you got in touch about AcroGym. If you're ` +
+      `curious how classes work at this age — playful but structured, with balance games ` +
+      `and first gymnastics shapes — I'd be glad to tell you more. Reply whenever suits you. 🤸`,
+    '4-5': (p) =>
+      `Hi ${p}! Following up after you reached out about AcroGym. If you have any ` +
+      `questions about how we start real gymnastics foundations at this age — rolls, ` +
+      `bridges, first handstands — I'm here, just reply whenever it's convenient. 🤸`,
+    '6-8': (p) =>
       `Hi ${p}! Following up after you reached out about AcroGym. If you have any ` +
       `questions about how we build real gymnastics skills at this age, or what a class ` +
       `actually looks like, I'm here — just reply whenever it's convenient. 🤸`,
@@ -177,11 +214,19 @@ const DRIP_FALLBACK = {
       `happy to help — just reply here whenever it's convenient. 🤸`,
   },
   3: {
-    '3-5': (p) =>
+    '2-3': (p) =>
       `Hi ${p}! A little update from AcroGym — we're opening this September, and we'd ` +
       `love to welcome your little one. If you'd like, I'll make sure you're among the ` +
       `first to know when we start enrolling. Reply whenever you're ready.`,
-    '6-9': (p) =>
+    '3-4': (p) =>
+      `Hi ${p}! Wanted to keep you posted — AcroGym opens this September, and we'd love ` +
+      `to welcome your little one to our playful classes. If you'd like, I can let you ` +
+      `know the moment enrollment opens. No rush — reply whenever suits you.`,
+    '4-5': (p) =>
+      `Hi ${p}! Quick update from AcroGym — we're opening this September, and we'd love ` +
+      `to have your child start their gymnastics journey with us. I can let you know as ` +
+      `soon as enrollment opens. No pressure — just reply whenever you're ready.`,
+    '6-8': (p) =>
       `Hi ${p}! Wanted to keep you posted — AcroGym opens this September, and we'd love ` +
       `to have your child join us. If you're interested, I can let you know the moment ` +
       `enrollment opens. No pressure — just reply whenever suits you.`,
@@ -196,10 +241,10 @@ const DRIP_FALLBACK = {
   },
 };
 
-/** nurture age_segment ('3-5'|'6-9'|'10-14'|'unknown'|null) → fallback/guidance key. */
+/** nurture age_segment ('2-3'|'3-4'|'4-5'|'6-8'|'10-14'|'unknown'|null) → fallback/guidance key. */
+const DRIP_SEG_KEYS = new Set(['2-3', '3-4', '4-5', '6-8', '10-14']);
 function dripSegKey(ageSegment) {
-  return (ageSegment === '3-5' || ageSegment === '6-9' || ageSegment === '10-14')
-    ? ageSegment : 'neutral';
+  return DRIP_SEG_KEYS.has(ageSegment) ? ageSegment : 'neutral';
 }
 
 function dripSystemPrompt(touch, segmentHint) {
@@ -236,7 +281,7 @@ function buildDripPrompt({ touch, parentName, ageSegment } = {}) {
       'rephrase it naturally in your own words (do not copy verbatim):\n\n' +
       exemplar,
     maxTokens: 300,
-    model: 'claude-sonnet-5',
+    model: 'claude-opus-5',
   };
 }
 

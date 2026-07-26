@@ -38,9 +38,14 @@ const logger = createLogger('nurture');
 // Date of birth → age → tone segment
 // ─────────────────────────────────────────────────────────────
 
+// Real class grid (owner + head coach, 25.07.2026). Labels are the marketing
+// group names; a boundary age belongs to the OLDER group (3 → 3-4, 4/5 → 4-5),
+// hence the non-obvious min/max. 9 has no own group → 6-8 tone (closest).
 const SEGMENTS = [
-  { min: 3,  max: 5,  label: '3-5'   },
-  { min: 6,  max: 9,  label: '6-9'   },
+  { min: 2,  max: 2,  label: '2-3'   },
+  { min: 3,  max: 3,  label: '3-4'   },
+  { min: 4,  max: 5,  label: '4-5'   },
+  { min: 6,  max: 9,  label: '6-8'   },
   { min: 10, max: 14, label: '10-14' },
 ];
 

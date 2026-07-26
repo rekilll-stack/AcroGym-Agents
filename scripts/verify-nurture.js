@@ -46,12 +46,12 @@ function seed(lead, captured) {
 const cap = (declared, kids) => ({ declared_count: declared, children: kids, needs_review: false });
 
 const L1 = seed({ row: 101, name: 'Cold New',  phone: '+97411', email: 'c1@x.co', client_type: 'new',       status: 'notified' },
-                cap(1, [{ first_name: 'Cold',  last_name: 'Kid', dob: '5/12/2019' }]));                         // age 7 → 6-9, cold
+                cap(1, [{ first_name: 'Cold',  last_name: 'Kid', dob: '5/12/2019' }]));                         // age 7 → 6-8, cold
 const L2 = seed({ row: 102, name: 'Warm Ret',  phone: '+97412', email: 'c2@x.co', client_type: 'returning', status: 'returning_notified' },
                 cap(1, [{ first_name: 'Warm',  last_name: 'Kid', dob: '1/1/2014' }]));                          // age 12 → 10-14, warm
 const L3 = seed({ row: 103, name: 'Enrolled',  phone: '+97413', email: 'c3@x.co', client_type: 'existing',  status: 'existing_signed' },
                 cap(2, [{ first_name: 'Olesya', last_name: 'K', dob: '1/1/2014' },                              // age 12 → 10-14
-                        { first_name: 'Mia',    last_name: 'K', dob: '6/1/2021' }]));                           // age 5  → 3-5 (youngest → family 3-5)
+                        { first_name: 'Mia',    last_name: 'K', dob: '6/1/2021' }]));                           // age 5  → 4-5 (youngest → family 4-5)
 const L4 = seed({ row: 104, name: 'Dup Exist', phone: '+97414', email: 'c4@x.co', client_type: 'existing',  status: 'duplicate_of_existing' }); // duplicate → excluded
 const L5 = seed({ row: 105, name: 'Legacy',    phone: '+97415', email: 'c5@x.co', client_type: 'legacy',    status: 'notified' });             // legacy → excluded
 const L6 = seed({ row: 106, name: 'Garbage',   phone: '+97416', email: 'c6@x.co', client_type: 'unknown',   status: 'notified' },
@@ -87,8 +87,8 @@ const bcA = nurture.buildChildren(capA, new Date('2026-06-03T00:00:00Z'));
 const amir = bcA.children.find(c => c.first_name === 'Amir');
 const lily = bcA.children.find(c => c.first_name === 'Lily');
 check('A: Amir per-child segment 10-14', amir.segment === '10-14');
-check('A: Lily per-child segment 3-5',   lily.segment === '3-5');
-check('A: family age_segment = youngest (3-5)', bcA.ageSegment === '3-5');
+check('A: Lily per-child segment 4-5',   lily.segment === '4-5');
+check('A: family age_segment = youngest (4-5)', bcA.ageSegment === '4-5');
 
 // Case B — en-dash N=1 block filled, declared 1 → clean.
 const capB = nurture.extractChildren(HEADERS, mkVals({ 5: '1', 6: 'Sara', 7: 'Q', 8: '5/12/2019' }));
@@ -128,10 +128,10 @@ check('L3 children_json keeps ALL children (2)', kids3.length === 2 && en3.child
 const olesya = kids3.find(c => c.first_name === 'Olesya');
 const mia    = kids3.find(c => c.first_name === 'Mia');
 check('L3 Olesya bound to HER dob 1/1/2014 → 10-14', olesya && olesya.dob === '1/1/2014' && olesya.segment === '10-14');
-check('L3 Mia bound to HER dob 6/1/2021 → 3-5',       mia && mia.dob === '6/1/2021' && mia.segment === '3-5');
+check('L3 Mia bound to HER dob 6/1/2021 → 4-5',       mia && mia.dob === '6/1/2021' && mia.segment === '4-5');
 check('L3 first_name kept separate for greeting', typeof olesya.first_name === 'string' && olesya.first_name === 'Olesya');
-check('L3 age_segment = youngest family flag (3-5)', en3.age_segment === '3-5');
-check('L1 age_segment = 6-9 (M/D/YYYY parsed)', en1.age_segment === '6-9');
+check('L3 age_segment = youngest family flag (4-5)', en3.age_segment === '4-5');
+check('L1 age_segment = 6-8 (M/D/YYYY parsed)', en1.age_segment === '6-8');
 check('L2 age_segment = 10-14', en2.age_segment === '10-14');
 check('L6 age_segment = unknown (garbage DOB)', en6.age_segment === 'unknown');
 

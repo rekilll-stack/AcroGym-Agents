@@ -28,14 +28,15 @@ const nurture = require('../shared/nurture');
 let pass = 0, fail = 0;
 const T = (n, c) => { console.log((c ? '  ✅ ' : '  ❌ ') + n); c ? pass++ : fail++; };
 
-const SEGS = ['3-5', '6-9', '10-14', 'neutral', 'unknown', null];
+const SEGS = ['2-3', '3-4', '4-5', '6-8', '10-14', 'neutral', 'unknown', null];
+const REAL_SEGS = new Set(['2-3', '3-4', '4-5', '6-8', '10-14']);
 
 (async () => {
   console.log('=== fallbacks: verbatim, {{name}} substituted, touch-2 has 🤸 / touch-3 has NONE ===');
   for (const touch of [2, 3]) {
     for (const ageSegment of SEGS) {
       const txt = dripFallback({ touch, parentName: 'Sara', ageSegment });
-      const seg = (ageSegment === '3-5' || ageSegment === '6-9' || ageSegment === '10-14') ? ageSegment : 'neutral';
+      const seg = REAL_SEGS.has(ageSegment) ? ageSegment : 'neutral';
       T(`t${touch}/${ageSegment ?? 'null'}: starts "Hi Sara!"`, txt.startsWith('Hi Sara!'));
       T(`t${touch}/${ageSegment ?? 'null'}: no leftover {{name}} placeholder`, !/\{\{?name\}?\}|\$\{/.test(txt));
       if (touch === 2) T(`t2/${ageSegment ?? 'null'}: ends with 🤸`, /🤸$/.test(txt.trim()));
@@ -44,7 +45,7 @@ const SEGS = ['3-5', '6-9', '10-14', 'neutral', 'unknown', null];
     }
   }
   // touch-3 has zero emoji across the whole catalog (explicit, owner's edit)
-  for (const ageSegment of ['3-5', '6-9', '10-14', 'neutral']) {
+  for (const ageSegment of ['2-3', '3-4', '4-5', '6-8', '10-14', 'neutral']) {
     T(`t3/${ageSegment}: contains no emoji char at all`,
       !/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(dripFallback({ touch: 3, parentName: 'Sara', ageSegment })));
     T(`t2/${ageSegment}: DOES carry the 🤸`,
@@ -52,7 +53,7 @@ const SEGS = ['3-5', '6-9', '10-14', 'neutral', 'unknown', null];
   }
 
   console.log('\n=== empty/blank name → "there" ===');
-  T('empty name → "Hi there!"', dripFallback({ touch: 2, parentName: '', ageSegment: '6-9' }).startsWith('Hi there!'));
+  T('empty name → "Hi there!"', dripFallback({ touch: 2, parentName: '', ageSegment: '6-8' }).startsWith('Hi there!'));
   T('whitespace name → "Hi there!"', dripFallback({ touch: 3, parentName: '   ', ageSegment: null }).startsWith('Hi there!'));
 
   console.log('\n=== prompts: touch goal + reused SEGMENT_GUIDANCE / neutral, name + exemplar in user ===');
@@ -61,26 +62,26 @@ const SEGS = ['3-5', '6-9', '10-14', 'neutral', 'unknown', null];
     T(`t${touch}: system reuses 10-14 SEGMENT_GUIDANCE (sport acrobatics)`, /sport acrobatics/.test(realSeg.system) && /Kristina/.test(realSeg.system));
     T(`t${touch}: system English-only + "Hi <name>"`, /English only/.test(realSeg.system) && /Hi <name>/.test(realSeg.system));
     T(`t${touch}: user names the parent + carries the exemplar`, /parent named Sara/.test(realSeg.user) && realSeg.user.includes('Hi Sara!'));
-    T(`t${touch}: model + small token budget`, realSeg.model === 'claude-opus-4-8' && realSeg.maxTokens <= 400);
+    T(`t${touch}: model + small token budget`, realSeg.model === 'claude-opus-5' && realSeg.maxTokens <= 400);
 
     const neutral = buildDripPrompt({ touch, parentName: 'Sara', ageSegment: 'unknown' });
     T(`t${touch}: unknown segment → neutral guidance (no "little one"), avoids age angle`,
       /age is unknown/.test(neutral.system) && /avoid "little one"/.test(neutral.system) && !/sport acrobatics/.test(neutral.system));
   }
   // touch-specific goal wording present
-  T('t2 system: "gentle check-in" follow-up goal', /gentle check-in/.test(buildDripPrompt({ touch: 2, parentName: 'X', ageSegment: '6-9' }).system));
-  T('t3 system: "open this September" + no specific day', /opens this September/.test(buildDripPrompt({ touch: 3, parentName: 'X', ageSegment: '6-9' }).system) && /Do NOT invent a specific day/.test(buildDripPrompt({ touch: 3, parentName: 'X', ageSegment: '6-9' }).system));
-  T('t2 system: at most one light emoji', /one light emoji/.test(buildDripPrompt({ touch: 2, parentName: 'X', ageSegment: '6-9' }).system));
-  T('t3 system: Do NOT use any emoji', /Do NOT use any emoji/.test(buildDripPrompt({ touch: 3, parentName: 'X', ageSegment: '6-9' }).system));
+  T('t2 system: "gentle check-in" follow-up goal', /gentle check-in/.test(buildDripPrompt({ touch: 2, parentName: 'X', ageSegment: '6-8' }).system));
+  T('t3 system: "open this September" + no specific day', /opens this September/.test(buildDripPrompt({ touch: 3, parentName: 'X', ageSegment: '6-8' }).system) && /Do NOT invent a specific day/.test(buildDripPrompt({ touch: 3, parentName: 'X', ageSegment: '6-8' }).system));
+  T('t2 system: at most one light emoji', /one light emoji/.test(buildDripPrompt({ touch: 2, parentName: 'X', ageSegment: '6-8' }).system));
+  T('t3 system: Do NOT use any emoji', /Do NOT use any emoji/.test(buildDripPrompt({ touch: 3, parentName: 'X', ageSegment: '6-8' }).system));
 
   console.log('\n=== buildDripContent: Claude OK → uses model text; Claude down → verbatim fallback ===');
-  const cand = { next_touch: 2, parent_name: 'Sara', age_segment: '6-9' };
+  const cand = { next_touch: 2, parent_name: 'Sara', age_segment: '6-8' };
   const okText = await buildDripContent(cand, { generate: async () => 'MODEL DRAFT ✨' });
   T('Claude returns text → that text is used', okText === 'MODEL DRAFT ✨');
   const downText = await buildDripContent(cand, { generate: async () => { throw new Error('rate limit'); } });
-  T('Claude throws → verbatim fallback returned', downText === dripFallback({ touch: 2, parentName: 'Sara', ageSegment: '6-9' }));
+  T('Claude throws → verbatim fallback returned', downText === dripFallback({ touch: 2, parentName: 'Sara', ageSegment: '6-8' }));
   const emptyText = await buildDripContent(cand, { generate: async () => '' });
-  T('Claude empty string → verbatim fallback returned', emptyText === dripFallback({ touch: 2, parentName: 'Sara', ageSegment: '6-9' }));
+  T('Claude empty string → verbatim fallback returned', emptyText === dripFallback({ touch: 2, parentName: 'Sara', ageSegment: '6-8' }));
 
   console.log('\n=== seam A.3/A.4: real content flows to ADMIN DRAFT, never the client ===');
   const db = getDb();
@@ -91,7 +92,7 @@ const SEGS = ['3-5', '6-9', '10-14', 'neutral', 'unknown', null];
     ref_lead_id: null, raw_data: '{}', status: 'responded' });
   const leadId = db.prepare('SELECT id FROM leads WHERE sheet_row_number=9001').get().id;
   insertNurtureEnrollment({ lead_id: leadId, audience: 'cold', audience_auto: 'cold', audience_override: null,
-    age_segment: '6-9', children_count: 1, children_json: '{}', status: 'active' });
+    age_segment: '6-8', children_count: 1, children_json: '{}', status: 'active' });
   db.prepare("UPDATE nurture_enrollments SET next_due_at=datetime('now','-1 day') WHERE lead_id=?").run(leadId); // due (touch 2)
 
   let captured = null;
@@ -107,7 +108,7 @@ const SEGS = ['3-5', '6-9', '10-14', 'neutral', 'unknown', null];
 
   T('one touch queued', r.queued === 1);
   T('delivered body is REAL content, not the placeholder', captured && !/placeholder/.test(captured.messageText) && captured.messageText.startsWith('Hi Sara!'));
-  T('body == approved verbatim touch-2 / 6-9 fallback', captured.messageText === dripFallback({ touch: 2, parentName: 'Sara', ageSegment: '6-9' }));
+  T('body == approved verbatim touch-2 / 6-8 fallback', captured.messageText === dripFallback({ touch: 2, parentName: 'Sara', ageSegment: '6-8' }));
   const stored = db.prepare("SELECT channel, delivery_status, recipient_phone FROM client_messages WHERE lead_id=? ORDER BY id DESC LIMIT 1").get(leadId);
   T('delivery mechanism UNCHANGED: admin draft (telegram_draft / sent_to_admin)', stored.channel === 'telegram_draft' && stored.delivery_status === 'sent_to_admin');
   T('NOT auto-sent to a client number (recipient_phone NULL)', stored.recipient_phone === null);
