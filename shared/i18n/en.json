@@ -481,5 +481,15 @@
     "status_response_none": "Response rate: — (no leads)",
     "chart_no_data": "No daily activity for this period",
     "pie_no_data": "No source data for this period"
+  },
+  "charts": {
+    "daily_trend": "Last 7 days — leads per day",
+    "daily_dow": "Leads by Day of Week (28d)",
+    "daily_hour": "Leads by Hour of Day (28d)",
+    "weekly_cmp": "This Week vs Last Week",
+    "weekly_sources": "Source Breakdown (this week)",
+    "weekly_trend": "Daily Leads Trend (last 4 weeks)",
+    "series_this_week": "This week",
+    "series_prev_week": "Previous week"
   }
 }

@@ -283,7 +283,7 @@ async function renderHeatmap({ title, data, width = 800, height = 400 }) {
 // renderWeeklyComparison — две недели: 2 категориальных цвета + легенда
 // ─────────────────────────────────────────────────────────────
 
-async function renderWeeklyComparison({ title, current_week, previous_week, labels, width = 800, height = 400 }) {
+async function renderWeeklyComparison({ title, current_week, previous_week, labels, series_labels = ['This week', 'Previous week'], width = 800, height = 400 }) {
   const palette = _palette();
   const canvas  = _canvas(width, height);
 
@@ -301,8 +301,8 @@ async function renderWeeklyComparison({ title, current_week, previous_week, labe
     data: {
       labels,
       datasets: [
-        bar('This week',     current_week,  palette.series[0]),
-        bar('Previous week', previous_week, palette.series[1]),
+        bar(series_labels[0], current_week,  palette.series[0]),
+        bar(series_labels[1], previous_week, palette.series[1]),
       ],
     },
     options: {

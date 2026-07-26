@@ -28,7 +28,7 @@ module.exports = async function handleYesterday(msg, bot) {
   try {
     await bot.sendMessage(chatId, t('common.loading', langList[0]), { parse_mode: 'MarkdownV2' });
     for (const l of langList) {
-      await sendDailyDigest({ withCharts: false, lang: l });
+      await sendDailyDigest({ withCharts: false, lang: l, chatIds: [chatId] });
     }
   } catch (err) {
     logger.error({ err }, '/yesterday command failed');

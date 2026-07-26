@@ -43,7 +43,7 @@ async function menuCallbackHandler(query, bot) {
         t('common.loading', prefLang === 'both' ? 'en' : prefLang),
         { parse_mode: 'MarkdownV2' });
       for (const l of langList(prefLang)) {
-        await sendDailyDigest({ withCharts: false, lang: l }).catch(err =>
+        await sendDailyDigest({ withCharts: false, lang: l, chatIds: [chatId] }).catch(err =>
           bot.sendMessage(chatId, `❌ ${err.message}`).catch(() => {}));
       }
       break;
@@ -58,7 +58,7 @@ async function menuCallbackHandler(query, bot) {
         t('common.loading', prefLang === 'both' ? 'en' : prefLang),
         { parse_mode: 'MarkdownV2' });
       for (const l of langList(prefLang)) {
-        await sendWeeklySlice({ lang: l }).catch(err =>
+        await sendWeeklySlice({ lang: l, chatIds: [chatId] }).catch(err =>
           bot.sendMessage(chatId, `❌ ${err.message}`).catch(() => {}));
       }
       break;
@@ -73,7 +73,7 @@ async function menuCallbackHandler(query, bot) {
         t('common.loading', prefLang === 'both' ? 'en' : prefLang),
         { parse_mode: 'MarkdownV2' });
       for (const l of langList(prefLang)) {
-        await sendMonthlyReport({ lang: l }).catch(err =>
+        await sendMonthlyReport({ lang: l, chatIds: [chatId] }).catch(err =>
           bot.sendMessage(chatId, `❌ ${err.message}`).catch(() => {}));
       }
       break;

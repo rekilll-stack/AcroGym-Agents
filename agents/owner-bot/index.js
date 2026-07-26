@@ -52,20 +52,20 @@ const { resumeStaleBroadcasts }   = require('../../shared/broadcast/dispatcher')
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
 
-// Languages for scheduled owner reports, resolved from each owner's saved
-// preference (user_preferences). 'both' or an unset preference falls back to
-// both languages, so a fresh owner who hasn't chosen yet still gets the report.
-// Union across owner chats: no owner ever misses their language.
-function scheduledLangs() {
+// Per-owner language routing for scheduled reports (26.07: раньше языки
+// объединялись и КАЖДЫЙ владелец получал ВСЕ языки — выбранный 'ru' не отключал
+// EN-копию). Теперь: каждый чат получает отчёт только на своём языке;
+// 'both' или отсутствие выбора → этому чату идут оба языка.
+function langRecipients() {
   const ids = (process.env.OWNER_CHAT_IDS || '')
     .split(',').map(s => Number(s.trim())).filter(Boolean);
-  const langs = new Set();
+  const map = { en: [], ru: [] };
   for (const id of ids) {
     const pref = getPreferredLanguage(id);
-    if (pref === 'en' || pref === 'ru') langs.add(pref);
-    else { langs.add('en'); langs.add('ru'); }
+    const langs = (pref === 'en' || pref === 'ru') ? [pref] : ['en', 'ru'];
+    for (const l of langs) map[l].push(id);
   }
-  return langs.size ? [...langs] : ['en', 'ru'];
+  return map;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -216,8 +216,9 @@ async function start() {
 
   // ── Cron: daily digest 08:00 Asia/Qatar — owner's chosen language(s) ─
   cron.schedule('0 8 * * *', async () => {
-    for (const lang of scheduledLangs()) {
-      await sendDailyDigest({ withCharts: true, lang }).catch(err =>
+    for (const [lang, chatIds] of Object.entries(langRecipients())) {
+      if (!chatIds.length) continue;
+      await sendDailyDigest({ withCharts: true, lang, chatIds }).catch(err =>
         logger.error({ err, lang }, 'sendDailyDigest cron unhandled error')
       );
     }
@@ -225,8 +226,9 @@ async function start() {
 
   // ── Cron: weekly slice 09:00 Monday — owner's chosen language(s) ────
   cron.schedule('0 9 * * 1', async () => {
-    for (const lang of scheduledLangs()) {
-      await sendWeeklySlice({ lang }).catch(err =>
+    for (const [lang, chatIds] of Object.entries(langRecipients())) {
+      if (!chatIds.length) continue;
+      await sendWeeklySlice({ lang, chatIds }).catch(err =>
         logger.error({ err, lang }, 'sendWeeklySlice cron unhandled error')
       );
     }
@@ -234,8 +236,9 @@ async function start() {
 
   // ── Cron: monthly 10:00 1st of month — owner's chosen language(s) ───
   cron.schedule('0 10 1 * *', async () => {
-    for (const lang of scheduledLangs()) {
-      await sendMonthlyReport({ lang }).catch(err =>
+    for (const [lang, chatIds] of Object.entries(langRecipients())) {
+      if (!chatIds.length) continue;
+      await sendMonthlyReport({ lang, chatIds }).catch(err =>
         logger.error({ err, lang }, 'sendMonthlyReport cron unhandled error')
       );
     }

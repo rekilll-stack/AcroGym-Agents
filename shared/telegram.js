@@ -107,12 +107,15 @@ async function sendToAdmin(text, options = {}) {
  * parse_mode по умолчанию: MarkdownV2 (все строки Owner bot написаны для MDv2).
  */
 async function sendToOwner(text, options = {}) {
-  const chatIds = parseChatIds('OWNER_CHAT_IDS');
+  // options.chatIds — адресный подмножество OWNER_CHAT_IDS (языковая маршрутизация
+  // отчётов, 26.07): без него сообщение уходит во ВСЕ owner-чаты.
+  const { chatIds: override, ...opts } = options;
+  const chatIds = (override && override.length) ? override : parseChatIds('OWNER_CHAT_IDS');
   if (!chatIds.length) {
     logger.warn('OWNER_CHAT_IDS не задан — сообщение не отправлено');
     return [];
   }
-  return _send(getOwnerBot(), chatIds, text, { parse_mode: 'MarkdownV2', ...options });
+  return _send(getOwnerBot(), chatIds, text, { parse_mode: 'MarkdownV2', ...opts });
 }
 
 /**
@@ -195,8 +198,8 @@ async function sendPhotoToOwner(buffer, caption, options = {}) {
  * @param {Buffer[]} buffers  — массив PNG-буферов
  * @param {string}   [caption]  — подпись к первому фото
  */
-async function sendMediaGroupToOwner(buffers, caption) {
-  const chatIds = parseChatIds('OWNER_CHAT_IDS');
+async function sendMediaGroupToOwner(buffers, caption, { chatIds: override } = {}) {
+  const chatIds = (override && override.length) ? override : parseChatIds('OWNER_CHAT_IDS');
   if (!chatIds.length) return;
 
   const bot = getOwnerBot();

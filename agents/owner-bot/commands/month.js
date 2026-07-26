@@ -28,7 +28,7 @@ module.exports = async function handleMonth(msg, bot) {
   try {
     await bot.sendMessage(chatId, t('common.loading', langList[0]), { parse_mode: 'MarkdownV2' });
     for (const l of langList) {
-      await sendMonthlyReport({ lang: l });
+      await sendMonthlyReport({ lang: l, chatIds: [chatId] });
     }
     // PDF download button after the report
     await bot.sendMessage(chatId, '📄', {

@@ -54,7 +54,7 @@ async function runAction(action, lang, chatId, bot) {
     case 'yesterday':
       await bot.sendMessage(chatId, t('common.loading', displayLang), { parse_mode: 'MarkdownV2' });
       for (const l of langList) {
-        await sendDailyDigest({ withCharts: false, lang: l }).catch(err =>
+        await sendDailyDigest({ withCharts: false, lang: l, chatIds: [chatId] }).catch(err =>
           logger.error({ err, lang: l }, '[lang-callback] sendDailyDigest failed')
         );
       }
@@ -63,7 +63,7 @@ async function runAction(action, lang, chatId, bot) {
     case 'week':
       await bot.sendMessage(chatId, t('common.loading', displayLang), { parse_mode: 'MarkdownV2' });
       for (const l of langList) {
-        await sendWeeklySlice({ lang: l }).catch(err =>
+        await sendWeeklySlice({ lang: l, chatIds: [chatId] }).catch(err =>
           logger.error({ err, lang: l }, '[lang-callback] sendWeeklySlice failed')
         );
       }
@@ -72,7 +72,7 @@ async function runAction(action, lang, chatId, bot) {
     case 'month':
       await bot.sendMessage(chatId, t('common.loading', displayLang), { parse_mode: 'MarkdownV2' });
       for (const l of langList) {
-        await sendMonthlyReport({ lang: l }).catch(err =>
+        await sendMonthlyReport({ lang: l, chatIds: [chatId] }).catch(err =>
           logger.error({ err, lang: l }, '[lang-callback] sendMonthlyReport failed')
         );
       }

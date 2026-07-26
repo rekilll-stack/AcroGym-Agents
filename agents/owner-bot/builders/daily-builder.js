@@ -32,7 +32,7 @@ const logger       = createLogger('owner-bot');
 const TIMEZONE     = process.env.TIMEZONE || 'Asia/Qatar';
 const OPENING_DATE = '2026-09-01';
 
-// Short day labels for charts (always EN — chart axis labels)
+// Short EN day names — keys for SQL day-of-week data; axis labels are translated in renderCharts
 const DOW_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 // dayjs.day() → day_names key mapping (0=Sunday)
@@ -164,21 +164,26 @@ function buildTimeOfDay(days = 28) {
   }
 }
 
-async function buildInsight(stats) {
+async function buildInsight(stats, lang = 'en') {
   try {
+    // Insight follows the digest language (26.07 — was always-EN, owner wants RU).
+    const outLang = lang === 'ru' ? 'Russian' : 'English';
+    const canned  = lang === 'ru'
+      ? 'Данных пока мало для содержательных выводов.'
+      : 'Not enough data yet for meaningful insights.';
     const systemPrompt =
       'You are a business analyst for AcroGym, a children\'s gymnastics center in Qatar opening September 2026. ' +
       'Given yesterday\'s stats and 7-day trends, write ONE concise insight (1-2 sentences) that highlights ' +
       'something noteworthy: an anomaly, a pattern, a risk, or an opportunity. Be specific (use numbers). ' +
-      'No fluff, no generic advice. If data is too sparse for meaningful insight — say exactly: ' +
-      '"Not enough data yet for meaningful insights."';
+      `No fluff, no generic advice. Write in ${outLang}. If data is too sparse for meaningful insight — say exactly: ` +
+      `"${canned}"`;
 
     return await Promise.race([
       generateText({
         system:    systemPrompt,
         user:      JSON.stringify(stats, null, 2),
         maxTokens: 200,
-        model:     'claude-sonnet-5',
+        model:     'claude-opus-5',
       }),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Claude insight timeout (15s)')), 15000)
@@ -228,22 +233,23 @@ function buildYesterdayResponded(dateStr) {
   }
 }
 
-async function renderCharts(chartData) {
+async function renderCharts(chartData, tr) {
   try {
     const { renderLineChart, renderBarChart, renderHeatmap } = require('../../../shared/chart');
+    const dowNames = tr.tObj('day_names_short'); // {mon:'Пн'|'Mon',...} — data keys stay EN
     const [c1, c2, c3] = await Promise.all([
       renderLineChart({
-        title:  'Last 7 days — leads per day',
+        title:  tr.t('charts.daily_trend'),
         labels: chartData.trend.labels,
         data:   chartData.trend.data,
       }),
       renderBarChart({
-        title:  'Leads by Day of Week (28d)',
-        labels: DOW_SHORT,
+        title:  tr.t('charts.daily_dow'),
+        labels: DOW_SHORT.map(d => dowNames[d.toLowerCase()] || d),
         data:   DOW_SHORT.map(d => chartData.dayOfWeek[d] || 0),
       }),
       renderHeatmap({
-        title: 'Leads by Hour of Day (28d)',
+        title: tr.t('charts.daily_hour'),
         data:  chartData.timeOfDay,
       }),
     ]);
@@ -336,7 +342,7 @@ async function buildDigest({ dryRun = false, withCharts = false, lang = 'en' } =
     timeOfDay: todData,
   };
 
-  // ── Insight (Claude, always English) ─────────────────────
+  // ── Insight (Claude, digest language) ────────────────────
   const insightStats = {
     yesterday: { total: totalCount, new: newCount, existing: existingCount, returning: returningCount },
     response:  { responded: stats.responded, unanswered: stats.unanswered },
@@ -344,11 +350,11 @@ async function buildDigest({ dryRun = false, withCharts = false, lang = 'en' } =
     pending:   { today: stats.unanswered, long_24h: longPending.length },
     goal:      { days_left: daysLeft, accumulated: totalAccumulated, needed: neededLeads, required_pace: requiredPace },
   };
-  const insightText = await buildInsight(insightStats);
+  const insightText = await buildInsight(insightStats, lang);
 
   // ── Chart buffers ─────────────────────────────────────────
   let chartBuffers = [];
-  if (withCharts) chartBuffers = await renderCharts(chartData);
+  if (withCharts) chartBuffers = await renderCharts(chartData, tr);
 
   // ─────────────────────────────────────────────────────────
   // Build MarkdownV2 text

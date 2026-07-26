@@ -30,7 +30,7 @@ module.exports = async function handleWeek(msg, bot) {
   try {
     await bot.sendMessage(chatId, t('common.loading', langList[0]), { parse_mode: 'MarkdownV2' });
     for (const l of langList) {
-      await sendWeeklySlice({ lang: l });
+      await sendWeeklySlice({ lang: l, chatIds: [chatId] });
     }
   } catch (err) {
     logger.error({ err }, '/week command failed');

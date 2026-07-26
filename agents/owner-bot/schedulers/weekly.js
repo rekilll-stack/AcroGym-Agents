@@ -25,7 +25,7 @@ const logger = createLogger('owner-bot');
  * @param {boolean} [opts.dryRun=false]
  * @param {string}  [opts.lang='en']
  */
-async function sendWeeklySlice({ withCharts = false, dryRun = false, lang = 'en' } = {}) {
+async function sendWeeklySlice({ withCharts = false, dryRun = false, lang = 'en', chatIds = null } = {}) {
   logger.info({ dryRun, withCharts, lang }, '[weekly] Building weekly slice...');
 
   let slice;
@@ -35,7 +35,8 @@ async function sendWeeklySlice({ withCharts = false, dryRun = false, lang = 'en'
     logger.error({ err }, '[weekly] buildWeeklySlice failed');
     if (!dryRun) {
       await sendToOwner(
-        `🚨 Owner\-bot: weekly slice build failed\n\`${escapeMd(err.message)}\``
+        `🚨 Owner\-bot: weekly slice build failed\n\`${escapeMd(err.message)}\``,
+        { chatIds },
       ).catch(() => {});
     }
     return;
@@ -79,7 +80,7 @@ async function sendWeeklySlice({ withCharts = false, dryRun = false, lang = 'en'
 
   // ── REAL SEND ─────────────────────────────────────────────
   try {
-    const results = await sendToOwner(slice.text, { reply_markup: backKeyboard(lang) });
+    const results = await sendToOwner(slice.text, { reply_markup: backKeyboard(lang), chatIds });
     if (results.length > 0) {
       logger.info('[weekly] Weekly slice main message sent');
     } else {
@@ -87,6 +88,7 @@ async function sendWeeklySlice({ withCharts = false, dryRun = false, lang = 'en'
       logger.error('[weekly] sendToOwner returned 0 results — Telegram likely rejected the message (MarkdownV2 parse error?)');
       await sendToOwner(
         '⚠️ Weekly slice generated but failed to send \\(formatting error\\)\\. Check PM2 logs\\.',
+        { chatIds },
       ).catch(() => {});
     }
   } catch (err) {
@@ -96,7 +98,7 @@ async function sendWeeklySlice({ withCharts = false, dryRun = false, lang = 'en'
   if (slice.chartBuffers.length > 0) {
     const tr = createTranslator(lang);
     try {
-      await sendMediaGroupToOwner(slice.chartBuffers, tr.t('weekly.section_charts'));
+      await sendMediaGroupToOwner(slice.chartBuffers, tr.t('weekly.section_charts'), { chatIds });
       logger.info(`[weekly] ${slice.chartBuffers.length} chart(s) sent`);
     } catch (err) {
       logger.error({ err }, '[weekly] Failed to send weekly charts');

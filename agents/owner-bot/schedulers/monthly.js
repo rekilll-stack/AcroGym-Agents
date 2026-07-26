@@ -22,7 +22,7 @@ const logger = createLogger('owner-bot');
  * @param {string}  [opts.lang='en']
  * @param {string}  [opts.month]       — YYYY-MM; defaults to last calendar month
  */
-async function sendMonthlyReport({ dryRun = false, lang = 'en', month } = {}) {
+async function sendMonthlyReport({ dryRun = false, lang = 'en', month, chatIds = null } = {}) {
   logger.info({ dryRun, lang, month }, '[monthly] Building monthly report...');
 
   let report;
@@ -32,7 +32,8 @@ async function sendMonthlyReport({ dryRun = false, lang = 'en', month } = {}) {
     logger.error({ err }, '[monthly] buildMonthlyReport failed');
     if (!dryRun) {
       await sendToOwner(
-        `🚨 Owner\-bot: monthly report build failed\n\`${escapeMd(err.message)}\``
+        `🚨 Owner\-bot: monthly report build failed\n\`${escapeMd(err.message)}\``,
+        { chatIds },
       ).catch(() => {});
     }
     return;
@@ -64,13 +65,14 @@ async function sendMonthlyReport({ dryRun = false, lang = 'en', month } = {}) {
 
   // ── REAL SEND ─────────────────────────────────────────────
   try {
-    const results = await sendToOwner(report.text, { reply_markup: backKeyboard(lang) });
+    const results = await sendToOwner(report.text, { reply_markup: backKeyboard(lang), chatIds });
     if (results.length > 0) {
       logger.info('[monthly] Monthly report summary sent');
     } else {
       logger.error('[monthly] sendToOwner returned 0 results — Telegram likely rejected the message (MarkdownV2 parse error?)');
       await sendToOwner(
         '⚠️ Monthly report generated but failed to send \\(formatting error\\)\\. Check PM2 logs\\.',
+        { chatIds },
       ).catch(() => {});
     }
   } catch (err) {

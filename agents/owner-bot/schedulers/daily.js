@@ -25,7 +25,7 @@ const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
  * @param {boolean} [opts.dryRun=false]
  * @param {string}  [opts.lang='en']
  */
-async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en' } = {}) {
+async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en', chatIds = null } = {}) {
   logger.info({ dryRun, withCharts, lang }, '[daily] Building digest...');
 
   let digest;
@@ -96,13 +96,14 @@ async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en'
 
   // Part 1: main text (MarkdownV2)
   try {
-    const results = await sendToOwner(digest.text, { reply_markup: backKeyboard(lang) });
+    const results = await sendToOwner(digest.text, { reply_markup: backKeyboard(lang), chatIds });
     if (results.length > 0) {
       logger.info('[daily] Digest main message sent');
     } else {
       logger.error('[daily] sendToOwner returned 0 results — Telegram likely rejected the message (MarkdownV2 parse error?)');
       await sendToOwner(
         '⚠️ Daily digest generated but failed to send \\(formatting error\\)\\. Check PM2 logs\\.',
+        { chatIds },
       ).catch(() => {});
     }
   } catch (err) {
@@ -133,7 +134,7 @@ async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en'
       }
 
       keyboard.push(backKeyboard(lang).inline_keyboard[0]); // append "⬅ Back to menu" row
-      await sendToOwner(listText, { reply_markup: { inline_keyboard: keyboard } });
+      await sendToOwner(listText, { reply_markup: { inline_keyboard: keyboard }, chatIds });
       logger.info({ count: pending.length }, '[daily] Pending list sent');
     } catch (err) {
       logger.error({ err }, '[daily] Failed to send pending list');
@@ -143,7 +144,7 @@ async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en'
   // Part 3: charts (caption safe — no special chars)
   if (digest.chartBuffers.length > 0) {
     try {
-      await sendMediaGroupToOwner(digest.chartBuffers, tr.t('daily.charts_caption'));
+      await sendMediaGroupToOwner(digest.chartBuffers, tr.t('daily.charts_caption'), { chatIds });
       logger.info(`[daily] ${digest.chartBuffers.length} chart(s) sent`);
     } catch (err) {
       logger.error({ err }, '[daily] Failed to send charts');

@@ -84,7 +84,7 @@ async function buildWeeklyInsight(stats) {
           'Respond ONLY with valid JSON in this exact shape: {"en": "<english text>", "ru": "<russian text>"}',
         user:      JSON.stringify(stats, null, 2),
         maxTokens: 300,
-        model:     'claude-sonnet-5',
+        model:     'claude-opus-5',
       }),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Claude insight timeout (15s)')), 15000)
@@ -109,7 +109,8 @@ async function buildWeeklyInsight(stats) {
 // Charts
 // ─────────────────────────────────────────────────────────────
 
-async function renderWeeklyCharts({ thisWeekDays, prevWeekDays, sourceRows, trend28 }) {
+async function renderWeeklyCharts({ thisWeekDays, prevWeekDays, sourceRows, trend28 }, tr) {
+  const dowNames = tr.tObj('day_names_short'); // axis labels translated; data keys stay EN
   const { renderWeeklyComparison, renderBarChart, renderLineChart } = require('../../../shared/chart');
   const buffers = [];
 
@@ -119,8 +120,9 @@ async function renderWeeklyCharts({ thisWeekDays, prevWeekDays, sourceRows, tren
       const thisMap = Object.fromEntries(thisWeekDays.map(r => [dayjs(r.day).format('ddd'), r.cnt]));
       const prevMap = Object.fromEntries(prevWeekDays.map(r => [dayjs(r.day).format('ddd'), r.cnt]));
       buffers.push(await renderWeeklyComparison({
-        title:         'This Week vs Last Week',
-        labels:        DOW_SHORT,
+        title:         tr.t('charts.weekly_cmp'),
+        labels:        DOW_SHORT.map(d => dowNames[d.toLowerCase()] || d),
+        series_labels: [tr.t('charts.series_this_week'), tr.t('charts.series_prev_week')],
         current_week:  DOW_SHORT.map(d => thisMap[d] || 0),
         previous_week: DOW_SHORT.map(d => prevMap[d] || 0),
       }));
@@ -133,7 +135,7 @@ async function renderWeeklyCharts({ thisWeekDays, prevWeekDays, sourceRows, tren
   try {
     if (sourceRows.length > 0) {
       buffers.push(await renderBarChart({
-        title:  'Source Breakdown (this week)',
+        title:  tr.t('charts.weekly_sources'),
         labels: sourceRows.map(r => r.source),
         data:   sourceRows.map(r => r.cnt),
       }));
@@ -146,7 +148,7 @@ async function renderWeeklyCharts({ thisWeekDays, prevWeekDays, sourceRows, tren
   try {
     if (trend28.length > 0) {
       buffers.push(await renderLineChart({
-        title:  'Daily Leads Trend (last 4 weeks)',
+        title:  tr.t('charts.weekly_trend'),
         labels: trend28.map(r => r.day.slice(5)),  // MM-DD — chart PNG, no MDv2 escaping
         data:   trend28.map(r => r.cnt),
       }));
@@ -244,7 +246,7 @@ async function buildWeeklySlice({ lang = 'en', withCharts = false, dryRun = fals
   // ── Charts (only if requested) ────────────────────────────
   let chartBuffers = [];
   if (withCharts) {
-    chartBuffers = await renderWeeklyCharts({ thisWeekDays, prevWeekDays, sourceRows, trend28 });
+    chartBuffers = await renderWeeklyCharts({ thisWeekDays, prevWeekDays, sourceRows, trend28 }, tr);
   }
 
   // ─────────────────────────────────────────────────────────
