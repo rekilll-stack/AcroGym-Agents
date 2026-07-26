@@ -130,7 +130,7 @@ function _runMigrations(db) {
     //   audience       = effective tone bucket (override ?? auto): cold|warm|enrolled
     //   audience_auto  = derived from client_type
     //   audience_override = manual correction (heuristic is fallible) — null until set
-    //   age_segment    = marketing tone segment from youngest child: 3-5|6-9|10-14|unknown
+    //   age_segment    = marketing tone segment from youngest child: 2-3|3-4|4-5|6-8|10-14|unknown (grid since 25.07.2026; legacy rows recomputed)
     //   children_json  = ALL children [{dob,age,segment}] — nothing dropped
     //   status         = enrollment lifecycle (active|paused), NOT per-message delivery
     () => db.exec(`CREATE TABLE IF NOT EXISTS nurture_enrollments (
@@ -318,6 +318,17 @@ function getLeadsNeedingReminder(reminderHours, repeatHours = 24) {
         OR (reminder_sent_at IS NOT NULL AND reminder_sent_at <= datetime('now', ? || ' hours'))
       )
   `).all(`-${reminderHours}`, `-${repeatHours}`);
+}
+
+/**
+ * Display position of a lead among real (non-legacy) leads: 1 = first real lead.
+ * Used for card headers when sheet_row_number is NULL (uid-ingested leads) —
+ * the raw autoincrement id (131 for the 2nd real lead) confused the owner.
+ */
+function countRealLeadsUpTo(leadId) {
+  return getDb().prepare(
+    `SELECT COUNT(*) AS n FROM leads WHERE client_type != 'legacy' AND id <= ?`
+  ).get(leadId).n;
 }
 
 /**
@@ -1081,6 +1092,7 @@ module.exports = {
   updateLeadStatusById,
   updateLeadGreeting,
   getLeadsNeedingReminder,
+  countRealLeadsUpTo,
   getWeeklySourceFunnel,
   findExistingLead,
   getAllPending,

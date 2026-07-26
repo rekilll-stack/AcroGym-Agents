@@ -27,6 +27,7 @@ const {
   updateLeadGreeting,
   updateLeadChildrenDob,
   getLeadsNeedingReminder,
+  countRealLeadsUpTo,
   findExistingLead,
 } = require('../../shared/db');
 const { markRespondedHandler, copyTextHandler } = require('../../shared/callbacks');
@@ -434,8 +435,11 @@ async function checkReminders() {
   for (const lead of leads) {
     try {
       // Display number = position among real leads (row 2 = lead #1); uid-based
-      // (Meta) leads have no row number, so those fall back to the internal id.
-      const label  = lead.sheet_row_number != null ? lead.sheet_row_number - 1 : lead.id;
+      // leads have no row number → position among non-legacy leads (26.07: raw
+      // internal id showed "Lead #131" for the 2nd real lead, owner confused).
+      const label  = lead.sheet_row_number != null
+        ? lead.sheet_row_number - 1
+        : countRealLeadsUpTo(lead.id);
       const waitedH = Math.round((Date.now() - new Date(lead.notified_at).getTime()) / 3600000);
       // 48h+ unanswered = escalation, not a routine nudge (owner ask 2026-07-13).
       const header = waitedH >= 48
