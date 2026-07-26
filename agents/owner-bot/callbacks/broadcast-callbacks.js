@@ -34,7 +34,9 @@ const CONFIRM_THRESHOLD = 20;
 
 const logger = createLogger('owner-bot');
 
-const AGE_BANDS = { '3-5': [3, 5], '6-9': [6, 9], '10-14': [10, 14] };
+// Real class grid (owner, 25.07.2026) — same boundaries as nurture SEGMENTS:
+// boundary age → older group (3→3-4, 4/5→4-5); 9 rides with 6-8 (no own group).
+const AGE_BANDS = { '2-3': [2, 2], '3-4': [3, 3], '4-5': [4, 5], '6-8': [6, 9], '10-14': [10, 14] };
 
 const lang = (chatId) => getPreferredLanguage(chatId) || 'en';
 
@@ -174,8 +176,12 @@ async function onCallback(query, bot) {
           parse_mode: 'MarkdownV2',
           reply_markup: { inline_keyboard: [
             [
-              { text: '3–5',   callback_data: 'broadcast:age:3-5'   },
-              { text: '6–9',   callback_data: 'broadcast:age:6-9'   },
+              { text: '2–3', callback_data: 'broadcast:age:2-3' },
+              { text: '3–4', callback_data: 'broadcast:age:3-4' },
+              { text: '4–5', callback_data: 'broadcast:age:4-5' },
+            ],
+            [
+              { text: '6–8',   callback_data: 'broadcast:age:6-8'   },
               { text: '10–14', callback_data: 'broadcast:age:10-14' },
             ],
             [{ text: `❌ ${t('common.cancel', l)}`, callback_data: 'broadcast:cancel' }],

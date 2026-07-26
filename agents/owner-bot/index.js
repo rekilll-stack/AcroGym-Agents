@@ -2,7 +2,7 @@
 
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 
-process.setMaxListeners(25); // many plugins + cron + guards = plenty of listeners
+process.setMaxListeners(30); // many plugins + cron + guards = 26+ exit listeners (warning seen at 25)
 
 const cron = require('node-cron');
 
