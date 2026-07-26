@@ -277,7 +277,7 @@ async function selectBest(count, { folder, exclude = [], topic = '', story = fal
   const visSet = await pickSetVision(visCands, count, topic);
   if (visSet) {
     const photos = [];
-    for (const p of visSet) photos.push({ buffer: await yandex.downloadBuffer(p.path), name: p.name, path: p.path });
+    for (const p of visSet) photos.push({ buffer: await yandex.downloadBuffer(p.path), name: p.name, path: p.path, caption: p.caption, subject: p.subject });
     const rest = ordered.filter((p) => p.faces_ok !== false && !visSet.includes(p));
     return { photos, backups: rest.slice(0, 8).map((p) => ({ path: p.path, name: p.name, faces_ok: p.faces_ok, joyful: p.joyful, subject: p.subject })), ranked: visSet.map((p) => p.path) };
   }
@@ -338,7 +338,7 @@ async function selectBest(count, { folder, exclude = [], topic = '', story = fal
   }
 
   const photos = [];
-  for (const p of final) photos.push({ buffer: await yandex.downloadBuffer(p.path), name: p.name, path: p.path });
+  for (const p of final) photos.push({ buffer: await yandex.downloadBuffer(p.path), name: p.name, path: p.path, caption: p.caption, subject: p.subject });
   logger.info({
     chosen: final.length, fromCatalog: true, cover: final[0] && final[0].name,
     picks: final.map((p) => `${p.subject}:${p.name}`),
@@ -401,4 +401,42 @@ async function selectBestVision(count, { folder, exclude = [], topic = '' } = {}
   return { photos, backups: ranked.slice(count, count + 3), ranked: ranked.map((c) => c.path) };
 }
 
-module.exports = { selectBest, selectBestVision, loadCatalog, recordUsed };
+// ── 🔍 СКАУТ: строгий подбор под КОНКРЕТНЫЙ запрос владельца (смотрит на кадры и
+//    берёт только те, что РЕАЛЬНО показывают запрошенное; если нет — возвращает мало/ничего).
+const SCOUT_MATCH_SYSTEM = `You are a photo scout for AcroGym Qatar (kids' gymnastics & acrobatics, Doha). The owner asked for photos matching a SPECIFIC request. You are shown numbered candidate photos. Return ONLY the ones that GENUINELY match the request — the actual action/subject described. Examples: if they ask for "jumping / mid-air", pick ONLY photos where a child is clearly airborne or leaping — NOT handstands, headstands, poses, splits, or standing shots; if they ask for "handstand", pick only handstands. Be strict: a photo that is merely gymnastics-related but does NOT show the requested thing is a WRONG pick. Order best match first. If FEWER photos match than requested, return only the genuine matches. If NONE match, return an empty list. Never pad with unrelated photos. Reply STRICT JSON only, once: {"picks":[indices]}.`;
+
+async function scoutCandidates(theme, count = 6) {
+  const cat = loadCatalog().filter((p) => p && p.phash && p.faces_ok !== false
+    && p.subject !== 'crowd' && p.subject !== 'facility' && p.subject !== 'object' && p.subject !== 'coach');
+  if (!cat.length) return { photos: [], weak: true };
+  // Грубая текстовая релевантность → сузить пул под превью (теги неточные, поэтому дальше — зрение).
+  cat.sort((a, b) => ((b.quality || 0) + (b.vertical_crop || 0)) - ((a.quality || 0) + (a.vertical_crop || 0)));
+  let pool = cat;
+  try {
+    const list = cat.slice(0, 80).map((p, i) => `${i}. [${p.subject}] ${p.caption} {${(p.tags || []).join(',')}}`).join('\n');
+    const raw = await generateText({ system: RANK_SYSTEM, user: `TOPIC: ${theme}\n\nPHOTOS:\n${list}\n\nReturn {"order":[...]}.`, maxTokens: 500, model: RANK_MODEL });
+    const v = parseJson(raw);
+    if (v && Array.isArray(v.order)) pool = v.order.map((i) => cat[i]).filter(Boolean);
+  } catch (err) { logger.warn({ err: err.message }, 'scout text-rank failed → quality order'); }
+  const cand = pool.slice(0, 18);
+  const prevs = await fetchPreviews(cand, 'L');
+  if (!prevs.length) return { photos: [], weak: true };
+  let picks = [];
+  try {
+    const raw = await generateText({
+      system: SCOUT_MATCH_SYSTEM,
+      user: `The owner wants photos of: "${theme}". You see ${prevs.length} candidates numbered 0..${prevs.length - 1}. Pick up to ${count} that GENUINELY show that, best first. If fewer truly match, return fewer. Return {"picks":[...]}.`,
+      images: prevs.map((x) => x.img), maxTokens: 120, model: SELECT_MODEL,
+    });
+    const v = parseJson(raw);
+    if (v && Array.isArray(v.picks)) picks = v.picks.filter((n) => Number.isInteger(n) && n >= 0 && n < prevs.length);
+  } catch (err) { logger.warn({ err: err.message }, 'scout vision match failed'); }
+  const seen = new Set();
+  const chosen = picks.map((n) => cand[prevs[n].i]).filter((p) => p && !seen.has(p.path) && seen.add(p.path)).slice(0, count);
+  const photos = [];
+  for (const p of chosen) { try { photos.push({ buffer: await yandex.downloadBuffer(p.path), name: p.name, path: p.path }); } catch (e) { logger.warn({ e: e.message }, 'scout candidate download'); } }
+  logger.info({ theme, matched: photos.length }, 'scout candidates picked (strict vision match)');
+  return { photos, weak: photos.length < 3 };
+}
+
+module.exports = { selectBest, selectBestVision, scoutCandidates, loadCatalog, recordUsed };

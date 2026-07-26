@@ -44,6 +44,7 @@ Given a THEME and a slide count N, return STRICT JSON (no prose):
 {"cover":{"headline":"<1-2 SHORT words only, ≤14 characters total — it must fit one line>","cta":"<short CTA, e.g. BOOK A TRIAL>"},
  "inner":[{"headline":"<ONE short word, uppercase, ≤11 chars>","body":"<1-2 sentences, <140 chars>"}, ... exactly N-1 items],
  "caption":"<full IG caption with 1-2 emojis and 6-8 relevant hashtags>"}
+If a PHOTOS block is provided (a short description of the REAL photo used on each slide: 1 = cover, then inner slides in order), write each slide's copy to MATCH its actual photo — never describe an action, apparatus or setting that is not in that photo's description.
 Keep it child-safe and on-brand. Never invent specific results or medical claims.`;
 
 function parseJson(text) {
@@ -51,15 +52,27 @@ function parseJson(text) {
 }
 
 // Generate slide copy for a theme.
-async function generatePlan(theme, slides = 4) {
+async function generatePlan(theme, slides = 4, photoNotes = null) {
+  const photosBlock = photoNotes && photoNotes.some(Boolean)
+    ? `PHOTOS:\n${photoNotes.map((n, i) => `${i + 1}${i === 0 ? ' (cover)' : ''}: ${n || '(no description)'}`).join('\n')}\n`
+    : '';
   const raw = await generateText({
     system: PLAN_SYSTEM,
-    user: `THEME: ${theme}\nN: ${slides}\nReturn the JSON.`,
+    user: `THEME: ${theme}\nN: ${slides}\n${photosBlock}Return the JSON.`,
     maxTokens: 900,
   });
   const plan = parseJson(raw);
   if (!plan || !plan.cover || !Array.isArray(plan.inner)) {
     throw new Error('plan generation: unparseable copy');
+  }
+  // Защита от срыва инструкции LLM: контракт — обложка + (N-1) внутренних = N
+  // страниц, но модель иногда возвращает N внутренних → сборка запрашивает
+  // несуществующую страницу N+1 в шаблоне Canva («missing element ids for page 5»).
+  // Жёстко режем inner до N-1, чтобы всего было не больше N страниц.
+  const maxInner = Math.max(1, slides - 1);
+  if (plan.inner.length > maxInner) {
+    logger.warn({ got: plan.inner.length, keep: maxInner, slides }, 'plan: LLM вернул лишние inner-слайды — обрезаю до N-1');
+    plan.inner = plan.inner.slice(0, maxInner);
   }
   return plan;
 }
@@ -227,7 +240,9 @@ async function buildReelAndRoute(bot, ownerChatId, { theme, routine = false, fol
  * @param {string|number} ownerChatId
  * @param {object} opts { theme, slides, routine, folder }
  */
-async function buildDraft(bot, ownerChatId, { theme, slides = 4, routine = false, folder, exclude = [] } = {}) {
+async function buildDraft(bot, ownerChatId, { theme, slides = 4, routine = false, folder, exclude = [], suppliedPhotos = null } = {}) {
+  const fs = require('fs'); const path = require('path');
+  const hasSupplied = Array.isArray(suppliedPhotos) && suppliedPhotos.length > 0;
   const MAX_ATTEMPTS = Math.max(1, parseInt(process.env.CONTENT_BUILD_ATTEMPTS || '2', 10));
   logger.info({ theme, slides, routine, maxAttempts: MAX_ATTEMPTS }, 'calendar: building carousel');
 
@@ -237,9 +252,29 @@ async function buildDraft(bot, ownerChatId, { theme, slides = 4, routine = false
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const scope = beginCost(); // sum every Claude API call this attempt makes
-    const plan = await generatePlan(theme, slides);
-    const sel = await photos.selectBest(slides, { folder, topic: theme, exclude });
-    (sel.ranked || []).forEach((p) => exclude.push(p)); // never reuse on a rebuild
+    // Число слайдов: если владелец прислал СВОИ фото — по их числу (кап 4 = шаблон).
+    const nSlides = hasSupplied ? Math.min(suppliedPhotos.length, 4) : slides;
+    let sel;
+    if (hasSupplied) {
+      // Фото владельца (локальные пути) — используем КАК ЕСТЬ, без авто-выбора и бэкапов.
+      const loaded = [];
+      for (const p of suppliedPhotos.slice(0, nSlides)) {
+        try { loaded.push({ buffer: fs.readFileSync(p), name: path.basename(p), path: p }); }
+        catch (e) { logger.warn({ p, e: e.message }, 'supplied photo read failed'); }
+      }
+      if (!loaded.length) throw new Error('присланные фото не читаются');
+      sel = { photos: loaded, backups: [] };
+    } else {
+      sel = await photos.selectBest(nSlides, { folder, topic: theme, exclude });
+      (sel.ranked || []).forEach((p) => exclude.push(p)); // never reuse on a rebuild
+    }
+    // Copy is written AFTER photo selection so slide bodies match the real
+    // frames (tech-debt #0: «on the beam» под фото со стойкой на руках).
+    // Catalog captions ride along on sel.photos; supplied photos have none →
+    // generic copy as before. A targeted photo swap later can still drift from
+    // the baked text — verify is the backstop there.
+    const photoNotes = sel.photos.map((p) => p.caption ? `${p.caption}${p.subject ? ` [${p.subject}]` : ''}` : null);
+    const plan = await generatePlan(theme, nSlides, photoNotes);
     const assembled = await assemble.assembleCarousel({
       topic: theme, photos: sel.photos, backups: sel.backups,
       cover: { headline: plan.cover.headline, cta: plan.cover.cta },
@@ -391,29 +426,13 @@ function start(bot, ownerChatId, opts = {}) {
   }, { timezone: TZ });
   jobs.push(refresh);
 
-  // Content-plan executor: every morning, build the post(s) the owner's APPROVED
-  // plan scheduled for today and send each as an approval card (routine=false →
-  // nothing auto-publishes; the owner taps "🕒 В лучшее время"). The plan is
-  // owner-driven and only ever decides WHAT to assemble today.
-  const planJob = cron.schedule('0 8 * * *', async () => {
-    let due;
-    try { due = plan.dueToday(); } catch (err) { logger.error({ err: err.message }, 'plan dueToday failed'); return; }
-    if (!due.length) return;
-    logger.info({ count: due.length }, 'content-plan: building today\'s posts');
-    for (const item of due) {
-      try {
-        const isStory = item.format === 'story';
-        await bot.sendMessage(ownerChatId, `📅 По плану на сегодня (${isStory ? '📱 сторис' : '📸 пост'}): «${item.theme}» — собираю…`).catch(() => {});
-        if (isStory) await buildStoryAndRoute(bot, ownerChatId, { theme: item.theme, routine: false });
-        else await buildAndRoute(bot, ownerChatId, { theme: item.theme, slides: 4, routine: false });
-        plan.setStatus(item.id, 'built'); // don't rebuild tomorrow; owner still gates publish
-      } catch (err) {
-        logger.error({ err: err.message, theme: item.theme }, 'plan post build failed');
-        await bot.sendMessage(ownerChatId, `⚠️ Пост по плану «${item.theme}» не собрался: ${err.message}`).catch(() => {});
-      }
-    }
-  }, { timezone: TZ });
-  jobs.push(planJob);
+  // Content-plan executor: DISABLED by owner design (19.07.2026). Approved-plan
+  // posts are no longer built here DIRECTLY to the owner — on `plan:approve` the
+  // themes are pushed to the studio queue (data/studio-week-queue.json) and the
+  // content-studio daily cron (10:00) drips ONE/day through the critics' panel
+  // review, then sends the final card to the owner's private content chat.
+  // Building here too would double every post. Manual on-demand build still works
+  // via the 📅 "▶️ Собрать следующий сейчас" button (plan:buildnext).
 
   // Autonomous competitor analysis every ~3 days (07:00). Runs on the claude.ai
   // subscription via the headless agent (NOT the metered API), refreshes the
