@@ -127,9 +127,12 @@ async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en'
         listText += tr.t('daily.pending_name',  { name:  escapeMd(lead.name) }) + '\n';
         listText += tr.t('daily.pending_phone', { phone: escapeMd(phone) }) + '\n\n';
 
+        // Кнопки подписаны именем лида — две безымянные пары подряд читались
+        // как «одно и то же отправлено дважды» (владелец, 28.07).
+        const firstName = (lead.name || '').trim().split(/\s+/)[0] || `#${i + 1}`;
         keyboard.push([
-          { text: tr.t('daily.btn_copy_text'),       callback_data: `copy_text:${lead.id}` },
-          { text: tr.t('daily.btn_mark_responded'),  callback_data: `mark_responded:${lead.id}` },
+          { text: tr.t('daily.btn_copy_text',      { name: firstName }), callback_data: `copy_text:${lead.id}` },
+          { text: tr.t('daily.btn_mark_responded', { name: firstName }), callback_data: `mark_responded:${lead.id}` },
         ]);
       }
 
