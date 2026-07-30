@@ -17,7 +17,6 @@ const { persistentMenuLabels } = require('./keyboards');
 const { sendToOwner }      = require('../../shared/notify');
 const { writeHeartbeat }   = require('../../shared/heartbeat');
 const { gcExpiredStates }  = require('../../shared/state');
-const { getPreferredLanguage } = require('../../shared/preferences');
 
 // Test-only: freeze heartbeat writes to exercise the watchdog "hung" branch.
 const HEARTBEAT_FROZEN = process.env.HEARTBEAT_FREEZE === '1';
@@ -52,21 +51,9 @@ const { resumeStaleBroadcasts }   = require('../../shared/broadcast/dispatcher')
 const logger   = createLogger('owner-bot');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
 
-// Per-owner language routing for scheduled reports (26.07: раньше языки
-// объединялись и КАЖДЫЙ владелец получал ВСЕ языки — выбранный 'ru' не отключал
-// EN-копию). Теперь: каждый чат получает отчёт только на своём языке;
-// 'both' или отсутствие выбора → этому чату идут оба языка.
-function langRecipients() {
-  const ids = (process.env.OWNER_CHAT_IDS || '')
-    .split(',').map(s => Number(s.trim())).filter(Boolean);
-  const map = { en: [], ru: [] };
-  for (const id of ids) {
-    const pref = getPreferredLanguage(id);
-    const langs = (pref === 'en' || pref === 'ru') ? [pref] : ['en', 'ru'];
-    for (const l of langs) map[l].push(id);
-  }
-  return map;
-}
+// Per-owner language routing (26.07) — общий хелпер в shared/telegram.js
+// (30.07: перенесён туда, чтобы nurture-сводка lead-helper'а роутилась так же).
+const { ownerLangRecipients: langRecipients } = require('../../shared/telegram');
 
 // ─────────────────────────────────────────────────────────────
 // Single-instance lock (daemon mode only)

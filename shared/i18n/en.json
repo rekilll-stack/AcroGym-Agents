@@ -491,5 +491,19 @@
     "weekly_trend": "Daily Leads Trend (last 4 weeks)",
     "series_this_week": "This week",
     "series_prev_week": "Previous week"
+  },
+  "nurture_summary": {
+    "title": "📊 Nurture — execution summary",
+    "enrolled": "Enrolled (active): <b>{{total}}</b> (cold {{cold}} · warm {{warm}} · enrolled {{enrolled}})",
+    "funnel_title": "🌱 Drip funnel",
+    "awaiting_t2": "Awaiting touch 2 (follow-up)",
+    "awaiting_t3": "Awaiting touch 3 (pre-launch)",
+    "completed": "Completed series",
+    "paused": "Paused",
+    "held": "Held (waiting on a gate)",
+    "due": "Due to go out next run",
+    "queue": "📬 Today's queue",
+    "sent": "✅ Sent",
+    "awaiting": "⏳ Awaiting"
   }
 }

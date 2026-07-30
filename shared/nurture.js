@@ -15,6 +15,8 @@
 
 const { createLogger } = require('./logger');
 const { sendToOwner }  = require('./notify');
+const { ownerLangRecipients } = require('./telegram');
+const { createTranslator }    = require('./i18n');
 const { sendToClient } = require('./client-messaging');
 const {
   getNurtureEligibleLeads,
@@ -406,39 +408,44 @@ function qatarDateStr(now = new Date()) {
   return new Date(now.getTime() + 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-function buildOwnerSummaryText(now = new Date()) {
+function buildOwnerSummaryText(now = new Date(), lang = 'en') {
   const dateStr = qatarDateStr(now);
   const counts  = getNurtureAudienceCounts();
   const stats   = getNurtureDeliveryStats(dateStr);
   const funnel  = getDripFunnelStats();
+  const tr      = createTranslator(lang);
+  const t       = (k, p) => tr.t(`nurture_summary.${k}`, p);
 
   const byAud = { cold: 0, warm: 0, enrolled: 0 };
   for (const r of counts) if (byAud[r.audience] != null) byAud[r.audience] = r.cnt;
   const totalEnrolled = byAud.cold + byAud.warm + byAud.enrolled;
 
   // "Held" earns a ⚠️ only when someone is actually stuck on a gate.
-  const heldLine = `${funnel.held > 0 ? '⚠️ ' : ''}Held (waiting on a gate): <b>${funnel.held}</b>`;
+  const heldLine = `${funnel.held > 0 ? '⚠️ ' : ''}${t('held')}: <b>${funnel.held}</b>`;
 
   return (
-    `📊 <b>Nurture — execution summary</b>\n` +
-    `Enrolled (active): <b>${totalEnrolled}</b> ` +
-    `(cold ${byAud.cold} · warm ${byAud.warm} · enrolled ${byAud.enrolled})\n\n` +
-    `🌱 <b>Drip funnel</b>\n` +
-    `• Awaiting touch 2 (follow-up): <b>${funnel.awaiting_t2}</b>\n` +
-    `• Awaiting touch 3 (pre-launch): <b>${funnel.awaiting_t3}</b>\n` +
-    `• Completed series: <b>${funnel.completed}</b>\n` +
-    `• Paused: <b>${funnel.paused}</b>\n` +
+    `<b>${t('title')}</b>\n` +
+    t('enrolled', { total: totalEnrolled, cold: byAud.cold, warm: byAud.warm, enrolled: byAud.enrolled }) + '\n\n' +
+    `<b>${t('funnel_title')}</b>\n` +
+    `• ${t('awaiting_t2')}: <b>${funnel.awaiting_t2}</b>\n` +
+    `• ${t('awaiting_t3')}: <b>${funnel.awaiting_t3}</b>\n` +
+    `• ${t('completed')}: <b>${funnel.completed}</b>\n` +
+    `• ${t('paused')}: <b>${funnel.paused}</b>\n` +
     `• ${heldLine}\n` +
-    `Due to go out next run: <b>${funnel.due_now}</b>\n\n` +
-    `📬 Today's queue: <b>${stats.total}</b>\n` +
-    `✅ Sent: <b>${stats.confirmed}</b>\n` +
-    `⏳ Awaiting: <b>${stats.pending}</b>`
+    `${t('due')}: <b>${funnel.due_now}</b>\n\n` +
+    `${t('queue')}: <b>${stats.total}</b>\n` +
+    `${t('sent')}: <b>${stats.confirmed}</b>\n` +
+    `${t('awaiting')}: <b>${stats.pending}</b>`
   );
 }
 
 async function sendOwnerSummary(now = new Date()) {
+  // Каждому owner-чату — на его языке (26.07-правило, как в дайджестах).
   try {
-    await sendToOwner(buildOwnerSummaryText(now), { parse_mode: 'HTML' });
+    for (const [lang, chatIds] of Object.entries(ownerLangRecipients())) {
+      if (!chatIds.length) continue;
+      await sendToOwner(buildOwnerSummaryText(now, lang), { parse_mode: 'HTML', chatIds });
+    }
   } catch (err) {
     logger.error({ err }, 'Nurture: owner summary send failed');
   }

@@ -106,6 +106,23 @@ async function sendToAdmin(text, options = {}) {
  * всем получателям из OWNER_CHAT_IDS через OWNER_BOT_TOKEN.
  * parse_mode по умолчанию: MarkdownV2 (все строки Owner bot написаны для MDv2).
  */
+/**
+ * Языковая маршрутизация owner-отчётов: какие owner-чаты получают какой язык.
+ * Правило то же, что в дайджестах (26.07): выбранный язык — только он;
+ * 'both' или отсутствие выбора — оба языка. Возвращает { en: [ids], ru: [ids] }.
+ */
+function ownerLangRecipients() {
+  const { getPreferredLanguage } = require('./preferences'); // lazy — избегаем порядка инициализации
+  const ids = parseChatIds('OWNER_CHAT_IDS').map(Number);
+  const map = { en: [], ru: [] };
+  for (const id of ids) {
+    const pref = getPreferredLanguage(id);
+    const langs = (pref === 'en' || pref === 'ru') ? [pref] : ['en', 'ru'];
+    for (const l of langs) map[l].push(id);
+  }
+  return map;
+}
+
 async function sendToOwner(text, options = {}) {
   // options.chatIds — адресный подмножество OWNER_CHAT_IDS (языковая маршрутизация
   // отчётов, 26.07): без него сообщение уходит во ВСЕ owner-чаты.
@@ -572,6 +589,7 @@ module.exports = {
   escapeMd,
   sendToAdmin,
   sendToOwner,
+  ownerLangRecipients,
   sendToBroadcastTest,
   sendPhotoToOwner,
   sendMediaGroupToOwner,
