@@ -47,6 +47,7 @@ const contentPlan = require('./plan');
 const metricool = require('./metricool');
 const yandex    = require('./yandex');
 const assemble  = require('./assemble');
+const video     = require('./video');
 
 const logger = createLogger('content-bot');
 
@@ -62,6 +63,7 @@ function isAllowed(chatId) {
 }
 
 const studioStop = new Set(); // chatId студий, которым владелец нажал 🛑 Стоп — петля остановится
+const scoutSessions = new Map(); // sid → {chatId, theme, candidates:[{path,name}], selected:Set} — скаут-подбор фото
 
 // Interface language for a chat — the shared preference, collapsed to a single
 // UI language ('both'/unset/unknown → en; only explicit 'ru' → ru).
@@ -107,24 +109,35 @@ function releaseLock() {
 // Keyboards (labels localized; drafts sent as PLAIN text — no MarkdownV2 — so
 // hashtags '#', '.', '!' never need escaping and copy stays clean)
 // ─────────────────────────────────────────────────────────────
+// Главное меню — СПЕЦИАЛЬНО простое (для жены-контентщицы): два больших действия
+// «пост» и «сторис» под её фото/видео, плюс «Ещё» с продвинутыми инструментами
+// (автопилот/план/анализ) — чтобы не пугать кнопками. Владельцу всё доступно через ⚙️.
 function menuKeyboard(lang) {
   const ru = lang === 'ru';
   return {
     inline_keyboard: [
-      // ✨ Autopilot — the main feature: bot builds a full branded carousel via
-      // Canva and (after your tap) publishes. Buttons, not commands.
+      [{ text: ru ? '📝 Сделать пост' : '📝 Make a post', callback_data: 'make:post' }],
+      [{ text: ru ? '📱 Сделать сторис' : '📱 Make a story', callback_data: 'make:story' }],
+      [{ text: ru ? '⚙️ Ещё' : '⚙️ More', callback_data: 'more:menu' },
+       { text: t('content.btn_lang', lang), callback_data: 'showlang' }],
+    ],
+  };
+}
+
+// Продвинутое меню (владелец): всё, что было в старом главном — автопилот, план,
+// анализ, сторис/reel по теме. Открывается по «⚙️ Ещё».
+function advancedKeyboard(lang) {
+  const ru = lang === 'ru';
+  return {
+    inline_keyboard: [
       [{ text: ru ? '✨ Авто-пост (Canva)' : '✨ Auto-post (Canva)', callback_data: 'auto:new' }],
       [{ text: ru ? '📅 Контент-план' : '📅 Content plan', callback_data: 'plan:new' },
        { text: ru ? '📋 Показать план' : '📋 Show plan', callback_data: 'plan:show' }],
       [{ text: ru ? '🔎 Анализ конкурентов' : '🔎 Competitor analysis', callback_data: 'plan:analyze' }],
-      [{ text: ru ? '🤖 Статус автопилота' : '🤖 Autopilot status', callback_data: 'auto:status' }],
-      // 📱 Story (9:16) and 🎬 Reel (9:16 motion video) — on-demand, approval-gated.
-      [{ text: ru ? '📱 Сторис' : '📱 Story', callback_data: 'story:new' },
-       { text: ru ? '🎬 Reel (видео)' : '🎬 Reel (video)', callback_data: 'reel:new' }],
-      [{ text: t('content.btn_photo', lang), callback_data: 'fmt:photo' }],
-      // 🎨 Branded image (node-canvas engine) retired 2026-06-28 — superseded by
-      // ✨ Auto-post (exact Canva look). Handlers left dormant; can be stripped later.
-      [{ text: t('content.btn_lang', lang), callback_data: 'showlang' }],
+      // Убраны по решению владельца (20.07): 🤖 Статус автопилота (диагностика), 📱 Сторис/🎬 Reel
+      // по теме (сборка из стоковых медиа — дублировали авто-пост/студию). Обработчики оставлены
+      // живыми (текст-команды /autopilot /story /reel как алиасы), просто нет кнопок.
+      [{ text: t('content.btn_menu', lang), callback_data: 'menu' }],
     ],
   };
 }
@@ -308,6 +321,97 @@ async function deliverCaption(bot, chatId, base64, mediaType, context) {
     .catch((err) => logger.error({ err: err.message }, 'caption send failed'));
 }
 
+// ─────────────────────────────────────────────────────────────
+// «Помощник контентщика» (для жены): она жмёт 📝 Пост или 📱 Сторис, шлёт фото/видео
+// → бот оформляет и присылает КАРТОЧКУ с кнопкой «✅ Опубликовать сейчас» (та же
+// publish-инфраструктура, что у автопилота). Публикация всегда по её тапу.
+// ─────────────────────────────────────────────────────────────
+
+// Одна точка загрузки медиа в публичный URL для публикации (Metricool/agent хотят
+// URL, не буфер). При сбое возвращает null — карточка всё равно покажет превью из
+// буфера и подпись для ручной вставки.
+async function toPublicUrl(buffer, name, contentType) {
+  try { const up = await yandex.uploadPublic(buffer, name, { contentType }); return up.directUrl; }
+  catch (e) { logger.warn({ e: e.message, name }, 'wife media public-upload failed → preview-only'); return null; }
+}
+
+// Фото → готовый ПОСТ: подпись (vision, бренд-голос, хэштеги) + карточка публикации.
+async function deliverPostFromPhoto(bot, chatId, buffer, note) {
+  bot.sendChatAction(chatId, 'upload_photo').catch(() => {});
+  await bot.sendMessage(chatId, '📝 Пишу подпись и подбираю хэштеги…').catch(() => {});
+  const caption = await generateCaption({ imageBase64: buffer.toString('base64'), mediaType: 'image/jpeg', context: note || '' });
+  const url = await toPublicUrl(buffer, `wife-${Date.now()}.jpg`, 'image/jpeg');
+  const draft = publish.newDraft({ kind: 'post', igType: 'POST', caption, slides: [{ url, buffer, alt: 'AcroGym' }], source: 'жена: фото → пост' });
+  await publish.sendApprovalCard(bot, chatId, draft);
+}
+
+// Фото → БРЕНДОВАЯ сторис 9:16 (её фото + лого/рамка через Canva) + карточка публикации.
+async function deliverStoryFromPhoto(bot, chatId, buffer, note) {
+  bot.sendChatAction(chatId, 'upload_photo').catch(() => {});
+  await bot.sendMessage(chatId, '🎨 Собираю брендовую сторис в фирстиле (это ~минута)…').catch(() => {});
+  let headline = 'ACROGYM';
+  try { const hs = await generateHeadlines(note || 'a joyful AcroGym kids moment'); if (hs && hs[0]) headline = String(hs[0]).toUpperCase().slice(0, 22); } catch { /* дефолт */ }
+  let frame;
+  try {
+    frame = await assemble.buildStoryFrame({ photo: { buffer, name: `wife-${Date.now()}.jpg` }, headline, cta: 'BOOK YOUR FIRST CLASS' });
+  } catch (e) {
+    logger.warn({ e: e.message }, 'branded story build failed → откат на подпись');
+    await bot.sendMessage(chatId, '⚠️ Брендовую сторис собрать не вышло — держи подпись к фото, можно выложить так:').catch(() => {});
+    await deliverPostFromPhoto(bot, chatId, buffer, note);
+    return;
+  }
+  let caption = '';
+  try { caption = await generateCaption({ imageBase64: buffer.toString('base64'), mediaType: 'image/jpeg', context: note || '' }); } catch { /* сторис-подпись необязательна */ }
+  const draft = publish.newDraft({ kind: 'story', igType: 'STORY', caption, costUsd: frame.costUsd,
+    slides: [{ url: frame.url, buffer: frame.buffer, alt: 'AcroGym story' }], source: 'жена: фото → брендовая сторис' });
+  await publish.sendApprovalCard(bot, chatId, draft);
+}
+
+// Кадр из видео (ffmpeg) для vision-подписи. Возвращает JPEG-буфер или null.
+async function extractVideoFrame(videoBuffer) {
+  const os = require('os'); const { execFile } = require('child_process');
+  const base = path.join(os.tmpdir(), `vf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const inp = `${base}.mp4`, out = `${base}.jpg`;
+  fs.writeFileSync(inp, videoBuffer);
+  const run = (args) => new Promise((res, rej) => execFile('ffmpeg', args, { timeout: 30000 }, (e) => e ? rej(e) : res()));
+  try {
+    try { await run(['-y', '-ss', '0.5', '-i', inp, '-frames:v', '1', '-q:v', '3', out]); }
+    catch { await run(['-y', '-i', inp, '-frames:v', '1', '-q:v', '3', out]); } // очень короткое видео → кадр 0
+    return fs.readFileSync(out);
+  } catch (e) { logger.warn({ e: e.message }, 'video frame extract failed'); return null; }
+  finally { try { fs.unlinkSync(inp); } catch {} try { fs.unlinkSync(out); } catch {} }
+}
+
+// Видео → пост (Reel) или сторис: кадр→подпись + карточка публикации с превью видео.
+async function deliverFromVideo(bot, chatId, buffer, note, mode) {
+  bot.sendChatAction(chatId, 'upload_video').catch(() => {});
+  await bot.sendMessage(chatId, '🎬 Оформляю видео в фирстиле (лого) и пишу подпись — ~минута…').catch(() => {});
+  // Подпись — по кадру из видео (vision); текстовый фолбэк, если кадр не достать.
+  const frame = await extractVideoFrame(buffer);
+  const caption = frame
+    ? await generateCaption({ imageBase64: frame.toString('base64'), mediaType: 'image/jpeg', context: note || '' })
+    : await generateContent('post', note || 'A joyful moment at AcroGym kids gym', { lang: 'en' });
+  // Брендирование: логотип поверх её ролика (9:16, её действие не режется — pad).
+  // При сбое ffmpeg — мягкий откат на сырое видео, чтобы она всё равно получила пост.
+  const os = require('os');
+  const tmpIn = path.join(os.tmpdir(), `wv-${Date.now()}.mp4`);
+  let outBuffer = buffer;
+  try {
+    fs.writeFileSync(tmpIn, buffer);
+    const branded = await video.brandReel(tmpIn);
+    outBuffer = branded.buffer;
+  } catch (e) {
+    logger.warn({ e: e.message }, 'brandReel failed → сырое видео');
+    await bot.sendMessage(chatId, '⚠️ Фирстиль на видео наложить не вышло — держи ролик как есть + подпись.').catch(() => {});
+  } finally { try { fs.unlinkSync(tmpIn); } catch {} }
+  const url = await toPublicUrl(outBuffer, `wife-${Date.now()}.mp4`, 'video/mp4');
+  const story = mode === 'story';
+  const draft = publish.newDraft({ kind: story ? 'story' : 'reel', igType: story ? 'STORY' : 'REEL', caption,
+    slides: [{ url, buffer: outBuffer, isVideo: true, alt: 'AcroGym' }],
+    source: story ? 'жена: видео → брендовая сторис' : 'жена: видео → брендовый пост (Reel)' });
+  await publish.sendApprovalCard(bot, chatId, draft);
+}
+
 // Track D — compose a branded image from a chosen background + a SHORT headline
 // (Kirill's own text — NO AI text generation here) and send it as a DRAFT photo.
 // 🔴 BOUNDARY: nothing is published — the photo goes to the chat; Kirill posts
@@ -376,16 +480,39 @@ function start() {
     }
     const lang = uiLang(chatId);
 
-    // Photo → caption it (any photo is unambiguous caption intent). msg.caption =
-    // optional note the user attached. Largest size is the last in msg.photo.
+    // ── Медиа от пользователя. Режим задаётся кнопкой 📝 Пост / 📱 Сторис (в сессии);
+    //    если кнопку не жали (просто прислала фото/видео) — по умолчанию ПОСТ.
+    const mediaMode = (sessions.get(chatId) || {}).mode === 'story' ? 'story' : 'post';
+    const mediaNote = (msg.caption || '').trim();
+    // Фото → пост (подпись+хэштеги) ИЛИ брендовая сторис — по выбранному режиму.
     if (Array.isArray(msg.photo) && msg.photo.length) {
       try {
         const fileId = msg.photo[msg.photo.length - 1].file_id;
-        const base64 = await downloadPhotoBase64(bot, fileId);
-        await deliverCaption(bot, chatId, base64, 'image/jpeg', (msg.caption || '').trim());
+        const buffer = Buffer.from(await downloadPhotoBase64(bot, fileId), 'base64');
+        sessions.set(chatId, {}); // режим отработан
+        if (mediaMode === 'story') await deliverStoryFromPhoto(bot, chatId, buffer, mediaNote);
+        else await deliverPostFromPhoto(bot, chatId, buffer, mediaNote);
       } catch (err) {
         logger.error({ err: err.message }, 'photo handling failed');
         await bot.sendMessage(chatId, t('content.expecting_photo', lang)).catch(() => {});
+      }
+      return;
+    }
+    // Видео (или пересланное видео-документом) → пост (Reel) или сторис — тот же режим.
+    const vid = msg.video || (msg.document && /^video\//.test(msg.document.mime_type || '') ? msg.document : null);
+    if (vid) {
+      try {
+        const link = await bot.getFileLink(vid.file_id); // >20МБ Telegram-бот не отдаёт → бросит
+        const res = await fetch(link);
+        if (!res.ok) throw new Error(`video download ${res.status}`);
+        const buffer = Buffer.from(await res.arrayBuffer());
+        sessions.set(chatId, {});
+        await deliverFromVideo(bot, chatId, buffer, mediaNote, mediaMode);
+      } catch (err) {
+        logger.error({ err: err.message }, 'video handling failed');
+        await bot.sendMessage(chatId, lang === 'ru'
+          ? '⚠️ Не смог забрать видео (возможно, больше 20 МБ — столько Telegram-боты не качают). Пришли клип покороче/полегче или загрузи фото.'
+          : '⚠️ Could not fetch the video (Telegram bots can\'t download files over 20MB). Send a shorter clip or a photo.').catch(() => {});
       }
       return;
     }
@@ -446,6 +573,13 @@ function start() {
     const cur = sessions.get(chatId);
     if (cur && cur.awaiting === 'photo') {
       await bot.sendMessage(chatId, t('content.expecting_photo', lang)).catch(() => {});
+      return;
+    }
+    // Ждём медиа для поста/сторис, а пришёл текст → мягко напомнить (текст учтётся как подпись к медиа).
+    if (cur && cur.awaiting === 'wife_media') {
+      await bot.sendMessage(chatId, lang === 'ru'
+        ? '📎 Жду фото или видео. Пришли медиа — а этот текст можно добавить подписью прямо к нему.'
+        : '📎 Send a photo or video — you can attach this text as a note to it.').catch(() => {});
       return;
     }
 
@@ -548,7 +682,7 @@ function start() {
     const data   = query.data || '';
     // Кнопки поста (pub:*) разрешаем ВЛАДЕЛЬЦУ в любом чате (напр. группа студии) —
     // чтобы черновик, который content-bot туда запостил, можно было опубликовать/пересобрать.
-    const ownerAct = ALLOWED.includes(String(query.from && query.from.id)) && (data.startsWith('pub:') || data === 'studio:stop');
+    const ownerAct = ALLOWED.includes(String(query.from && query.from.id)) && (data.startsWith('pub:') || data === 'studio:stop' || data.startsWith('scout:'));
     if (!isAllowed(chatId) && !ownerAct) {
       await bot.answerCallbackQuery(query.id, { text: t('content.access_denied', uiLang(chatId)) }).catch(() => {});
       return;
@@ -557,6 +691,41 @@ function start() {
       studioStop.add(String(chatId));
       await bot.answerCallbackQuery(query.id, { text: '🛑 Останавливаю…' }).catch(() => {});
       await bot.sendMessage(chatId, '🛑 Останавливаю студию — текущая сборка завершится, дальше не пойдёт.').catch(() => {});
+      return;
+    }
+    // 🔍 Скаут: владелец отмечает кандидатов (scout:pick), собирает из выбранных (scout:build) или сбрасывает.
+    if (data.startsWith('scout:')) {
+      const [, op, sid, idxStr] = data.split(':');
+      const sess = scoutSessions.get(sid);
+      if (!sess) { await bot.answerCallbackQuery(query.id, { text: 'Подбор устарел — запусти /подбери заново.' }).catch(() => {}); return; }
+      if (op === 'pick') {
+        const idx = parseInt(idxStr, 10);
+        if (sess.selected.has(idx)) sess.selected.delete(idx); else sess.selected.add(idx);
+        const on = sess.selected.has(idx);
+        await bot.answerCallbackQuery(query.id, { text: `${on ? '✅ №' + (idx + 1) + ' в подборке' : '➖ №' + (idx + 1) + ' убрал'} (всего ${sess.selected.size})` }).catch(() => {});
+        // Обновляем подпись кнопки под этим фото (☑️/✅).
+        try { await bot.editMessageReplyMarkup({ inline_keyboard: [[{ text: on ? '☑️ Выбрано' : '✅ Беру', callback_data: `scout:pick:${sid}:${idx}` }]] }, { chat_id: query.message.chat.id, message_id: query.message.message_id }); } catch { /* ignore */ }
+        return;
+      }
+      if (op === 'reset') {
+        sess.selected.clear();
+        await bot.answerCallbackQuery(query.id, { text: 'Сброшено' }).catch(() => {});
+        await bot.sendMessage(sess.chatId, '🗑 Выбор сброшен. Отметь кадры заново или запусти /подбери с новой темой.').catch(() => {});
+        return;
+      }
+      if (op === 'build') {
+        if (!sess.selected.size) { await bot.answerCallbackQuery(query.id, { text: 'Отметь хотя бы одно фото ✅' }).catch(() => {}); return; }
+        await bot.answerCallbackQuery(query.id, { text: 'Собираю' }).catch(() => {});
+        const chosen = [...sess.selected].sort((a, b) => a - b).slice(0, 4).map((i) => sess.candidates[i] && sess.candidates[i].path).filter(Boolean);
+        try {
+          fs.mkdirSync(STUDIO_BUILD_DIR, { recursive: true });
+          fs.writeFileSync(path.join(STUDIO_BUILD_DIR, `${Date.now()}.json`), JSON.stringify({ theme: sess.theme, chatId: sess.chatId, photos: chosen, at: new Date().toISOString() }));
+          await bot.sendMessage(sess.chatId, `🎨 Собираю пост из выбранных (${chosen.length}) — финал пришлю тебе в личку.`).catch(() => {});
+        } catch (e) { logger.error({ e: e.message }, 'scout build enqueue failed'); await bot.sendMessage(sess.chatId, '⚠️ Не смог поставить в сборку: ' + e.message).catch(() => {}); }
+        scoutSessions.delete(sid);
+        return;
+      }
+      await bot.answerCallbackQuery(query.id).catch(() => {});
       return;
     }
     const lang = uiLang(chatId);
@@ -587,6 +756,28 @@ function start() {
       if (data.startsWith('pub:')) {
         const status = await publish.handleCallback(bot, chatId, data);
         await bot.answerCallbackQuery(query.id, status ? { text: status } : {}).catch(() => {});
+        return;
+      }
+      // 📝/📱 «Помощник контентщика» (жена): выбирает формат кнопкой → бот ждёт её
+      // фото/видео (режим хранится в сессии), затем оформляет и шлёт карточку публикации.
+      if (data === 'make:post' || data === 'make:story') {
+        const mode = data === 'make:story' ? 'story' : 'post';
+        sessions.set(chatId, { mode, awaiting: 'wife_media' });
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        const msg = lang === 'ru'
+          ? (mode === 'story'
+            ? '📱 Пришли фото или видео — сделаю красивую сторис в фирстиле с кнопкой публикации.\n<i>Можно добавить подпись к медиа — учту в тексте.</i>'
+            : '📝 Пришли фото или видео — напишу пост с подписью и умными хэштегами, дам кнопку публикации.\n<i>Можно добавить подпись к медиа — учту в тексте.</i>')
+          : (mode === 'story'
+            ? '📱 Send a photo or video — I\'ll make a branded story with a publish button.'
+            : '📝 Send a photo or video — I\'ll write a caption with smart hashtags and a publish button.');
+        await bot.sendMessage(chatId, msg, { parse_mode: 'HTML', reply_markup: menuKb(lang) }).catch(() => {});
+        return;
+      }
+      // ⚙️ Ещё — продвинутые инструменты владельца (автопилот/план/анализ).
+      if (data === 'more:menu') {
+        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await bot.sendMessage(chatId, lang === 'ru' ? '⚙️ Инструменты:' : '⚙️ Tools:', { reply_markup: advancedKeyboard(lang) }).catch(() => {});
         return;
       }
       // ✨ Auto-post button → ask for a theme (then message handler builds it).
@@ -652,8 +843,24 @@ function start() {
         const saved = contentPlan.approve(chatId);
         if (!saved) { await bot.sendMessage(chatId, 'Черновик плана не найден — собери заново 📅.').catch(() => {}); return; }
         const s = sessions.get(chatId) || {}; delete s.awaiting; sessions.set(chatId, s);
+        // Утверждён план → темы уходят в очередь СТУДИИ: критики ревьюят по одной
+        // в день (content-studio крон 10:00 → студия-ревью), а готовый пост
+        // (карточка pub:*) прилетает СЮДА, в личный контент-чат владельца.
+        let queued = 0, groupChatId = null;
+        try {
+          try { groupChatId = JSON.parse(fs.readFileSync(path.join(__dirname, '../../data/studio-state.json'), 'utf8')).groupChatId; } catch { /* группа студии ещё не привязана */ }
+          const themes = (saved.items || []).filter((it) => it.status === 'planned' && it.theme).map((it) => String(it.theme).slice(0, 300));
+          if (groupChatId && themes.length) {
+            fs.writeFileSync(path.join(__dirname, '../../data/studio-week-queue.json'),
+              JSON.stringify({ createdAt: new Date().toISOString(), chatId: groupChatId, queue: themes.slice(0, 7).map((th) => ({ theme: th, done: false })) }));
+            queued = themes.length;
+          }
+        } catch (err) { logger.error({ err: err.message }, 'plan→studio queue failed'); }
+        const tail = queued
+          ? `\n\n🎬 Отдал студии ${queued} тем — критики ревьюят по одной в день (10:00), готовый пост присылаю сюда на ✅ (публикация — только по твоему тапу «🕒 В лучшее время»).`
+          : `\n\n⚠️ Студийная группа ещё не привязана — напиши что-нибудь в чате студии один раз, и посты пойдут через критиков.`;
         await bot.sendMessage(chatId,
-          `✅ План утверждён. Утром планового дня соберу пост и пришлю карточку на ✅ (публикация — только по твоему тапу «🕒 В лучшее время»):\n\n${escapeHtml(contentPlan.renderPlan(saved))}`,
+          `✅ План утверждён.${tail}\n\n${escapeHtml(contentPlan.renderPlan(saved))}`,
           { parse_mode: 'HTML', reply_markup: planShowKb(lang) }).catch(() => {});
         return;
       }
@@ -828,6 +1035,20 @@ function start() {
   // ── Студия: очередь на сборку по ✅. content-studio кладёт {theme,chatId} в
   //    data/studio-build/*.json → собираем черновик и постим В ЭТУ группу студии
   //    (кнопки pub:* владелец жмёт прямо там). routine:false — никогда не автопубликует.
+  // Почасовой «подметатель» брошенных temp-папок фото (скаут без сборки, забытые
+  // подборки, недочищенное). Удаляет подпапки data/studio-photos/* старше 2ч.
+  const STUDIO_PHOTOS_DIR = path.join(__dirname, '../../data/studio-photos');
+  setInterval(() => {
+    try {
+      if (!fs.existsSync(STUDIO_PHOTOS_DIR)) return;
+      const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+      for (const name of fs.readdirSync(STUDIO_PHOTOS_DIR)) {
+        const d = path.join(STUDIO_PHOTOS_DIR, name);
+        try { const st = fs.statSync(d); if (st.isDirectory() && st.mtimeMs < cutoff) fs.rmSync(d, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }, 60 * 60 * 1000);
+
   const STUDIO_BUILD_DIR = path.join(__dirname, '../../data/studio-build');
   let studioBusy = false;
   setInterval(async () => {
@@ -840,8 +1061,42 @@ function start() {
     const fp = path.join(STUDIO_BUILD_DIR, files[0]);
     let req = null;
     try { req = JSON.parse(fs.readFileSync(fp, 'utf8')); } catch (e) { logger.error({ e: e.message }, 'studio build req parse'); }
-    try { fs.unlinkSync(fp); } catch { /* ignore */ }
-    if (req && req.theme && req.chatId) {
+    // Невалидный запрос — только его удаляем сразу (собрать нечего).
+    if (!req || !req.theme || !req.chatId) { try { fs.unlinkSync(fp); } catch {} studioBusy = false; return; }
+    // 🛡 РОБАСТНОСТЬ (20.07): запрос НЕ удаляем при подхвате — только после УСПЕХА.
+    // Так рестарт/краш посреди сборки не теряет пост (файл остаётся → пересоберётся
+    // на следующем тике или после старта). Счётчик попыток в файле спасает от
+    // «ядовитой» темы, которая падает всегда (иначе — бесконечный цикл).
+    const attempt0 = (req.attempts || 0) + 1;
+    const MAX_BUILD_RETRIES = Math.max(1, parseInt(process.env.STUDIO_BUILD_RETRIES || '3', 10));
+    if (attempt0 > MAX_BUILD_RETRIES) {
+      logger.error({ theme: req.theme, attempts: attempt0 }, 'studio build: превышен лимит попыток → пропуск');
+      try { fs.unlinkSync(fp); } catch {}
+      await bot.sendMessage(req.chatId, `⚠️ «${req.theme}» не собрался за ${MAX_BUILD_RETRIES} попыт(ки) (возможно, был перезапуск). Пропускаю — запусти заново через /next, когда будешь готов.`).catch(() => {});
+      studioBusy = false; return;
+    }
+    try { fs.writeFileSync(fp, JSON.stringify({ ...req, attempts: attempt0 })); } catch {}
+    {
+      // ── Ветка «ФОТО ВЛАДЕЛЬЦА»: критики уже одобрили сырые фото в студии → просто
+      //    собираем из НИХ (без панельного ревью готового поста) и шлём карточку в личку.
+      if (Array.isArray(req.photos) && req.photos.length) {
+        logger.info({ theme: req.theme, photos: req.photos.length }, 'studio: building from OWNER photos');
+        try {
+          await bot.sendMessage(req.chatId, `🎨 Собираю пост из твоих ${req.photos.length} фото…`).catch(() => {});
+          const draft = await calendar.buildDraft(bot, req.chatId, { theme: req.theme, routine: false, suppliedPhotos: req.photos });
+          const buffer = draft && draft.slides && draft.slides[0] && draft.slides[0].buffer;
+          if (buffer) await bot.sendPhoto(req.chatId, buffer, { caption: 'Черновик из твоих фото' }).catch(() => {});
+          await bot.sendMessage(req.chatId, '✅ Готово — финальный пост отправил тебе в личку.').catch(() => {});
+          if (ALLOWED.length) await publish.route(bot, ALLOWED[0], draft);
+          try { fs.unlinkSync(fp); } catch {}                                   // успех → снимаем запрос
+          try { fs.rmSync(path.dirname(req.photos[0]), { recursive: true, force: true }); } catch {} // чистим всю temp-папку фото
+        } catch (e) {
+          logger.error({ e: e.message, attempt: attempt0 }, 'owner-photo build failed');
+          await bot.sendMessage(req.chatId, `⚠️ Из твоих фото не собралось (попытка ${attempt0}/${MAX_BUILD_RETRIES}): ${e.message}. Повторю автоматически.`).catch(() => {});
+          // файл НЕ удаляем → повтор на следующем тике (до лимита)
+        }
+        studioBusy = false; return;
+      }
       logger.info({ theme: req.theme, chatId: req.chatId }, 'studio: building approved concept');
       try {
         const llm = require('./llm');
@@ -917,12 +1172,63 @@ function start() {
           if (ALLOWED.length) await publish.route(bot, ALLOWED[0], draft); // карточка pub:* в личку владельцу
         }
         studioStop.delete(String(req.chatId)); // конец обработки — сбрасываем флаг
+        try { fs.unlinkSync(fp); } catch {} // УСПЕХ (или стоп/финал) → снимаем запрос из очереди
       } catch (e) {
-        logger.error({ e: e.message }, 'studio build/review failed');
-        await bot.sendMessage(req.chatId, `⚠️ Не смог собрать черновик: ${e.message}`).catch(() => {});
+        logger.error({ e: e.message, attempt: attempt0 }, 'studio build/review failed');
+        await bot.sendMessage(req.chatId, `⚠️ Черновик не собрался (попытка ${attempt0}/${MAX_BUILD_RETRIES}): ${e.message}. Повторю автоматически.`).catch(() => {});
+        // Файл НЕ удаляем → следующий тик повторит (до лимита), переживёт и рестарт.
       }
     }
     studioBusy = false;
+  }, 8000);
+
+  // ── 🔍 СКАУТ: content-studio кладёт {theme,chatId} в data/studio-scout/*.json →
+  //    подбираем умные кандидаты (photos.selectBest по каталогу) и кидаем их в группу
+  //    с кнопками «✅ Беру». Владелец отмечает → scout:build собирает из выбранных.
+  const STUDIO_SCOUT_DIR = path.join(__dirname, '../../data/studio-scout');
+  let scoutBusy = false;
+  setInterval(async () => {
+    if (scoutBusy) return;
+    let files;
+    try { files = fs.existsSync(STUDIO_SCOUT_DIR) ? fs.readdirSync(STUDIO_SCOUT_DIR).filter((f) => f.endsWith('.json')).sort() : []; } catch { return; }
+    if (!files.length) return;
+    scoutBusy = true;
+    const fp = path.join(STUDIO_SCOUT_DIR, files[0]);
+    let req = null;
+    try { req = JSON.parse(fs.readFileSync(fp, 'utf8')); } catch (e) { logger.error({ e: e.message }, 'scout req parse'); }
+    try { fs.unlinkSync(fp); } catch { /* ignore */ }
+    if (req && req.theme && req.chatId) {
+      logger.info({ theme: req.theme }, 'scout: searching library');
+      try {
+        const photosMod = require('./photos');
+        await bot.sendMessage(req.chatId, `🔍 <b>Скаут</b> ищет фото под «${escapeHtml(req.theme)}» в библиотеке…`, { parse_mode: 'HTML' }).catch(() => {});
+        const sel = await photosMod.scoutCandidates(req.theme, 6);
+        const cands = (sel.photos || []).filter((p) => p && p.buffer);
+        if (!cands.length) {
+          await bot.sendMessage(req.chatId, `🔍 Скаут не нашёл в библиотеке кадров под «${escapeHtml(req.theme)}». Попробуй проще/иначе сформулировать, или кинь свои фото в чат.`, { parse_mode: 'HTML' }).catch(() => {});
+        } else {
+          const sid = String(Date.now());
+          const dir = path.join(__dirname, '../../data/studio-photos', `scout-${sid}`);
+          fs.mkdirSync(dir, { recursive: true });
+          const candidates = [];
+          for (let i = 0; i < cands.length; i++) {
+            const cp = path.join(dir, `c${i + 1}.jpg`);
+            try { fs.writeFileSync(cp, cands[i].buffer); candidates.push({ path: cp, name: cands[i].name || `c${i + 1}` }); } catch (e) { logger.warn({ e: e.message }, 'scout candidate save'); }
+          }
+          scoutSessions.set(sid, { chatId: req.chatId, theme: req.theme, candidates, selected: new Set() });
+          const weakNote = sel.weak ? `⚠️ В библиотеке мало кадров именно под «${escapeHtml(req.theme)}» — вот что ближе всего (${candidates.length}). Можешь взять их или кинуть свои фото.\n\n` : '';
+          await bot.sendMessage(req.chatId, `${weakNote}🔍 Скаут подобрал <b>${candidates.length}</b> кадров под «${escapeHtml(req.theme)}». Отметь «✅ Беру» на нужных (до 4), потом жми 🎨 Собрать:`, { parse_mode: 'HTML' }).catch(() => {});
+          for (let i = 0; i < candidates.length; i++) {
+            await bot.sendPhoto(req.chatId, fs.readFileSync(candidates[i].path), { caption: `№${i + 1}`, reply_markup: { inline_keyboard: [[{ text: '✅ Беру', callback_data: `scout:pick:${sid}:${i}` }]] } }).catch(() => {});
+          }
+          await bot.sendMessage(req.chatId, 'Отметил нужные? Собери пост из выбранных 👇', { reply_markup: { inline_keyboard: [
+            [{ text: '🎨 Собрать из выбранных', callback_data: `scout:build:${sid}` }],
+            [{ text: '🗑 Сбросить выбор', callback_data: `scout:reset:${sid}` }],
+          ] } }).catch(() => {});
+        }
+      } catch (e) { logger.error({ e: e.message }, 'scout failed'); await bot.sendMessage(req.chatId, `⚠️ Скаут не смог подобрать: ${e.message}`).catch(() => {}); }
+    }
+    scoutBusy = false;
   }, 8000);
 
   // ── Студия: приватный итог владельцу в личку после обсуждения (чтобы не следить за группой).

@@ -41,11 +41,11 @@ const PLAN = [
 
 const PLAN_SYSTEM = `You write Instagram carousel copy for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional. Output language: ENGLISH only — the THEME may be written in Russian or any language, but ALWAYS write every headline, body and caption in ENGLISH (this is published copy for the audience).
 Given a THEME and a slide count N, return STRICT JSON (no prose):
-{"cover":{"headline":"<1-2 SHORT words only, ≤14 characters total — it must fit one line>","cta":"<short CTA, e.g. BOOK A TRIAL>"},
+{"cover":{"headline":"<1-2 SHORT words only, ≤14 characters total — it must fit one line>","cta":"<short CTA, e.g. BOOK YOUR FIRST CLASS>"},
  "inner":[{"headline":"<ONE short word, uppercase, ≤11 chars>","body":"<1-2 sentences, <140 chars>"}, ... exactly N-1 items],
  "caption":"<full IG caption with 1-2 emojis and 6-8 relevant hashtags>"}
 If a PHOTOS block is provided (a short description of the REAL photo used on each slide: 1 = cover, then inner slides in order), write each slide's copy to MATCH its actual photo — never describe an action, apparatus or setting that is not in that photo's description.
-Keep it child-safe and on-brand. Never invent specific results or medical claims.`;
+Keep it child-safe and on-brand. NEVER use the words "trial" or "free" anywhere (the first class is paid): the standard CTA is "BOOK YOUR FIRST CLASS". Never invent specific results or medical claims.`;
 
 function parseJson(text) {
   try { const m = String(text).match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } catch { return null; }
@@ -99,16 +99,16 @@ async function pickPhotos(n, folder) {
 }
 
 // Copy for a single Instagram STORY (9:16): short headline + CTA + caption.
-const STORY_SYSTEM = `You write copy for ONE Instagram STORY (9:16 vertical) for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. English only — the TOPIC may be written in Russian or any language, but ALWAYS write the headline, CTA and caption in ENGLISH (this is published copy for the audience). Voice: warm, energetic, safe.
+const STORY_SYSTEM = `You write copy for ONE Instagram STORY (9:16 vertical) for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. English only — the TOPIC may be written in Russian or any language, but ALWAYS write the headline, CTA and caption in ENGLISH (this is published copy for the audience). Voice: warm, energetic, safe. NEVER use the words "trial" or "free" anywhere (the first class is paid): the standard CTA is "BOOK YOUR FIRST CLASS". 
 Given a TOPIC, return STRICT JSON (no prose):
-{"headline":"<1-2 SHORT punchy words, ≤12 characters total, MUST fit one line — e.g. \\"WE'RE OPEN\\", \\"NEW GYM\\", \\"SOON\\">","cta":"<short CTA, e.g. BOOK A TRIAL>","caption":"<short IG caption, 1-2 emojis, 3-6 hashtags>"}
+{"headline":"<1-2 SHORT punchy words, ≤12 characters total, MUST fit one line — e.g. \\"WE'RE OPEN\\", \\"NEW GYM\\", \\"SOON\\">","cta":"<short CTA, e.g. BOOK YOUR FIRST CLASS>","caption":"<short IG caption, 1-2 emojis, 3-6 hashtags>"}
 Keep it child-safe and on-brand. Never invent prices, dates, or results.`;
 
 async function generateStoryCopy(theme) {
   const raw = await generateText({ system: STORY_SYSTEM, user: `TOPIC: ${theme}\nReturn the JSON.`, maxTokens: 400 });
   const c = parseJson(raw);
   if (!c || !c.headline) throw new Error('story copy: unparseable');
-  return { headline: c.headline, cta: c.cta || 'BOOK A TRIAL', caption: c.caption || '' };
+  return { headline: c.headline, cta: c.cta || 'BOOK YOUR FIRST CLASS', caption: c.caption || '' };
 }
 
 /**

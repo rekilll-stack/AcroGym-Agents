@@ -112,7 +112,7 @@ function hamming(a, b) { let d = 0; for (let i = 0; i < Math.min(a.length, b.len
 // ── layer 3: vision rubric (Sonnet) ──────────────────────────────
 const VISION_SYSTEM = `You are a METICULOUS QA reviewer for AcroGym Qatar — a kids' gymnastics & acrobatics brand — checking ONE finished Instagram slide (photo + brand text overlay) before it can go live. Be strict on real quality problems; judge ONLY what you can see.
 KNOW THE TEMPLATE (do NOT flag these as issues — they are intentional design):
-- It is a CAROUSEL. The context says which slide ("slide 1/4" etc). Slide 1 is the COVER: short hook headline + an orange "BOOK A TRIAL" pill with a SEPARATE arrow beside it (the arrow sitting outside the pill is correct). The cover is just a hook — campaign details (dates, location like "Lagoona Mall"/"September") live on the INNER slides, so do NOT flag the cover for "missing details".
+- It is a CAROUSEL. The context says which slide ("slide 1/4" etc). Slide 1 is the COVER: short hook headline + an orange CTA pill (e.g. "BOOK YOUR FIRST CLASS") with a SEPARATE arrow beside it (the arrow sitting outside the pill is correct). The cover is just a hook — campaign details (dates, location like "Lagoona Mall"/"September") live on the INNER slides, so do NOT flag the cover for "missing details".
 - Slides 2+ are INNER: a short headline + body text + the orange asterisk. They have NO CTA pill and NO arrow by design — do NOT flag inner slides for "missing CTA".
 - You see only ONE slide at a time and you do NOT have the campaign brief. Judge this slide ONLY on its own visual + text quality (framing, legibility, brand look, spelling). NEVER flag a slide for "missing" any fact, location, date, price or call-to-action that you merely expect a campaign to contain — coverage of the campaign across the carousel is NOT your job and you cannot see the other slides. Do not invent a brief to check against.
 Reply with STRICT JSON ONLY (no prose), every field present:
@@ -241,6 +241,7 @@ function verifyCaption(caption) {
   if (tags.length > 30) issues.push(`${tags.length} хэштегов > лимит IG 30`);
   if (PLACEHOLDER_RE.test(text)) issues.push('в подписи остался шаблонный текст');
   if (/[А-Яа-яЁё]/.test(text)) issues.push('в подписи есть русский текст (должно быть на английском)');
+  if (/\b(free|trial)\b/i.test(text)) issues.push('в подписи запрещённое слово trial/free — первое занятие платное, CTA = Book Your First Class');
   if (/ {3,}/.test(text)) issues.push('в подписи странные пробелы');
   return { ok: issues.length === 0, issues };
 }
