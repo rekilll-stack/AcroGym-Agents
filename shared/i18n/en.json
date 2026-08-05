@@ -167,7 +167,8 @@
     "chart_dow_title": "Day-of-week pattern (last 28 days)",
     "chart_tod_title": "Time-of-day pattern (last 28 days)",
     "section_week_funnel": "📈 *This week: sources → replies*",
-    "week_funnel_total": "*Total: {total} → {resp} \\\\({pct}%\\\\)*"
+    "week_funnel_total": "*Total: {total} → {resp} \\\\({pct}%\\\\)*",
+    "overview_registrations": "• Registrations (main form): {{day}} yesterday · {{total}} total"
   },
   "weekly": {
     "title": "📅 *AcroGym Weekly Slice*",

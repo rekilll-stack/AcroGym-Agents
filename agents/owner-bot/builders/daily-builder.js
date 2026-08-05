@@ -21,6 +21,7 @@ const {
   getLeadsByDayOfWeek,
   getLeadsByHour,
   countTotalLeads,
+  countRegistrations,
   getLongPending,
   getAllPending,
   getYesterdayResponded,
@@ -390,6 +391,12 @@ async function buildDigest({ dryRun = false, withCharts = false, lang = 'en' } =
     if (existingCount)  text += tr.t('daily.overview_existing',  { count: existingCount })  + '\n';
     if (returningCount) text += tr.t('daily.overview_returning', { count: returningCount }) + '\n';
     if (identErrors > 0) text += tr.t('daily.overview_duplicates', { count: identErrors })  + '\n';
+  }
+  // Регистрации из большой клиентской формы (submitted_at хранится как M/D/YYYY).
+  {
+    const [ry, rm, rd] = yesterdayStr.split('-').map(Number);
+    const regs = countRegistrations(`${rm}/${rd}/${ry}`);
+    if (regs.total > 0) text += tr.t('daily.overview_registrations', { day: regs.day, total: regs.total }) + '\n';
   }
   text += '\n';
 

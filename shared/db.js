@@ -321,6 +321,20 @@ function getLeadsNeedingReminder(reminderHours, repeatHours = 24) {
 }
 
 /**
+ * Registrations (big client form) counters for the daily digest.
+ * submitted_at is stored as the sheet's raw text 'M/D/YYYY H:MM:SS' (no leading
+ * zeros), so the per-day filter is a LIKE on that exact prefix.
+ */
+function countRegistrations(mdYyyy) {
+  const db = getDb();
+  const total = db.prepare('SELECT COUNT(*) AS n FROM registrations').get().n;
+  const day = mdYyyy
+    ? db.prepare("SELECT COUNT(*) AS n FROM registrations WHERE submitted_at LIKE ? || ' %'").get(mdYyyy).n
+    : 0;
+  return { total, day };
+}
+
+/**
  * Display position of a lead among real (non-legacy) leads: 1 = first real lead.
  * Used for card headers when sheet_row_number is NULL (uid-ingested leads) —
  * the raw autoincrement id (131 for the 2nd real lead) confused the owner.
@@ -1093,6 +1107,7 @@ module.exports = {
   updateLeadGreeting,
   getLeadsNeedingReminder,
   countRealLeadsUpTo,
+  countRegistrations,
   getWeeklySourceFunnel,
   findExistingLead,
   getAllPending,
