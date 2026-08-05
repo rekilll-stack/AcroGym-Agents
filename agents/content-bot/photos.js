@@ -439,4 +439,16 @@ async function scoutCandidates(theme, count = 6) {
   return { photos, weak: photos.length < 3 };
 }
 
-module.exports = { selectBest, selectBestVision, scoutCandidates, loadCatalog, recordUsed };
+/**
+ * true, если фото по пути `path` — почти-дубль любого из usedPaths (phash из
+ * каталога, hamming ≤ maxDist). Нет отпечатка — считаем непохожим (false).
+ * Закрывает дыру 05.08: свопы (кроп/targeted) вставляли соседний кадр серии.
+ */
+function nearDuplicate(path, usedPaths, maxDist = 8) {
+  const byPath = new Map(loadCatalog().map((p) => [p.path, p.phash]));
+  const h = byPath.get(path);
+  if (!h) return false;
+  return (usedPaths || []).some((u) => u && u !== path && byPath.get(u) && hamming(h, byPath.get(u)) <= maxDist);
+}
+
+module.exports = { selectBest, selectBestVision, scoutCandidates, loadCatalog, recordUsed, nearDuplicate };

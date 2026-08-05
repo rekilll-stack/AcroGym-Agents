@@ -25,6 +25,7 @@ const canva = require('./canva');
 const agent = require('./agent');
 const crop = require('./crop');
 const yandex = require('./yandex');
+const photosLib = require('./photos');
 const { generateContent } = require('./generate');
 const { createLogger } = require('../../shared/logger');
 
@@ -106,7 +107,11 @@ async function assembleCarousel({ topic, photos, cover, inner, caption, backups 
       }
       if (result.covered && !(result.cut = await crop.checkCropCut(result.buffer))) break;
       if (!pool.length) break;
-      const alt = pool.shift();
+      // не вставляем кадр, почти совпадающий с фото на других слайдах
+      const usedElsewhere = photos.filter((p, j) => j !== i && p && p.path).map((p) => p.path);
+      let altIdx = pool.findIndex((b) => !photosLib.nearDuplicate(b.path, usedElsewhere));
+      if (altIdx < 0) altIdx = 0; // все кандидаты похожи — берём первый (лучше, чем резать тело)
+      const alt = pool.splice(altIdx, 1)[0];
       try {
         const buffer = await yandex.downloadBuffer(alt.path);
         logger.info({ dropped: current.name, swappedIn: alt.name }, 'crop cannot fit whole body → swapping to backup photo');

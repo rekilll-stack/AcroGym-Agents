@@ -301,7 +301,7 @@ async function buildDraft(bot, ownerChatId, { theme, slides = 4, routine = false
         if (sres.ok || !sres.photoRelated || !slide || !slide.bgElementId) continue;
         const fixed = await assemble.replaceSlidePhoto({
           designId: assembled.designId, page: slide.page, bgElementId: slide.bgElementId,
-          candidates: fresh.slice(0, 3),
+          candidates: fresh.filter((b) => !photos.nearDuplicate(b.path, photoPathsArr)).slice(0, 3),
         });
         if (!fixed) { logger.warn({ page: slide.page }, 'targeted slide fix: no candidate worked'); continue; }
         fresh = fresh.filter((b) => b.path !== fixed.path);
