@@ -168,7 +168,7 @@
     "chart_tod_title": "Распределение по часам (28 дней)",
     "section_week_funnel": "📈 *Неделя: источники → ответы*",
     "week_funnel_total": "*Итого: {total} → {resp} \\\\({pct}%\\\\)*",
-    "overview_registrations": "• Регистраций (осн. форма): вчера {{day}} · всего {{total}}"
+    "overview_registrations": "• Регистраций \\(осн\\. форма\\): вчера {{day}} · всего {{total}}"
   },
   "weekly": {
     "title": "📅 *AcroGym — Недельный срез*",
