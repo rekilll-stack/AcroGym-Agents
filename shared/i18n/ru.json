@@ -285,7 +285,9 @@
     "gym_memberships_new": "новых",
     "gym_memberships_frozen": "заморожено",
     "gym_expiring": "Истекают в ближайшие 14 дней",
-    "gym_until": "до"
+    "gym_until": "до",
+    "gym_churn": "Перестали ходить",
+    "gym_churn_of": "из"
   },
   "pending": {
     "title": "🔥 *Висящие лиды*",
@@ -475,7 +477,17 @@
     "coming_in2": "Появится с интеграцией in2",
     "expected": "Ожидается: август 2026",
     "footer": "AcroGym · Месячный отчёт",
-    "page_of": "Стр. {{n}} из {{total}}"
+    "page_of": "Стр. {{n}} из {{total}}",
+    "in2_classes": "Занятия",
+    "in2_visits": "Посещения",
+    "in2_clients": "Клиенты",
+    "in2_noshow": "Неявки",
+    "in2_util": "Загрузка",
+    "in2_rev_total": "Выручка, QAR",
+    "in2_rev_packages": "Абонементы, QAR",
+    "in2_rev_rent": "Брони, QAR",
+    "in2_t_name": "Тренер",
+    "in2_t_pay": "Расч. ЗП"
   },
   "pptx": {
     "cover_subtitle": "МЕСЯЧНЫЙ ОТЧЁТ",
@@ -514,7 +526,9 @@
     "weekly_sources": "Источники (эта неделя)",
     "weekly_trend": "Лиды по дням (последние 4 недели)",
     "series_this_week": "Эта неделя",
-    "series_prev_week": "Прошлая неделя"
+    "series_prev_week": "Прошлая неделя",
+    "gym_visits_trend": "Посещения зала по дням",
+    "gym_trainers": "Тренеры по посещениям"
   },
   "nurture_summary": {
     "title": "📊 Nurture — сводка прогона",

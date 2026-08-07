@@ -66,6 +66,11 @@ async function sendMonthlyReport({ dryRun = false, lang = 'en', month, chatIds =
   // ── REAL SEND ─────────────────────────────────────────────
   try {
     const results = await sendToOwner(report.text, { reply_markup: backKeyboard(lang), chatIds });
+    if (report.in2charts && report.in2charts.length) {
+      const { sendMediaGroupToOwner } = require('../../../shared/notify');
+      await sendMediaGroupToOwner(report.in2charts, null, { chatIds }).catch((err) =>
+        logger.error({ err }, '[monthly] in2 charts send failed'));
+    }
     if (results.length > 0) {
       logger.info('[monthly] Monthly report summary sent');
     } else {

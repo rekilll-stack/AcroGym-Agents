@@ -95,6 +95,16 @@ function buildTx(lang) {
     s_coaches_sub:     T('s_coaches_sub'),
     coming_in2:        T('coming_in2'),
     expected:          T('expected'),
+    in2_classes:       T('in2_classes'),
+    in2_visits:        T('in2_visits'),
+    in2_clients:       T('in2_clients'),
+    in2_noshow:        T('in2_noshow'),
+    in2_util:          T('in2_util'),
+    in2_rev_total:     T('in2_rev_total'),
+    in2_rev_packages:  T('in2_rev_packages'),
+    in2_rev_rent:      T('in2_rev_rent'),
+    in2_t_name:        T('in2_t_name'),
+    in2_t_pay:         T('in2_t_pay'),
     footer:            T('footer'),
     page_of:           (n, total) => T('page_of', { n, total }),
   };
@@ -170,6 +180,24 @@ async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } =
   const evResponseText = (avgResponseSeconds == null || respondedCount === 0)
     ? tx.ev_response_none
     : tx.ev_response_calc(formatDuration(avgResponseSeconds, lang), lang === 'ru' ? '2 ч' : '2h', avgResponseSeconds <= 2*3600);
+
+  // ── in2: живые данные для страницы 4 (иначе остаётся заглушка) ──
+  let in2data = null, in2chart = null;
+  try {
+    const in2 = require('../../../shared/in2');
+    const ops = await in2.opsSummary(dateFrom, dateTo);
+    if (ops && (ops.visits > 0 || (ops.revenue && ops.revenue.total > 0))) {
+      in2data = ops;
+      if (ops.visitsByDate.length > 1) {
+        in2chart = await renderLineChart({
+          title: '', labels: ops.visitsByDate.map(([d]) => d.slice(5)),
+          data: ops.visitsByDate.map(([, v]) => v), width: 960, height: 300,
+        });
+      }
+    }
+  } catch (err) {
+    logger.warn({ err: err.message }, 'pdf: in2 data unavailable — placeholder page kept');
+  }
 
   // ── Build PDF ────────────────────────────────────────────
   const doc    = new PDFDocument({ size: 'A4', margin: 0 });
@@ -411,6 +439,66 @@ async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } =
   doc.fontSize(9).fillColor('rgba(255,255,255,0.65)').font('M-Regular');
   txt(coverDateLabel, W - M - 80, 21);
 
+  if (in2data) {
+    // ── ЖИВЫЕ ДАННЫЕ in2 (включено 07.08.2026) ──
+    const r = in2data.revenue || {};
+    const tile = (x, y, w, big, label) => {
+      doc.roundedRect(x, y, w, 64, 8).fill(LIGHT);
+      doc.roundedRect(x, y, w, 64, 8).lineWidth(1).strokeColor('#E0E0E0').stroke();
+      doc.fontSize(19).fillColor(BLUE).font('M-ExtraBold');
+      txt(String(big), x, y + 12, { width: w, align: 'center' });
+      doc.fontSize(7.5).fillColor('#888888').font('M-SemiBold');
+      txt(label, x, y + 40, { width: w, align: 'center' });
+    };
+    const gap = 10, tw = (W - M * 2 - gap * 3) / 4;
+    let sy = 66;
+    // строка 1: посещаемость
+    const iw3 = icons.draw(doc, 'BarChart3', M, sy + 2, { size: 15, color: BLUE });
+    doc.fontSize(12).fillColor(BLUE).font('M-ExtraBold');
+    txt(tx.s_attendance, M + iw3, sy);
+    sy += 22;
+    tile(M, sy, tw, in2data.classes, tx.in2_classes);
+    tile(M + tw + gap, sy, tw, in2data.visits, tx.in2_visits);
+    tile(M + (tw + gap) * 2, sy, tw, in2data.uniqueClients, tx.in2_clients);
+    tile(M + (tw + gap) * 3, sy, tw,
+      in2data.noShowRate != null ? `${in2data.noShowRate}%` : '—', tx.in2_noshow);
+    sy += 80;
+    // строка 2: выручка
+    const iw4 = icons.draw(doc, 'TrendingUp', M, sy + 2, { size: 15, color: BLUE });
+    doc.fontSize(12).fillColor(BLUE).font('M-ExtraBold');
+    txt(tx.s_revenue, M + iw4, sy);
+    sy += 22;
+    tile(M, sy, tw, `${Math.round(r.total || 0)}`, tx.in2_rev_total);
+    tile(M + tw + gap, sy, tw, `${Math.round(r.packages || 0)}`, tx.in2_rev_packages);
+    tile(M + (tw + gap) * 2, sy, tw, `${Math.round(r.reservations || 0)}`, tx.in2_rev_rent);
+    tile(M + (tw + gap) * 3, sy, tw,
+      in2data.utilization != null ? `${in2data.utilization}%` : '—', tx.in2_util);
+    sy += 84;
+    // график посещений
+    if (in2chart) {
+      doc.image(in2chart, M, sy, { width: W - M * 2 });
+      sy += (W - M * 2) * 300 / 960 + 12;
+    }
+    // тренеры
+    const iw5 = icons.draw(doc, 'User', M, sy + 2, { size: 15, color: BLUE });
+    doc.fontSize(12).fillColor(BLUE).font('M-ExtraBold');
+    txt(tx.s_coaches, M + iw5, sy);
+    sy += 20;
+    doc.fontSize(8).fillColor('#888888').font('M-SemiBold');
+    const cols = [M, M + 170, M + 250, M + 330, M + 410];
+    [tx.in2_t_name, tx.in2_classes, tx.in2_visits, tx.in2_clients, tx.in2_t_pay].forEach((h, ci) => txt(h, cols[ci], sy));
+    sy += 14;
+    doc.fontSize(9).fillColor('#333333').font('M-Regular');
+    for (const t of in2data.trainers.slice(0, 7)) {
+      txt(t.name.slice(0, 28), cols[0], sy);
+      txt(String(t.classes), cols[1], sy);
+      txt(String(t.visits), cols[2], sy);
+      txt(String(t.uniqueClients), cols[3], sy);
+      txt(`~${t.estPay} QAR`, cols[4], sy);
+      sy += 14;
+      if (sy > H - 60) break;
+    }
+  } else {
   const PH_SECS = [
     { icon: 'BarChart3',  title: tx.s_attendance, sub: noLig(tx.s_attendance_sub) },
     { icon: 'TrendingUp', title: tx.s_revenue,    sub: noLig(tx.s_revenue_sub)    },
@@ -437,6 +525,7 @@ async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } =
     doc.fontSize(8).fillColor('#CCCCCC').font('M-Light');
     txt(tx.expected, 0, by + 132, { width: W, align: 'center' });
   });
+  }
 
   footer(4, 4);
 

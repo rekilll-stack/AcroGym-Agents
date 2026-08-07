@@ -134,6 +134,8 @@ async function opsSummary(fromDate, toDate) {
 
   const byTrainer = new Map();
   const allClients = new Set();
+  const clientNames = new Map();          // id → имя (для churn-списка)
+  const byDate = new Map();               // 'YYYY-MM-DD' → визиты (для графиков)
   let capacitySum = 0, booked = 0, fullClasses = 0;
   for (const ev of events) {
     let occ = null, att = [];
@@ -153,14 +155,22 @@ async function opsSummary(fromDate, toDate) {
     t.pay += classPay(visited.length);
     for (const a of visited) {
       const cid = a.idClient ?? a.clientId ?? a.clientName;
-      if (cid != null) { t.clients.add(cid); allClients.add(cid); }
+      if (cid != null) {
+        t.clients.add(cid); allClients.add(cid);
+        if (a.clientName) clientNames.set(cid, a.clientName);
+      }
       if (a.price != null) t.revenue += Number(a.price) || 0; // цена посещения, если бин её отдаёт
     }
     byTrainer.set(key, t);
     out.classes += 1;
     out.visits += visited.length;
+    const dkey = (ev.startDate || ev.startDateTime || '').slice(0, 10);
+    if (dkey) byDate.set(dkey, (byDate.get(dkey) || 0) + visited.length);
   }
   out.uniqueClients = allClients.size;
+  out.clientIds = allClients;
+  out.clientNames = clientNames;
+  out.visitsByDate = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   out.booked = booked;
   out.noShowRate = booked > 0 ? Math.round((1 - out.visits / booked) * 100) : null;
   out.utilization = capacitySum > 0 ? Math.round(booked / capacitySum * 100) : null;
@@ -223,5 +233,17 @@ async function todayClasses() {
   return { classes: ev.length };
 }
 
+// ── Churn: клиенты прошлого периода, не появившиеся в текущем.
+//    Принимает ДВА уже посчитанных opsSummary — без лишних вызовов API.
+function churnFromSummaries(prevOps, curOps, cap = 10) {
+  if (!prevOps || !curOps || !prevOps.clientIds || !prevOps.clientIds.size) return null;
+  const lost = [...prevOps.clientIds].filter((id) => !curOps.clientIds.has(id));
+  return {
+    prevClients: prevOps.clientIds.size,
+    lost: lost.length,
+    names: lost.slice(0, cap).map((id) => (prevOps.clientNames && prevOps.clientNames.get(id)) || String(id)),
+  };
+}
+
 module.exports = { call, salesTotals, eventsRange, occurrence, trainers, opsSummary, classPay,
-  customersSummary, membershipsSummary, todayClasses };
+  customersSummary, membershipsSummary, todayClasses, churnFromSummaries };

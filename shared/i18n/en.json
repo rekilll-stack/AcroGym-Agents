@@ -285,7 +285,9 @@
     "gym_memberships_new": "new",
     "gym_memberships_frozen": "frozen",
     "gym_expiring": "Expiring within 14 days",
-    "gym_until": "until"
+    "gym_until": "until",
+    "gym_churn": "Stopped visiting",
+    "gym_churn_of": "of"
   },
   "pending": {
     "title": "🔥 *Pending Leads*",
@@ -475,7 +477,17 @@
     "coming_in2": "Coming with in2 integration",
     "expected": "Expected: August 2026",
     "footer": "AcroGym · Monthly Report",
-    "page_of": "Page {{n}} of {{total}}"
+    "page_of": "Page {{n}} of {{total}}",
+    "in2_classes": "Classes",
+    "in2_visits": "Visits",
+    "in2_clients": "Clients",
+    "in2_noshow": "No-show",
+    "in2_util": "Utilization",
+    "in2_rev_total": "Revenue, QAR",
+    "in2_rev_packages": "Memberships, QAR",
+    "in2_rev_rent": "Bookings, QAR",
+    "in2_t_name": "Coach",
+    "in2_t_pay": "Est. pay"
   },
   "pptx": {
     "cover_subtitle": "MONTHLY REPORT",
@@ -514,7 +526,9 @@
     "weekly_sources": "Source Breakdown (this week)",
     "weekly_trend": "Daily Leads Trend (last 4 weeks)",
     "series_this_week": "This week",
-    "series_prev_week": "Previous week"
+    "series_prev_week": "Previous week",
+    "gym_visits_trend": "Gym visits by day",
+    "gym_trainers": "Coaches by visits"
   },
   "nurture_summary": {
     "title": "📊 Nurture — execution summary",

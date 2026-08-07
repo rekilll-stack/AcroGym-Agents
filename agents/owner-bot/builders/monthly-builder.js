@@ -200,7 +200,7 @@ async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttac
   const requiredPace     = targetPerMonth.toFixed(1);
 
   // ── Build section objects ─────────────────────────────────
-  let in2ops = null, in2members = null, in2customers = null;
+  let in2ops = null, in2members = null, in2customers = null, in2churn = null;
   try {
     const in2 = require('../../../shared/in2');
     in2ops = await in2.opsSummary(monthStart, monthEnd);
@@ -208,6 +208,11 @@ async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttac
     // membership-сводка = N+1 по клиентам; гоняем только когда клиенты вообще есть
     if (in2customers && in2customers.total > 0) {
       in2members = await in2.membershipsSummary(monthStart).catch(() => null);
+    }
+    // churn считаем только когда в ТЕКУЩЕМ месяце есть посещения (иначе прошлый прогон зря)
+    if (in2ops && in2ops.visits > 0) {
+      const prevOps = await in2.opsSummary(prevMonthStart, prevMonthEnd).catch(() => null);
+      in2churn = in2.churnFromSummaries(prevOps, in2ops);
     }
   } catch (err) {
     logger.warn({ err: err.message }, '[monthly] in2 summary unavailable — sections hidden');
@@ -229,6 +234,30 @@ async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttac
   const monthObj  = tr.tObj('month_names');
   const monthName = monthObj[String(monthLabel.month() + 1)] || monthLabel.format('MMMM');
   const year      = monthLabel.year();
+
+  // ── in2-графики для Telegram (только когда есть что рисовать) ──
+  let in2charts = [];
+  if (!dryRun && in2ops && in2ops.visits > 0) {
+    try {
+      const { renderLineChart, renderBarChart } = require('../../../shared/chart');
+      if (in2ops.visitsByDate.length > 1) {
+        in2charts.push(await renderLineChart({
+          title: tr.t('charts.gym_visits_trend'),
+          labels: in2ops.visitsByDate.map(([d]) => d.slice(5)),
+          data: in2ops.visitsByDate.map(([, v]) => v),
+        }));
+      }
+      if (in2ops.trainers.length > 1) {
+        in2charts.push(await renderBarChart({
+          title: tr.t('charts.gym_trainers'),
+          labels: in2ops.trainers.slice(0, 8).map((t) => t.name.split(' ')[0]),
+          data: in2ops.trainers.slice(0, 8).map((t) => t.visits),
+        }));
+      }
+    } catch (err) {
+      logger.warn({ err: err.message }, '[monthly] in2 charts skipped');
+    }
+  }
 
   const dryMark = dryRun ? '\n_dry run_' : '';
 
@@ -316,6 +345,10 @@ async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttac
         text += `• ⚠️ ${escapeMd(tr.t('monthly.gym_debt'))}: ${in2customers.debtTotal} QAR \(${in2customers.debtors}\)\n`;
       }
     }
+    if (in2churn && in2churn.lost > 0) {
+      text += `• 📉 ${escapeMd(tr.t('monthly.gym_churn'))}: ${in2churn.lost} ${escapeMd(tr.t('monthly.gym_churn_of'))} ${in2churn.prevClients}\n`;
+      if (in2churn.names.length) text += `  ↳ ${escapeMd(in2churn.names.slice(0, 5).join(', '))}\n`;
+    }
     if (in2members && in2members.active > 0) {
       text += `• ${escapeMd(tr.t('monthly.gym_memberships'))}: ${in2members.active}`;
       const parts = [];
@@ -369,6 +402,7 @@ async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttac
   }
 
   return {
+    in2charts,
     text,
     lang,
     pdfBuffer:  null,
