@@ -23,7 +23,7 @@ function summarize(posts) {
 
   const byType = {};
   for (const p of posts) {
-    const t = isReel(p) ? 'Reels' : 'Посты/карусели';
+    const t = isReel(p) ? 'reels' : 'posts'; // стабильные ключи; перевод — в report.js
     (byType[t] || (byType[t] = { n: 0, reach: 0, rate: 0 }));
     byType[t].n++;
     byType[t].reach += Number(p.reach) || 0;
@@ -40,23 +40,32 @@ function rankPosts(posts) {
   return [...posts].sort((a, b) => rate(b) - rate(a));
 }
 
-async function insights(posts, { generate }) {
+async function insights(posts, { generate, lang = 'ru' } = {}) {
+  const en = lang === 'en';
   const ranked = rankPosts(posts);
   const lines = ranked
-    .map((p, i) =>
-      `${i + 1}. [${isReel(p) ? 'Reel' : 'Пост'}] охват ${p.reach}, вовлечённость ${(rate(p) * 100).toFixed(1)}%, сохранений ${p.saved}\n` +
-      `   «${String(p.caption || '').replace(/\s+/g, ' ').slice(0, 160)}»`)
+    .map((p, i) => en
+      ? `${i + 1}. [${isReel(p) ? 'Reel' : 'Post'}] reach ${p.reach}, engagement ${(rate(p) * 100).toFixed(1)}%, saves ${p.saved}\n` +
+        `   "${String(p.caption || '').replace(/\s+/g, ' ').slice(0, 160)}"`
+      : `${i + 1}. [${isReel(p) ? 'Reel' : 'Пост'}] охват ${p.reach}, вовлечённость ${(rate(p) * 100).toFixed(1)}%, сохранений ${p.saved}\n` +
+        `   «${String(p.caption || '').replace(/\s+/g, ' ').slice(0, 160)}»`)
     .join('\n');
 
-  const system =
-    'Ты — контент-аналитик детского акро-зала AcroGym (Доха, Катар). Читатель отчёта — владелец, не маркетолог. ' +
-    'Пиши по-русски, коротко и по делу, без воды и лишних англицизмов. Опирайся на цифры, а не на общие фразы.';
-  const user =
-    `Посты Instagram за период, отсортированы по вовлечённости (interactions/reach):\n\n${lines}\n\n` +
-    'Дай разбор строго в 3 блока (без вступлений):\n' +
-    '1. ЧТО СРАБОТАЛО — 2-3 наблюдения по цифрам (форматы, темы, приёмы).\n' +
-    '2. ЧТО ПОСТИТЬ БОЛЬШЕ — 3 конкретные идеи постов под детскую акробатику, повторяющие успех.\n' +
-    '3. ЧАСТОТА/ФОРМАТ — одна строка совета.';
+  const system = en
+    ? 'You are the content analyst for AcroGym (kids gymnastics & acrobatics, Doha, Qatar). The reader is the owner, not a marketer. Write in ENGLISH, short and concrete — lean on the numbers, not generic phrases.'
+    : 'Ты — контент-аналитик детского акро-зала AcroGym (Доха, Катар). Читатель отчёта — владелец, не маркетолог. ' +
+      'Пиши по-русски, коротко и по делу, без воды и лишних англицизмов. Опирайся на цифры, а не на общие фразы.';
+  const user = en
+    ? `Instagram posts for the period, sorted by engagement (interactions/reach):\n\n${lines}\n\n` +
+      'Give the analysis in exactly 3 blocks (no intro):\n' +
+      '1. WHAT WORKED — 2-3 observations from the numbers (formats, topics, techniques).\n' +
+      '2. POST MORE OF — 3 concrete post ideas for kids acrobatics that repeat the wins.\n' +
+      '3. FREQUENCY/FORMAT — one line of advice.'
+    : `Посты Instagram за период, отсортированы по вовлечённости (interactions/reach):\n\n${lines}\n\n` +
+      'Дай разбор строго в 3 блока (без вступлений):\n' +
+      '1. ЧТО СРАБОТАЛО — 2-3 наблюдения по цифрам (форматы, темы, приёмы).\n' +
+      '2. ЧТО ПОСТИТЬ БОЛЬШЕ — 3 конкретные идеи постов под детскую акробатику, повторяющие успех.\n' +
+      '3. ЧАСТОТА/ФОРМАТ — одна строка совета.';
 
   // Запас под thinking + полный ответ из 3 блоков (иначе текст обрежется).
   const text = await generate({ system, user, maxTokens: 1500 });
@@ -71,8 +80,9 @@ async function insights(posts, { generate }) {
 async function analyze(posts, deps = {}) {
   // Подписочный путь (шим content-bot/llm через `claude -p`, $0 API) — правило владельца.
   const generate = deps.generate || require('../content-bot/llm').generateText;
+  const lang = deps.lang === 'en' ? 'en' : 'ru';
   const summary = summarize(posts);
-  const advice = summary.n ? await insights(posts, { generate }) : '';
+  const advice = summary.n ? await insights(posts, { generate, lang }) : '';
   return { summary, ranked: rankPosts(posts), advice };
 }
 
