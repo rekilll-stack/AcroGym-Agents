@@ -103,10 +103,11 @@ function extractAttendees(occ) {
 }
 
 function attendedFlag(a) {
-  for (const k of ['attended', 'isAttended', 'checkedIn', 'isCheckedIn', 'present']) {
-    if (k in a) return !!a[k];
+  // 'attendance' — родное поле in2 (AttendanceResponse); остальные — на случай других бинов
+  for (const k of ['attendance', 'attended', 'isAttended', 'checkedIn', 'isCheckedIn', 'present']) {
+    if (k in a && a[k] != null) return !!a[k];
   }
-  return true; // флага нет — считаем записанного посетившим (уточним на реальных данных)
+  return true; // флага нет — считаем записанного посетившим (админы могут не отмечать)
 }
 
 // Формула ЗП тренера (владелец + in2, июнь 2026): 100 QAR за занятие при 1-5 детях,
@@ -133,29 +134,94 @@ async function opsSummary(fromDate, toDate) {
 
   const byTrainer = new Map();
   const allClients = new Set();
+  let capacitySum = 0, booked = 0, fullClasses = 0;
   for (const ev of events) {
-    let att = [];
-    try { att = extractAttendees(await occurrence(ev.id)); }
+    let occ = null, att = [];
+    try { occ = await occurrence(ev.id); att = extractAttendees(occ); }
     catch { /* одна битая запись не валит сводку */ }
+    if (occ && occ.isCancelled) continue;
     const visited = att.filter(attendedFlag);
-    const name = (ev.trainerName || 'Unassigned').trim() || 'Unassigned';
-    const t = byTrainer.get(name) || { name, classes: 0, visits: 0, clients: new Set(), pay: 0 };
+    const cap = Number(occ && occ.maximumCapacity) || 0;
+    if (cap > 0) { capacitySum += cap; if (att.length >= cap) fullClasses += 1; }
+    booked += att.length;
+    const name = (ev.trainerName || (occ && occ.trainer) || 'Unassigned');
+    const key = (typeof name === 'string' ? name : (name && name.name) || 'Unassigned').trim() || 'Unassigned';
+    const t = byTrainer.get(key) || { name: key, classes: 0, visits: 0, booked: 0, clients: new Set(), pay: 0, revenue: 0 };
     t.classes += 1;
     t.visits += visited.length;
+    t.booked += att.length;
     t.pay += classPay(visited.length);
     for (const a of visited) {
       const cid = a.idClient ?? a.clientId ?? a.clientName;
       if (cid != null) { t.clients.add(cid); allClients.add(cid); }
+      if (a.price != null) t.revenue += Number(a.price) || 0; // цена посещения, если бин её отдаёт
     }
-    byTrainer.set(name, t);
+    byTrainer.set(key, t);
     out.classes += 1;
     out.visits += visited.length;
   }
   out.uniqueClients = allClients.size;
+  out.booked = booked;
+  out.noShowRate = booked > 0 ? Math.round((1 - out.visits / booked) * 100) : null;
+  out.utilization = capacitySum > 0 ? Math.round(booked / capacitySum * 100) : null;
+  out.fullClasses = fullClasses;
   out.trainers = [...byTrainer.values()]
-    .map((t) => ({ name: t.name, classes: t.classes, visits: t.visits, uniqueClients: t.clients.size, estPay: t.pay }))
+    .map((t) => ({ name: t.name, classes: t.classes, visits: t.visits, booked: t.booked,
+                   uniqueClients: t.clients.size, estPay: t.pay,
+                   revenue: t.revenue > 0 ? Math.round(t.revenue) : null }))
     .sort((a, b) => b.visits - a.visits); // рейтинг по посещениям
   return out;
 }
 
-module.exports = { call, salesTotals, eventsRange, occurrence, trainers, opsSummary, classPay };
+// ── Клиенты: рост базы + дебиторка (customers/list без фильтра = все; cap разумный) ──
+async function customersSummary(monthStartStr) {
+  const list = await call('/customers/list', { method: 'POST', body: {} });
+  if (!Array.isArray(list)) return null;
+  const debtors = list.filter((c) => Number(c.balance) < 0);
+  return {
+    total: list.length,
+    newThisMonth: monthStartStr ? list.filter((c) => (c.memberSince || '').slice(0, 10) >= monthStartStr).length : null,
+    children: list.filter((c) => c.isChild).length,
+    debtors: debtors.length,
+    debtTotal: Math.round(Math.abs(debtors.reduce((s, c) => s + Number(c.balance || 0), 0))),
+  };
+}
+
+// ── Абонементы: активные / новые / истекающие / замороженные (N+1 c капом) ──
+const MEMBERSHIP_FETCH_CAP = 300;
+async function membershipsSummary(monthStartStr, expiringDays = 14) {
+  const list = await call('/customers/list', { method: 'POST', body: {} });
+  if (!Array.isArray(list)) return null;
+  const today = new Date();
+  const horizon = new Date(today.getTime() + expiringDays * 86400000).toISOString().slice(0, 10);
+  const todayStr = today.toISOString().slice(0, 10);
+  const out = { active: 0, newThisMonth: 0, frozen: 0, expiringSoon: [], truncated: list.length > MEMBERSHIP_FETCH_CAP };
+  for (const c of list.slice(0, MEMBERSHIP_FETCH_CAP)) {
+    let ms = [];
+    try { ms = await call(`/customers/${c.id}/customer-memberships`); } catch { continue; }
+    if (!Array.isArray(ms)) continue;
+    for (const m of ms) {
+      const status = String(m.status || '').toUpperCase();
+      if (m.isExpired || status.includes('EXPIR') || status.includes('CANCEL')) continue;
+      out.active += 1;
+      if (status.includes('FROZEN') || status.includes('FREEZE')) out.frozen += 1;
+      if (monthStartStr && (m.purchaseDate || '').slice(0, 10) >= monthStartStr) out.newThisMonth += 1;
+      const exp = (m.expiryDate || '').slice(0, 10);
+      if (exp && exp >= todayStr && exp <= horizon) {
+        out.expiringSoon.push({ client: c.name, membership: m.membershipName, expiry: exp });
+      }
+    }
+  }
+  out.expiringSoon.sort((a, b) => a.expiry.localeCompare(b.expiry));
+  return out;
+}
+
+// ── Сегодняшние занятия (для дневного дайджеста, 1 вызов) ──
+async function todayClasses() {
+  const today = new Date().toISOString().slice(0, 10);
+  const ev = await eventsRange(today, today);
+  return { classes: ev.length };
+}
+
+module.exports = { call, salesTotals, eventsRange, occurrence, trainers, opsSummary, classPay,
+  customersSummary, membershipsSummary, todayClasses };

@@ -169,7 +169,9 @@
     "section_week_funnel": "📈 *This week: sources → replies*",
     "week_funnel_total": "*Total: {total} → {resp} \\\\({pct}%\\\\)*",
     "overview_registrations": "• Registrations \\(main form\\): {{day}} yesterday · {{total}} total",
-    "overview_in2_revenue": "• Gym revenue \\(in2\\): {{day}} QAR yesterday · {{month}} QAR this month"
+    "overview_in2_revenue": "• Gym revenue \\(in2\\): {{day}} QAR yesterday · {{month}} QAR this month",
+    "overview_in2_today": "• Gym today: {{classes}} classes scheduled",
+    "overview_in2_debt": "• ⚠️ Client debt \\(in2\\): {{debt}} QAR \\({{count}} clients\\)"
   },
   "weekly": {
     "title": "📅 *AcroGym Weekly Slice*",
@@ -271,7 +273,19 @@
     "gym_clients_word": "clients",
     "gym_revenue": "Revenue",
     "gym_coaches": "Coaches (by visits)",
-    "gym_pay": "est. pay"
+    "gym_pay": "est. pay",
+    "gym_noshow": "No-show",
+    "gym_utilization": "Capacity used",
+    "gym_full_classes": "sold-out classes",
+    "gym_trainer_revenue": "revenue",
+    "gym_customers": "Clients in base",
+    "gym_customers_new": "new",
+    "gym_debt": "Client debt",
+    "gym_memberships": "Active memberships",
+    "gym_memberships_new": "new",
+    "gym_memberships_frozen": "frozen",
+    "gym_expiring": "Expiring within 14 days",
+    "gym_until": "until"
   },
   "pending": {
     "title": "🔥 *Pending Leads*",

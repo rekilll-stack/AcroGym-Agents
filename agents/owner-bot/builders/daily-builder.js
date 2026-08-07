@@ -411,6 +411,14 @@ async function buildDigest({ dryRun = false, withCharts = false, lang = 'en' } =
         day: Math.round((yDay && yDay.total) || 0), month: Math.round(mtd.total),
       }) + '\n';
     }
+    const today = await in2.todayClasses().catch(() => null);
+    if (today && today.classes > 0) {
+      text += tr.t('daily.overview_in2_today', { classes: today.classes }) + '\n';
+    }
+    const cust = await in2.customersSummary(null).catch(() => null);
+    if (cust && cust.debtors > 0) {
+      text += tr.t('daily.overview_in2_debt', { debt: cust.debtTotal, count: cust.debtors }) + '\n';
+    }
   } catch (err) {
     logger.warn({ err: err.message }, '[daily] in2 revenue line skipped');
   }

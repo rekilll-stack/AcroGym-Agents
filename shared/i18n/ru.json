@@ -169,7 +169,9 @@
     "section_week_funnel": "📈 *Неделя: источники → ответы*",
     "week_funnel_total": "*Итого: {total} → {resp} \\\\({pct}%\\\\)*",
     "overview_registrations": "• Регистраций \\(осн\\. форма\\): вчера {{day}} · всего {{total}}",
-    "overview_in2_revenue": "• Выручка зала \\(in2\\): вчера {{day}} QAR · за месяц {{month}} QAR"
+    "overview_in2_revenue": "• Выручка зала \\(in2\\): вчера {{day}} QAR · за месяц {{month}} QAR",
+    "overview_in2_today": "• Сегодня в зале: {{classes}} занятий",
+    "overview_in2_debt": "• ⚠️ Долги клиентов \\(in2\\): {{debt}} QAR \\({{count}} чел\\.\\)"
   },
   "weekly": {
     "title": "📅 *AcroGym — Недельный срез*",
@@ -271,7 +273,19 @@
     "gym_clients_word": "клиентов",
     "gym_revenue": "Выручка",
     "gym_coaches": "Тренеры (рейтинг по посещениям)",
-    "gym_pay": "ЗП"
+    "gym_pay": "ЗП",
+    "gym_noshow": "Неявки",
+    "gym_utilization": "Загрузка зала",
+    "gym_full_classes": "занятий с полной посадкой",
+    "gym_trainer_revenue": "выручка",
+    "gym_customers": "Клиентов в базе",
+    "gym_customers_new": "новых",
+    "gym_debt": "Долги клиентов",
+    "gym_memberships": "Активных абонементов",
+    "gym_memberships_new": "новых",
+    "gym_memberships_frozen": "заморожено",
+    "gym_expiring": "Истекают в ближайшие 14 дней",
+    "gym_until": "до"
   },
   "pending": {
     "title": "🔥 *Висящие лиды*",
