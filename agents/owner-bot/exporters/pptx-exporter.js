@@ -593,6 +593,65 @@ async function renderLeadsAndPipeline(prs, tr, rd) {
 // SLIDE 4 — Attendance, Revenue & Coaches (in2 placeholders)
 // ─────────────────────────────────────────────────────────────
 
+// Живые данные in2 (включено 07.08.2026) — заглушка ниже остаётся для пустого тенанта.
+function renderIn2Live(prs, tr, rd, ops, chartImg) {
+  const slide = prs.addSlide();
+  addHeader(slide, tr.t('pptx.slide_in2_header'), rd.coverDateLabel);
+  addFooter(slide, tr, rd, 4);
+
+  const r = ops.revenue || {};
+  const tiles = [
+    [ops.classes, tr.t('pdf.in2_classes')],
+    [ops.visits, tr.t('pdf.in2_visits')],
+    [ops.uniqueClients, tr.t('pdf.in2_clients')],
+    [ops.noShowRate != null ? `${ops.noShowRate}%` : '—', tr.t('pdf.in2_noshow')],
+    [Math.round(r.total || 0), tr.t('pdf.in2_rev_total')],
+    [Math.round(r.packages || 0), tr.t('pdf.in2_rev_packages')],
+    [Math.round(r.reservations || 0), tr.t('pdf.in2_rev_rent')],
+    [ops.utilization != null ? `${ops.utilization}%` : '—', tr.t('pdf.in2_util')],
+  ];
+  const gap = 0.30, tw = (W - M * 2 - gap * 3) / 4, th = 1.02;
+  tiles.forEach(([big, label], i) => {
+    const tx = M + (i % 4) * (tw + gap);
+    const ty = HDR_H + HDR_ACCENT_H + 0.30 + Math.floor(i / 4) * (th + 0.22);
+    slide.addShape('rect', { x: tx, y: ty, w: tw, h: th, fill: { color: 'F5F5F5' }, line: { color: C.LINE, width: 1 } });
+    slide.addText(String(big), {
+      x: tx, y: ty + 0.08, w: tw, h: 0.52,
+      fontFace: 'Montserrat', bold: true, fontSize: 24, color: C.BLUE, align: 'center', valign: 'middle',
+    });
+    slide.addText(label, {
+      x: tx, y: ty + 0.62, w: tw, h: 0.32,
+      fontFace: 'Montserrat', fontSize: 10, color: C.MUTED, align: 'center', valign: 'middle',
+    });
+  });
+
+  const bottomY = HDR_H + HDR_ACCENT_H + 0.30 + 2 * th + 0.55;
+  if (chartImg) {
+    const cw = 7.4;
+    slide.addImage({ data: chartImg, x: M, y: bottomY + 0.15, w: cw, h: cw * 300 / 960 });
+  }
+
+  const tabX = chartImg ? M + 7.4 + 0.40 : M;
+  const tabW = W - tabX - M;
+  const rows = [[
+    tr.t('pdf.in2_t_name'), tr.t('pdf.in2_visits'), tr.t('pdf.in2_t_pay'),
+  ].map((h) => ({ text: h, options: { bold: true, color: C.BLUE, fontSize: 10 } }))];
+  for (const t2 of ops.trainers.slice(0, 6)) {
+    rows.push([
+      { text: t2.name.slice(0, 24), options: { fontSize: 10 } },
+      { text: String(t2.visits), options: { fontSize: 10 } },
+      { text: `~${t2.estPay}`, options: { fontSize: 10 } },
+    ]);
+  }
+  slide.addTable(rows, {
+    x: tabX, y: bottomY, w: tabW,
+    colW: [tabW - 2.6, 1.35, 1.25],
+    fontFace: 'Montserrat', color: C.TXT,
+    border: { type: 'solid', color: 'E0E0E0', pt: 0.5 },
+    rowH: 0.30, valign: 'middle',
+  });
+}
+
 function renderIn2Placeholders(prs, tr, rd) {
   const slide = prs.addSlide();
   addHeader(slide, tr.t('pptx.slide_in2_header'), rd.coverDateLabel);
@@ -763,10 +822,28 @@ async function generatePptx({ period = 'month', lang = 'en', dateFrom, dateTo } 
   prs.subject  = tr.t('pptx.cover_subtitle');
   prs.title    = `AcroGym ${tr.t('pptx.cover_subtitle')} ${rd.coverDateLabel}`;
 
+  let in2ops = null, in2img = null;
+  try {
+    const in2 = require('../../../shared/in2');
+    const ops = await in2.opsSummary(dateFrom, dateTo);
+    if (ops && (ops.visits > 0 || (ops.revenue && ops.revenue.total > 0))) {
+      in2ops = ops;
+      if (ops.visitsByDate.length > 1) {
+        const cbuf = await renderLineChart({
+          title: '', labels: ops.visitsByDate.map(([d]) => d.slice(5)),
+          data: ops.visitsByDate.map(([, v]) => v), width: 960, height: 300,
+        });
+        in2img = pngData(cbuf);
+      }
+    }
+  } catch (e) {
+    logger.warn({ err: e.message }, 'pptx: in2 data unavailable — placeholder slide kept');
+  }
+
   renderCover(prs, tr, rd);
   renderExecutiveSummary(prs, tr, rd);
   await renderLeadsAndPipeline(prs, tr, rd);
-  renderIn2Placeholders(prs, tr, rd);
+  if (in2ops) renderIn2Live(prs, tr, rd, in2ops, in2img); else renderIn2Placeholders(prs, tr, rd);
   renderClosing(prs, tr);
 
   const buf = await prs.write({ outputType: 'nodebuffer' });
