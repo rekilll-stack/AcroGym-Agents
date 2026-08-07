@@ -26,8 +26,8 @@ const BRIEF_PATH = path.join(__dirname, '../../data/competitor-brief.md');
 const REPORTS_DIR = path.join(__dirname, '../../data/reports');
 
 // Smarter model for strategy (still on the subscription via the CLI). Override
-// with CONTENT_RESEARCH_MODEL. Sonnet = good analysis/cost balance.
-const RESEARCH_MODEL = process.env.CONTENT_RESEARCH_MODEL || 'sonnet';
+// with CONTENT_RESEARCH_MODEL.
+const RESEARCH_MODEL = process.env.CONTENT_RESEARCH_MODEL || 'opus';
 const RESEARCH_MAX_TURNS = parseInt(process.env.CONTENT_RESEARCH_MAX_TURNS || '60', 10);
 const RESEARCH_TIMEOUT_MS = parseInt(process.env.CONTENT_RESEARCH_TIMEOUT_MS || '900000', 10); // 15 min
 

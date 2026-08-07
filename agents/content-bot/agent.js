@@ -29,10 +29,9 @@ const canva = require('./canva');
 const logger = createLogger('content-bot');
 
 const CLI = process.env.CLAUDE_CLI || `${process.env.HOME || '/home/admin'}/.npm-global/bin/claude`;
-// Owner's call (2026-07-02): everything on Sonnet 5 — cheaper than Opus and at
-// least as good on this mechanical work; also brings the designer run back
-// under MAX_POST_COST_USD. Override with CONTENT_DESIGNER_MODEL if needed.
-const MODEL = process.env.CONTENT_DESIGNER_MODEL || 'sonnet';
+// Owner's call (2026-07-25): everything on Opus 5 — supersedes the
+// 2026-07-02 all-Sonnet call. Override with CONTENT_DESIGNER_MODEL if needed.
+const MODEL = process.env.CONTENT_DESIGNER_MODEL || 'opus';
 const MAX_TURNS = parseInt(process.env.CONTENT_DESIGNER_MAX_TURNS || '30', 10);
 const TIMEOUT_MS = parseInt(process.env.CONTENT_DESIGNER_TIMEOUT_MS || '300000', 10); // 5 min
 const MAX_COST_USD = parseFloat(process.env.MAX_POST_COST_USD || '0.5');

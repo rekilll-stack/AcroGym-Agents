@@ -121,7 +121,34 @@ async function uploadPublic(buffer, name, { contentType = 'application/octet-str
   return { directUrl: dl.href, publicPage: meta.public_url, path: filePath };
 }
 
-/** Download a file from the Disk into a Buffer (scoped). */
+// Исходные фото в Marketing — 4160×6240 (~104 МБ на декод в node-canvas). Выход в
+// Instagram — 1080×1350, кропу с запасом хватает ~2400px по длинной стороне. Даунскейл
+// на входе режет пиковую/накопленную нативную память node-canvas в ~7× (главный фикс
+// «зависаний» студийного ревью: OOM-kill по капу). Только для растровых картинок;
+// видео (Reels) и всё, что node-canvas не смог декоднуть → отдаём оригинал без изменений.
+const PHOTO_MAX_SIDE = Math.max(1400, parseInt(process.env.PHOTO_MAX_SIDE || '2400', 10));
+async function downscalePhoto(buf, diskPath) {
+  if (/\.(mp4|mov|avi|mkv|webm|gif)$/i.test(diskPath || '')) return buf; // не картинка
+  try {
+    const { createCanvas, loadImage } = require('canvas');
+    const img = await loadImage(buf);
+    const long = Math.max(img.width, img.height);
+    if (long <= PHOTO_MAX_SIDE) return buf; // уже небольшое — не трогаем
+    const scale = PHOTO_MAX_SIDE / long;
+    const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+    const canvas = createCanvas(w, h);
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    const out = canvas.toBuffer('image/jpeg', { quality: 0.9 });
+    logger.info({ diskPath, from: `${img.width}x${img.height}`, to: `${w}x${h}`, kb: Math.round(out.length / 1024) }, 'yandex photo downscaled for build');
+    return out;
+  } catch (e) {
+    logger.warn({ diskPath, err: e.message }, 'downscale skipped (не картинка или ошибка декода) → оригинал');
+    return buf;
+  }
+}
+
+/** Download a file from the Disk into a Buffer (scoped). Растровые фото ужимаются
+ *  до PHOTO_MAX_SIDE, чтобы не раздувать нативную память node-canvas ниже по конвейеру. */
 async function downloadBuffer(diskPath) {
   assertScoped(diskPath);
   const meta = await apiGet('/resources/download', { path: diskPath });
@@ -129,7 +156,7 @@ async function downloadBuffer(diskPath) {
   if (!res.ok) throw new Error(`yandex download ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   logger.info({ diskPath, bytes: buf.length }, 'yandex photo downloaded');
-  return buf;
+  return downscalePhoto(buf, diskPath);
 }
 
 module.exports = {

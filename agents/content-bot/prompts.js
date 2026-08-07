@@ -39,7 +39,14 @@ const VOICE =
   "anticipation (\"opening this September\"), but NEVER invent a specific day, " +
   "prices, schedule, or address.\n" +
   "- Never invent facts. If something isn't given above, stay graceful and " +
-  "general rather than fabricate specifics.";
+  "general rather than fabricate specifics.\n" +
+  "- AcroGym does NOT offer any free trial, free trial lesson, free class or " +
+  "free training. NEVER claim, offer or imply a free/complimentary/trial session " +
+  "(no \"first class free\", no \"free trial\", no \"try for free\").\n" +
+  "- NO PRICES ANYWHERE (owner rule): NEVER mention any price, cost, fee, rate or " +
+  "money amount (no QAR/riyal figures, no \"from X\", no \"per session\"). If price " +
+  "would come up, invite to DM instead. This is absolute — do not state prices even " +
+  "if you happen to know them.";
 
 // Curated hashtag pool — the model picks a relevant subset (popular + niche).
 const HASHTAG_POOL =
@@ -125,7 +132,7 @@ function buildContentPrompt(format, topic, lang = 'en') {
     system: f.system,
     user: langDirective + f.instruction(t),
     maxTokens: f.maxTokens,
-    model: 'claude-sonnet-5', // owner choice 2026-07-02: everything on Sonnet 5
+    model: 'claude-opus-5', // owner choice 2026-07-25: everything on Opus 5
   };
 }
 
@@ -220,7 +227,7 @@ function buildCaptionPrompt(contextText) {
       ? `Optional context from the user about this photo (may be in Russian): ${ctx}\n\nWrite the English Instagram caption now.`
       : 'Write the English Instagram caption for this photo now.',
     maxTokens: 600,
-    model: 'claude-sonnet-5',
+    model: 'claude-opus-5',
   };
 }
 
@@ -259,7 +266,7 @@ function buildHeadlinePrompt(topic) {
       "The user's theme may be in Russian or any language — understand it, then " +
       'write the 3 headlines ENTIRELY IN ENGLISH.\n\nTheme: ' + t,
     maxTokens: 150,
-    model: 'claude-sonnet-5',
+    model: 'claude-opus-5',
   };
 }
 

@@ -29,7 +29,7 @@ const BRIEF_PATH = path.join(__dirname, '../../data/competitor-brief.md');
 
 // The strategist model. Opus = the sharpest planner; plan generation is on-demand
 // and infrequent (~2 calls/request), so the extra cost is negligible.
-const STRATEGIST_MODEL = process.env.CONTENT_PLAN_MODEL || 'claude-sonnet-5';
+const STRATEGIST_MODEL = process.env.CONTENT_PLAN_MODEL || 'claude-opus-5';
 
 function loadBrief() {
   try { return fs.readFileSync(BRIEF_PATH, 'utf8'); } catch { return ''; }
@@ -114,6 +114,9 @@ Each item = a concrete, buildable TOPIC (a specific angle, not a vague category)
 FORMAT is either "post" (a 4:5 carousel — for educational/benefits/proof/announcement depth) or "story" (a single 9:16 vertical — for timely, lightweight, behind-the-scenes, countdowns, polls, "today at the gym" moments). Aim for a MIX: roughly 2/3 posts and 1/3 stories.
 Ensure VARIETY and a coherent, beautiful feed (rotate pillars: emotional, trust/safety, benefits/education, behind-the-scenes, proof, announcement/seasonal).
 🔴 Do NOT invent specifics the club hasn't given you: no made-up coach/staff names, no specific children, no fabricated testimonials, quotes, prices, dates, discounts or results. Keep topics GENERAL and truthful — e.g. "Meet our coaches" not "Meet Coach Sarah".
+🔴 AcroGym has NO free trial, NO free trial lesson, NO free class and NO free training — NEVER propose or imply a free/trial/complimentary session or "первое занятие бесплатно". Do not build any topic around a free/trial offer.
+🔴 NO PRICES ANYWHERE (owner rule): never propose a topic about pricing/cost/fees and never put any money amount (QAR/riyal) in a theme, hook or why. Pricing is DM-only.
+🔴 PRE-LAUNCH STATUS: AcroGym is NOT open yet — it OPENS in SEPTEMBER 2026. Do NOT propose topics that depict the gym as already operating day-to-day (no "kids training today while parents shop", no "this week at the gym", no current students/classes as if live). Frame around ANTICIPATION and PRE-OPENING instead: countdown to opening, behind-the-scenes of the space, meet-the-coaches, what to expect when we open, educational/skills content, the experience families can look forward to. Present activity as "coming this September / when we open", never as happening now.
 This plan is read by the owner — write theme, hook and why in ${LANG_NAME(lang)} (the actual published post copy is generated separately in English).
 Return STRICT JSON ONLY, no prose:
 {"posts":[{"theme":"<specific topic in ${LANG_NAME(lang)}, one line>","format":"post"|"story","type":"<one lowercase english tag>","hook":"<one-line scroll-stopper in ${LANG_NAME(lang)}>","why":"<short reason in ${LANG_NAME(lang)}>"}, ... exactly N items]}`;

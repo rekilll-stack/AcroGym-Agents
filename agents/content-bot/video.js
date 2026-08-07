@@ -113,4 +113,47 @@ async function cleanReel(inputPath, { maxSeconds } = {}) {
   }
 }
 
-module.exports = { kenBurnsReel, cleanReel };
+/**
+ * Brand a REAL user clip (жена's video) for Instagram: normalise to 9:16
+ * 1080×1920 (decrease-fit + pad, NEVER crops the action), overlay the AcroGym
+ * logo top-right, keep her audio, output IG-ready H.264/AAC + faststart. Also
+ * returns a poster (branded first frame) for the approval card.
+ * @param {string} inputPath  local path to the source clip
+ * @param {object} [opts] { maxSeconds }
+ * @returns {Promise<{buffer:Buffer, poster:Buffer}>}
+ */
+async function brandReel(inputPath, { maxSeconds } = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'reel-brand-'));
+  const outMp4 = path.join(dir, 'reel.mp4');
+  const posterPng = path.join(dir, 'poster.png');
+  // logo-white reads on most footage (busy/coloured); ~22% of the 1080 canvas.
+  const logo = path.join(__dirname, '../../config/brand/logo-white.png');
+  const fc = [
+    '[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[v]',
+    '[1:v]scale=240:-1,format=rgba,colorchannelmixer=aa=0.9[lg]',
+    '[v][lg]overlay=W-w-40:40,format=yuv420p[out]',
+  ].join(';');
+  const args = [
+    '-y', '-i', inputPath, '-i', logo,
+    '-filter_complex', fc,
+    '-map', '[out]', '-map', '0:a:0?', // branded video + her audio (if any)
+    '-dn', '-map_metadata', '-1',
+    '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
+    '-c:a', 'aac', '-b:a', '128k',
+    '-movflags', '+faststart',
+  ];
+  if (maxSeconds) args.push('-t', String(maxSeconds));
+  args.push(outMp4);
+  try {
+    await run(FFMPEG, args, 300000);
+    await run(FFMPEG, ['-y', '-i', outMp4, '-frames:v', '1', posterPng], 60000);
+    const buffer = fs.readFileSync(outMp4);
+    const poster = fs.readFileSync(posterPng);
+    logger.info({ bytes: buffer.length }, 'reel branded (real clip + logo → IG mp4)');
+    return { buffer, poster };
+  } finally {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+}
+
+module.exports = { kenBurnsReel, cleanReel, brandReel };

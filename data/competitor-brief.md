@@ -1,61 +1,45 @@
 # AcroGym Qatar — SMM Competitor & Positioning Brief
 
-_Last updated: 2026-06-29. Source: web research + Metricool live data. Replace previous version entirely._
+_Updated 2026-08-06. Sources: Metricool first-party data for @acrogymqatar (Jul 6–Aug 6, 2026); live rival sites ([rebelangels.qa](https://www.rebelangels.qa/gymnastics-classes), [olympicstarsdoha.com](https://www.olympicstarsdoha.com/), [gymacademydoha.com](https://www.gymacademydoha.com/), [dohasportsandarts.com](https://dohasportsandarts.com/about-us/about-rami-al-banna/)); [Qatar 2026-27 calendar](https://dohanews.co/education-ministry-announces-registration-timeline-for-public-schools-for-2026-27-academic-year/); [Doha August climate](https://www.weather-atlas.com/en/qatar/doha-weather-august); [2026 IG ranking research](https://blog.hootsuite.com/instagram-algorithm/). Replaces the 2026-08-03 version._
 
-## AcroGym's own baseline (Metricool, May–Jun 2026)
-~268 followers · 5 posts in 2 months · **0 Reels published** · aggregated engagement ~13% (excellent — 3–5× the niche average) · avg reach per post ~185. Account is pre-opening with a loyal but tiny core audience.
+**What changed — four corrections:**
+1. **Publishing restarted.** Aug 3 (4 items) and Aug 4 (2 items) ended the silence. Cadence is no longer the blocker.
+2. **New proof: volume doesn't buy reach — format does.** Aug 3 shipped 4 posts and reached **136** people; a single-post day (Jul 15) reached **129**. Views jumped (841 vs 249) but reach didn't. Extra static posts re-serve the same ~275 followers. Reach is follower-capped until a Reel breaks it.
+3. **Reels still 0%** across the full 31-day window. **Shares = 0.** Sends per reach is a top-3 2026 ranking signal; we generate none.
+4. **Rivals unmeasured a third cycle** — Metricool's competitor module returns empty rows; it is not configured, and only the Metricool UI can fix it (not the API).
 
-## Market landscape (Doha kids gymnastics / acro, Jun 2026)
+## Market landscape (Doha kids gymnastics/acro, Aug 2026)
 
-| Club | IG | ~Followers | Positioning | Key notes |
+| Club | Handle | Followers | Positioning | Live weakness (verified this cycle) |
 |---|---|---|---|---|
-| MyGym Qatar | @mygymqatar | ~11 K | American franchise, generalist kids 6wk–12y. Gymnastics, ballet, karate, parties. | Biggest reach; NOT an acro specialist. 1,390 posts — franchise playbook, promotional cadence. |
-| Olympic Stars | @gymnasticsqatar | ~9 K | Professional gymnastics & rhythmic ballet. Ministry of Sports accredited. | **Updated: stronger than previously noted.** Elite/competitive framing. 1,059 posts, formal institutional voice. |
-| Rebel Angels Sports | @rebelangelsqatar | ~4.8 K | Gymnastics + parkour + acrobatics, school-based multi-location. | **Closest acro rival.** Active Reels. Running Summer Camp 2026 and marketing it aggressively right now. Public pricing QR 80/class. School-hall model (no dedicated venue). |
-| The Gymnastics Academy | @gymacademy_doha | ~2.7 K | Competitive/recreational, Aspire Zone + schools. | Formal, structured. Only 140 posts — chronically under-published. Weak digital presence. |
-| Doha Sport & Arts | @dohasportsandarts1 | Small | Master Rami Al Banna; multi-discipline (martial arts, ballet, gymnastics). | Local, instructor-led identity, modest footprint. |
+| Doha Sport & Arts | @dohasportsandarts1 | ~23.1K *(unverified)* | Martial-arts-led multi-sport, Rami Al Banna | Gymnastics is one line item among ~15 |
+| MyGym Qatar | @mygymqatar | 11K (1,390 posts) | US franchise, 6 wks–12 y, New Salata | Highest output; generalist play-gym, no acro |
+| Olympic Stars | @gymnasticsqatar | 9,307 (1,071 posts) | Rhythmic + ballet, Al Sadd | **Girls only**; site still sells "2025-2026"; closed Fridays |
+| Rebel Angels | @rebelangelsqatar | 5,069 (672 posts) | Gym + parkour, 8 borrowed sites incl. Porto Arabia | Public term dates still read **Sept 1–Dec 17, 2025** — a year stale |
+| Gymnastics Academy | @gymacademy_doha | 2,693 (140 posts) | Ages 3+, BG syllabus, MEGA founder | Site still shows pandemic "online classes"; **no phone/SMS applications** |
+| **AcroGym** | @acrogymqatar | **275** | Acro-specialist, owned gym, Lagoona Mall | Publishing again — but 0 Reels, 0 shares |
 
-## What rivals over-do (and where they're weak)
-- **Info-dump posts**: schedules, enrollment links, location lists — functional but cold.
-- **Elite/medal framing** that speaks to competitive parents, alienates first-timers.
-- **Static images or low-quality video**: Olympic Stars and Gym Academy barely use Reels; even Rebel Angels is inconsistent.
-- **School-hall model**: all multi-location rivals meet kids in borrowed corridors. Nobody has a destination gym story.
-- **No emotional hook**: zero warm storytelling, no child's-face-in-the-moment content across the board.
+*Rival counts are index-cached; treat rival growth as unmeasured.*
 
-## AcroGym's differentiation & open opportunities
+## What rivals over-do
+- **Timetable/enrolment announcements** — functional, unforwardable.
+- **Borrowed venues** — all five train in schools, compounds or third-party halls.
+- **Rotting digital shopfronts** — two of five are publicly advertising last year's season three weeks before the new one starts.
+- **Nobody builds for sends.** No club in this set makes content a parent would DM to another parent.
 
-1. **Dedicated destination gym at Lagoona Mall** — the only acro/gymnastics venue inside a premium shopping mall in Doha. "Train while parents shop" is a unique practical story no rival can tell.
-2. **Beginner-first, age 3–14** — the whole market skews competitive. AcroGym can own "first step into acro, no experience needed, free trial" positioning at zero cost.
-3. **Emotional/warm storytelling** — the child's joy, the first cartwheel, the proud parent moment. An open goal: no rival does this.
-4. **Reels are blue ocean right now** — AcroGym has posted zero. Even 15-second tumbling clips from the gym will outperform all competitors' static grids and reach far beyond current followers.
-5. **Summer heat = peak demand window** (Jun–Aug, 40 °C+). School holidays run July–September. Parents are searching for quality indoor activity RIGHT NOW. Rebel Angels is capturing this; AcroGym should occupy the "opening this September, register your interest" space immediately.
-6. **2026 algorithm shift**: DM shares now outweigh likes 3–5×. Content designed to be forwarded ("send this to your friend who has a 5-year-old") compounds reach fastest — educational carousels, relatable parent moments, "before/after skill" clips.
+## AcroGym's differentiation & opportunities
+1. **The only owned, dedicated acro floor.** Campus-hoppers cannot film "our room" — we can, daily.
+2. **Boys 3–5 remain the sharpest gap.** Olympic Stars excludes boys and starts at 5; the rest are generalist.
+3. **The camp-to-term switch window is open now.** Multi-sport summer camps (where gymnastics is one rotation slot) wind down Aug 27–29; government schools return **Sun 30 Aug**. Parents are choosing a term activity this fortnight.
+4. **Founder credential as trust engine** (Kristina — Master of Sports of Russia in Sports Acrobatics, European Championship medalist; carried from acrogym.org, not re-verified). Put her on camera.
+5. **Heat sells indoors:** August highs ~40.7°C, heat index ~61°C. "Safe, air-conditioned, 45 minutes" is a real parent benefit.
+6. **Reels are the only lever at 275.** Watch time and sends per reach outrank follower count; original content earns 40–60% more distribution.
 
 ## Content pillars
+Joy & first moments (signature) · Trust & safety (real room, real mats, real coach) · Coach-credential authority · **Aug 30 back-to-school countdown** · Camp-is-over, what's next · Mall-life convenience · "Skill of the week."
 
-- **Joy & first moments** — real child reactions, milestone skills, genuine laughter. Brand signature. Never staged.
-- **Trust & safety** — coach introductions, equipment tour, "what your child's first class looks like." Defeats the #1 parent hesitation.
-- **Benefits / education** — confidence, focus, strength, balance, social skills. Shareable carousels; optimised for saves.
-- **Behind-the-scenes / countdown** — Lagoona Mall build, equipment arrivals, team prep, days-to-opening. Pre-launch hype that makes followers feel like insiders.
-- **Seasonal / social proof** — Qatar school calendar hooks (summer, new term), parent reactions, trial-day invitations. No invented testimonials.
-
-## Format mix (2026 algorithm-aligned)
-
-| Format | Target share | Why |
-|---|---|---|
-| Reels 15–30 s | 40–50% | Highest reach; >72% completion rate at this length |
-| Reels 60–90 s | 15–20% | Drives saves + DM shares; storytelling length |
-| Carousels (5–10 slides) | 25–30% | +30.9% engagement uplift in 2026; saves = strong signal |
-| Static / announcements | ≤10% | Grid anchors only |
-
-**Cadence target**: 4–5 posts/week + daily Stories (polls, countdowns, Q&A). Current 2–3 posts/month is algorithm-invisible.
+## Format mix & cadence
+Reels 65–75% · Carousels 20–25% · Static ≤10%. **Floor: 3 Reels/week, phone footage, unedited beats unpublished.** Hook must land inside 3 seconds; 15–40s is the working length. Daily Stories. Geotag Lagoona Mall. Original only — 10+ reposts in 30 days removes an account from recommendations.
 
 ## Voice & visual guardrails
-- Warm, energetic, safe, professional. Speak always to **parents of children 3–14**.
-- Brand palette: cream / orange / navy. Real photos, one clear subject per frame.
-- Copy in English primary; add Arabic subtitle or caption where possible (Doha expat mix is Arab-majority + Russian-speaking community).
-- **Never invent** specific coach names, children, testimonials, prices, dates, or results not confirmed by the club.
-- Differentiate on warmth + specialism + Lagoona Mall — never copy rivals' bare class-info posts.
-- Respect Qatar cultural norms in all imagery.
-
----
+Warm, energetic, safe, professional. Parents of 3–14, all genders. Cream/orange/navy, one clear subject per frame, Qatar cultural norms respected. English primary + Arabic where possible. Never invent coaches, kids, testimonials, prices, dates or partnerships. **AcroGym has no free trial — never imply one** (Olympic Stars does; we do not match it). Test every post: **"Would a parent forward this to a friend?"**

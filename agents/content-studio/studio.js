@@ -1,13 +1,13 @@
 'use strict';
 // Контент-студия — оркестрация обсуждения. Ограниченный по раундам прогон:
 // модератор ставит бриф → роли высказываются по очереди → модератор сводит
-// финальное предложение. Всё на Sonnet 5. Источник LLM инжектируется.
+// финальное предложение. Всё на Opus 5. Источник LLM инжектируется.
 
 const { PERSONAS, ORDER } = require('./personas');
 const { createLogger } = require('../../shared/logger');
 const logger = createLogger('content-studio');
 
-const MODEL = 'claude-sonnet-5'; // по решению владельца — все переговоры на Sonnet 5
+const MODEL = 'claude-opus-5'; // по решению владельца — все переговоры на Opus 5
 
 function renderTranscript(transcript) {
   if (!transcript.length) return '(обсуждение только начинается)';
@@ -48,7 +48,7 @@ const ROLE_TASKS = {
  */
 async function runSession({ topic, deps = {} }) {
   // По умолчанию — ПОДПИСОЧНЫЙ путь (шим content-bot/llm через headless `claude -p`,
-  // Sonnet, $0 API), как решил владелец. Тесты инжектируют свой generate.
+  // Opus, $0 API), как решил владелец. Тесты инжектируют свой generate.
   const generate = deps.generate || require('../content-bot/llm').generateText;
   const onTurn = deps.onTurn; // опц. коллбэк(persona, text) — постить реплику вживую по мере генерации
   const roles = (deps.roles && deps.roles.length) ? deps.roles : ORDER; // какие роли участвуют (у кого есть бот)

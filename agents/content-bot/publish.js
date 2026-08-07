@@ -141,6 +141,25 @@ async function publishDraft(draft, { mode = 'now' } = {}) {
   const media = mediaUrls(draft);
   const altTexts = mediaAlts(draft);
 
+  // 🔴 ПРЯМАЯ публикация в IG через Graph API (постоянный System User токен + instagram_content_publish).
+  // Приоритетный путь для НЕМЕДЛЕННОЙ публикации («Опубликовать сейчас»). Расписание («в лучшее время»)
+  // Graph API не умеет → для mode==='best' падаем ниже на Metricool-коннектор. Включается флагом
+  // IG_DIRECT_PUBLISH=1 (по умолчанию ВЫКЛ — пока не оттестируем на живом аккаунте). При любом сбое —
+  // мягкий откат на существующий путь, чтобы публикация не блокировалась.
+  if (process.env.IG_DIRECT_PUBLISH === '1' && mode !== 'best') {
+    try {
+      const igpub = require('./ig-publish');
+      if (igpub.isConfigured()) {
+        const r = await igpub.publishDraftDirect(draft);
+        if (draft.photoPaths && draft.photoPaths.length) photos.recordUsed(draft.photoPaths);
+        logger.info({ id: draft.id, kind: draft.kind, mediaId: r.mediaId, permalink: r.permalink, via: 'ig-graph' }, 'draft published via IG Graph API (direct)');
+        return r;
+      }
+    } catch (e) {
+      logger.warn({ id: draft.id, e: e.message }, 'IG direct publish failed → откат на коннектор');
+    }
+  }
+
   // Preferred when a REST token exists (cheaper, deterministic).
   if (metricool.isConfigured()) {
     let when = new Date();
