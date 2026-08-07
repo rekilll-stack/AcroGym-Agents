@@ -168,7 +168,8 @@
     "chart_tod_title": "Распределение по часам (28 дней)",
     "section_week_funnel": "📈 *Неделя: источники → ответы*",
     "week_funnel_total": "*Итого: {total} → {resp} \\\\({pct}%\\\\)*",
-    "overview_registrations": "• Регистраций \\(осн\\. форма\\): вчера {{day}} · всего {{total}}"
+    "overview_registrations": "• Регистраций \\(осн\\. форма\\): вчера {{day}} · всего {{total}}",
+    "overview_in2_revenue": "• Выручка зала \\(in2\\): вчера {{day}} QAR · за месяц {{month}} QAR"
   },
   "weekly": {
     "title": "📅 *AcroGym — Недельный срез*",
@@ -262,7 +263,15 @@
     "outlook_targets": "Цели на следующий месяц",
     "section_appendix": "ПРИЛОЖЕНИЕ",
     "appendix_leads_table": "Полная таблица лидов",
-    "appendix_charts": "Все графики отчёта"
+    "appendix_charts": "Все графики отчёта",
+    "section_gym": "🏋️ Зал (in2)",
+    "gym_attendance": "Посещаемость",
+    "gym_classes_word": "занятий",
+    "gym_visits_word": "посещений",
+    "gym_clients_word": "клиентов",
+    "gym_revenue": "Выручка",
+    "gym_coaches": "Тренеры (рейтинг по посещениям)",
+    "gym_pay": "ЗП"
   },
   "pending": {
     "title": "🔥 *Висящие лиды*",

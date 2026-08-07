@@ -168,7 +168,8 @@
     "chart_tod_title": "Time-of-day pattern (last 28 days)",
     "section_week_funnel": "📈 *This week: sources → replies*",
     "week_funnel_total": "*Total: {total} → {resp} \\\\({pct}%\\\\)*",
-    "overview_registrations": "• Registrations \\(main form\\): {{day}} yesterday · {{total}} total"
+    "overview_registrations": "• Registrations \\(main form\\): {{day}} yesterday · {{total}} total",
+    "overview_in2_revenue": "• Gym revenue \\(in2\\): {{day}} QAR yesterday · {{month}} QAR this month"
   },
   "weekly": {
     "title": "📅 *AcroGym Weekly Slice*",
@@ -262,7 +263,15 @@
     "outlook_targets": "Next month targets",
     "section_appendix": "APPENDIX",
     "appendix_leads_table": "Full leads table",
-    "appendix_charts": "All charts used in this report"
+    "appendix_charts": "All charts used in this report",
+    "section_gym": "🏋️ Gym operations (in2)",
+    "gym_attendance": "Attendance",
+    "gym_classes_word": "classes",
+    "gym_visits_word": "visits",
+    "gym_clients_word": "clients",
+    "gym_revenue": "Revenue",
+    "gym_coaches": "Coaches (by visits)",
+    "gym_pay": "est. pay"
   },
   "pending": {
     "title": "🔥 *Pending Leads*",

@@ -398,6 +398,22 @@ async function buildDigest({ dryRun = false, withCharts = false, lang = 'en' } =
     const regs = countRegistrations(`${rm}/${rd}/${ry}`);
     if (regs.total > 0) text += tr.t('daily.overview_registrations', { day: regs.day, total: regs.total }) + '\n';
   }
+  // Выручка из in2 (подключено 07.08.2026): показываем только когда есть платежи.
+  try {
+    const in2 = require('../../../shared/in2');
+    const monthStartStr = now.startOf('month').format('YYYY-MM-DD');
+    const [yDay, mtd] = await Promise.all([
+      in2.salesTotals(yesterdayStr, yesterdayStr),
+      in2.salesTotals(monthStartStr, yesterdayStr),
+    ]);
+    if (mtd && mtd.total > 0) {
+      text += tr.t('daily.overview_in2_revenue', {
+        day: Math.round((yDay && yDay.total) || 0), month: Math.round(mtd.total),
+      }) + '\n';
+    }
+  } catch (err) {
+    logger.warn({ err: err.message }, '[daily] in2 revenue line skipped');
+  }
   text += '\n';
 
   // ── Sources ───────────────────────────────────────────────

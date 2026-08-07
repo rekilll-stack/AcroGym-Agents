@@ -104,19 +104,22 @@ function buildLeadsSection({ monthTotal, typeBreakdown, sourceRows }) {
   };
 }
 
-function buildAttendanceSection() {
-  // Requires in2 integration (ЭТАП 8)
-  return { available: false };
+// in2-секции (подключено 07.08.2026): один opsSummary на отчёт, секции прячутся,
+// пока в платформе нет данных (available:false — экспортеры это уже умеют).
+function buildAttendanceSection(ops) {
+  if (!ops || !ops.classes) return { available: false };
+  return { available: true, classes: ops.classes, visits: ops.visits, uniqueClients: ops.uniqueClients, truncated: ops.truncated };
 }
 
-function buildRevenueSection() {
-  // Requires in2 integration (ЭТАП 8)
-  return { available: false };
+function buildRevenueSection(ops) {
+  const r = ops && ops.revenue;
+  if (!r || !r.total) return { available: false };
+  return { available: true, ...r };
 }
 
-function buildCoachesSection() {
-  // Requires in2 integration (ЭТАП 8)
-  return { available: false };
+function buildCoachesSection(ops) {
+  if (!ops || !ops.trainers || !ops.trainers.length) return { available: false };
+  return { available: true, list: ops.trainers };
 }
 
 function buildHealthSection({ quality }) {
@@ -195,12 +198,19 @@ async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttac
   const requiredPace     = targetPerMonth.toFixed(1);
 
   // ── Build section objects ─────────────────────────────────
+  let in2ops = null;
+  try {
+    in2ops = await require('../../../shared/in2').opsSummary(monthStart, monthEnd);
+  } catch (err) {
+    logger.warn({ err: err.message }, '[monthly] in2 ops summary unavailable — sections hidden');
+  }
+
   const sections = {
     exec:       buildExecSummary({ monthTotal, prevMonthTotal, totalAccumulated, daysLeft, requiredPace, monthlyPace }),
     leads:      buildLeadsSection({ monthTotal, typeBreakdown, sourceRows }),
-    attendance: buildAttendanceSection(),
-    revenue:    buildRevenueSection(),
-    coaches:    buildCoachesSection(),
+    attendance: buildAttendanceSection(in2ops),
+    revenue:    buildRevenueSection(in2ops),
+    coaches:    buildCoachesSection(in2ops),
     health:     buildHealthSection({ quality }),
     outlook:    buildOutlookSection({ daysLeft, totalAccumulated, requiredPace }),
   };
@@ -263,6 +273,26 @@ async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttac
     }
   }
   text += '\n';
+
+  // ── Section in2: зал — посещения / выручка / тренеры (виден только с данными) ──
+  if (sections.attendance.available || sections.revenue.available) {
+    text += `*${escapeMd(tr.t('monthly.section_gym'))}*\n`;
+    if (sections.attendance.available) {
+      const a = sections.attendance;
+      text += `• ${escapeMd(tr.t('monthly.gym_attendance'))}: ${a.classes} ${escapeMd(tr.t('monthly.gym_classes_word'))} · ${a.visits} ${escapeMd(tr.t('monthly.gym_visits_word'))} · ${a.uniqueClients} ${escapeMd(tr.t('monthly.gym_clients_word'))}\n`;
+    }
+    if (sections.revenue.available) {
+      const r = sections.revenue;
+      text += `• ${escapeMd(tr.t('monthly.gym_revenue'))}: *${escapeMd(String(Math.round(r.total)))} QAR*\n`;
+    }
+    if (sections.coaches.available) {
+      text += `*${escapeMd(tr.t('monthly.gym_coaches'))}*\n`;
+      sections.coaches.list.slice(0, 6).forEach((t, i) => {
+        text += `${i + 1}\. ${escapeMd(t.name)} — ${t.classes} ${escapeMd(tr.t('monthly.gym_classes_word'))}, ${t.visits} ${escapeMd(tr.t('monthly.gym_visits_word'))}, ${t.uniqueClients} ${escapeMd(tr.t('monthly.gym_clients_word'))}, ${escapeMd(tr.t('monthly.gym_pay'))} \~${escapeMd(String(t.estPay))} QAR\n`;
+      });
+    }
+    text += '\n';
+  }
 
   // ── Section 3: Health ─────────────────────────────────────
   text += `*${escapeMd(tr.t('monthly.section_health'))}*\n`;
