@@ -8,6 +8,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '../../.env') }
 
 const cron = require('node-cron');
 const graph = require('./graph');
+const metricool = require('./metricool');
 const { analyze } = require('./analyze');
 const { buildReport } = require('./report');
 const { sendToOwner } = require('../../shared/notify');
@@ -21,14 +22,21 @@ const LIMIT = Math.max(3, parseInt(process.env.ANALYST_POST_LIMIT || '12', 10));
 
 /** Собрать и отправить отчёт владельцу. Возвращает число проанализированных постов. */
 async function runReport({ limit = LIMIT, period, lang } = {}) {
-  if (!graph.isConfigured()) { logger.warn('META_GRAPH_TOKEN/IG_BUSINESS_ID не заданы — пропуск отчёта'); return 0; }
+  if (!metricool.isConfigured() && !graph.isConfigured()) { logger.warn('ни METRICOOL_BRAND_ID, ни META_GRAPH_TOKEN не заданы — пропуск отчёта'); return 0; }
   // Язык отчёта = предпочтение владельца (первый из OWNER_CHAT_IDS), как у остальных ботов.
   if (!lang) {
     const firstOwner = String(process.env.OWNER_CHAT_IDS || '216299177').split(',')[0].trim();
     lang = getPreferredLanguage(Number(firstOwner)) === 'en' ? 'en' : 'ru';
   }
   if (!period) period = lang === 'en' ? 'this week' : 'за неделю';
-  const posts = await graph.fetchPosts({ limit });
+  // 08.08.2026: основной источник — Metricool (Meta-токен умер с миграцией FB);
+  // Graph остаётся фолбэком до нового токена.
+  let posts;
+  if (metricool.isConfigured()) {
+    try { posts = await metricool.fetchPosts({ limit }); }
+    catch (e) { logger.warn({ e: e.message }, 'metricool source failed — fallback to Graph'); }
+  }
+  if (!posts) posts = await graph.fetchPosts({ limit });
   const result = await analyze(posts, { lang });
   const text = buildReport(result, { period, lang });
   // Telegram-лимит 4096 — режем по абзацам на всякий случай.
