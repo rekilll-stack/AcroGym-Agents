@@ -582,6 +582,8 @@ async function start() {
   // Off the pollSheets/heartbeat path and double-guarded: a nurture failure is
   // logged and contained, never propagating into the lead-helper core loop.
   cron.schedule('0 8 * * *', async () => {
+    // Владелец 10.08.2026: «прогрев пока убери, только лиды» — гейт NURTURE_ENABLED=0.
+    if (process.env.NURTURE_ENABLED === '0') return;
     try {
       await nurture.runDaily({ buildContent: buildDripContent });
     } catch (err) {
