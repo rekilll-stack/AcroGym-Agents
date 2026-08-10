@@ -393,6 +393,7 @@ async function pollSheets() {
     logger.debug({ colMap: _colMap }, 'Column map initialized');
   }
 
+  const newRows = [];
   for (const { rowNumber, headers, values } of rows) {
     // Skip empty rows
     const hasData = ['parent_first_name', 'parent_phone', 'parent_email'].some(field => {
@@ -408,6 +409,20 @@ async function pollSheets() {
     const uid = uidIdx !== undefined ? (values[uidIdx] || '').trim() : '';
     if (uid ? getLeadByUid(uid) : getLeadByRow(rowNumber)) continue;
 
+    newRows.push({ rowNumber, headers, values });
+  }
+
+  // Meta отдаёт часовую пачку лидов новейшие-первыми → карточки шли в обратном
+  // хронологии порядке (владелец 10.08: «лиды по порядку присылай»). Пачку,
+  // целиком состоящую из meta-лидов, обрабатываем с конца — получается старые→новые.
+  // ponytail: эвристика на порядок бандла FB; если Meta сменит порядок — убрать reverse.
+  const srcIdx = _colMap.source;
+  if (newRows.length > 1 && srcIdx !== undefined
+      && newRows.every(r => (r.values[srcIdx] || '').toLowerCase().includes('meta'))) {
+    newRows.reverse();
+  }
+
+  for (const { rowNumber, headers, values } of newRows) {
     try {
       await processNewRow(rowNumber, headers, values, _colMap);
     } catch (err) {
@@ -421,8 +436,32 @@ async function pollSheets() {
 // Reminders
 // ─────────────────────────────────────────────────────────────
 
+// Ночной лид не должен будить напоминалками, а его 24ч-отсчёт честно стартует
+// с 9 утра (владелец 10.08). Катар — UTC+3 без переходов.
+const QATAR_OFFSET_MS = 3 * 3600e3;
+const WORK_START_H = 9, WORK_END_H = 21;
+
+function qatarHour(ts = Date.now()) {
+  return new Date(ts + QATAR_OFFSET_MS).getUTCHours();
+}
+
+/** Ночная нотификация (21:00–09:00) считается сделанной в ближайшие 9:00 утра. */
+function effectiveNotifiedMs(notifiedAt) {
+  const real = new Date(notifiedAt).getTime();
+  const loc = new Date(real + QATAR_OFFSET_MS);
+  const h = loc.getUTCHours();
+  if (h >= WORK_END_H) { loc.setUTCDate(loc.getUTCDate() + 1); loc.setUTCHours(WORK_START_H, 0, 0, 0); }
+  else if (h < WORK_START_H) { loc.setUTCHours(WORK_START_H, 0, 0, 0); }
+  else return real;
+  return loc.getTime() - QATAR_OFFSET_MS;
+}
+
 async function checkReminders() {
   logger.debug('Checking reminders...');
+  // Тихие часы: ночью не дёргаем вообще, всё догонит утренний прогон.
+  const h = qatarHour();
+  if (h < WORK_START_H || h >= WORK_END_H) return;
+
   let leads;
 
   try {
@@ -434,13 +473,17 @@ async function checkReminders() {
 
   for (const lead of leads) {
     try {
+      // Первый пинок — только когда прошло REMINDER_HOURS от «эффективного»
+      // времени (ночные лиды считаются с 9:00).
+      const effMs = effectiveNotifiedMs(lead.notified_at);
+      if (!lead.reminder_sent_at && Date.now() - effMs < REMINDER_HOURS * 3600e3) continue;
       // Display number = position among real leads (row 2 = lead #1); uid-based
       // leads have no row number → position among non-legacy leads (26.07: raw
       // internal id showed "Lead #131" for the 2nd real lead, owner confused).
       const label  = lead.sheet_row_number != null
         ? lead.sheet_row_number - 1
         : countRealLeadsUpTo(lead.id);
-      const waitedH = Math.round((Date.now() - new Date(lead.notified_at).getTime()) / 3600000);
+      const waitedH = Math.round((Date.now() - effMs) / 3600000);
       // 48h+ unanswered = escalation, not a routine nudge (owner ask 2026-07-13).
       const header = waitedH >= 48
         ? `🚨 <b>Lead #${label} UNANSWERED for ${waitedH}h — needs action now</b>`
