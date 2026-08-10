@@ -30,7 +30,7 @@ const {
   countRealLeadsUpTo,
   findExistingLead,
 } = require('../../shared/db');
-const { markRespondedHandler, copyTextHandler } = require('../../shared/callbacks');
+const { markRespondedHandler, markUnrespondedHandler, copyTextHandler } = require('../../shared/callbacks');
 // Agent 3 nurture. Requiring this also registers the admin-side 'client_sent' /
 // 'copy_text' callbacks (via client-messaging) in THIS process, which polls the
 // Admin bot — so ✅ Sent on a nurture card is handled here. All nurture calls
@@ -505,6 +505,9 @@ async function checkReminders() {
 function setupCallbacks() {
   // "✅ I responded" / "✅ Contacted" — shared handler from callbacks.js
   registerCallback('responded', markRespondedHandler('admin'));
+
+  // «↩️ Undo» на карточке — вернуть лид в ожидание, если ✅ нажали по ошибке
+  registerCallback('unrespond', markUnrespondedHandler('admin'));
 
   // "📋 Copy text only" — reads from DB first, then in-memory cache
   registerCallback('copy', copyTextHandler(_greetingCache));

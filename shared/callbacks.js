@@ -67,12 +67,58 @@ function markRespondedHandler(botName) {
         query.message.chat.id,
         query.message.message_id,
         originalText + appendText,
-        { reply_markup: { inline_keyboard: [] } }
+        { reply_markup: { inline_keyboard: [[
+          { text: '↩️ Undo (not contacted)', callback_data: `unrespond:${leadId}` },
+        ]] } }
       );
 
       await bot.answerCallbackQuery(query.id, { text: '✅ Marked as responded' });
     } catch (err) {
       logger.error({ err, leadId }, 'Error in markResponded callback');
+      try { await bot.answerCallbackQuery(query.id, { text: '❌ Error updating lead' }); } catch {}
+    }
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// markUnrespondedHandler — «перепутал, верни в ожидание» (владелец 10.08)
+// ─────────────────────────────────────────────────────────────
+
+function markUnrespondedHandler(botName) {
+  return async (query, bot) => {
+    const leadId = parseInt((query.data || '').split(':')[1], 10);
+    if (isNaN(leadId)) {
+      await bot.answerCallbackQuery(query.id).catch(() => {});
+      return;
+    }
+    try {
+      const lead = getLeadById(leadId);
+      if (lead && lead.status === 'responded') {
+        updateLeadStatusById(lead.id, { status: 'notified', responded_at: null });
+        logger.info({ leadId }, 'Lead marked back as NOT responded');
+      }
+      const time = dayjs().tz(TIMEZONE).format('HH:mm');
+      const originalText = query.message.text || query.message.caption || '';
+      const appendText = botName === 'owner'
+        ? `\n\n↩️ Returned to waiting at ${escapeMd(time)}`
+        : `\n\n↩️ Returned to waiting at ${time} (Doha)`;
+      // Восстанавливаем исходные кнопки карточки соответствующего бота
+      const keyboard = botName === 'owner'
+        ? [[{ text: '✅ Contacted', callback_data: `mark_responded:${leadId}` }]]
+        : [[
+            { text: '✅ I responded',    callback_data: `responded:${leadId}` },
+            { text: '📋 Copy text only', callback_data: `copy:${leadId}`      },
+          ]];
+      await editMessage(
+        botName,
+        query.message.chat.id,
+        query.message.message_id,
+        originalText + appendText,
+        { reply_markup: { inline_keyboard: keyboard } }
+      );
+      await bot.answerCallbackQuery(query.id, { text: '↩️ Back to waiting' });
+    } catch (err) {
+      logger.error({ err, leadId }, 'Error in markUnresponded callback');
       try { await bot.answerCallbackQuery(query.id, { text: '❌ Error updating lead' }); } catch {}
     }
   };
@@ -127,4 +173,4 @@ function copyTextHandler(greetingCache = null) {
   };
 }
 
-module.exports = { markRespondedHandler, copyTextHandler };
+module.exports = { markRespondedHandler, markUnrespondedHandler, copyTextHandler };

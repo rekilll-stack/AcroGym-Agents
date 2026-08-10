@@ -1,7 +1,7 @@
 'use strict';
 
 const { registerOwnerCallback }                 = require('../../../shared/telegram');
-const { markRespondedHandler, copyTextHandler } = require('../../../shared/callbacks');
+const { markRespondedHandler, markUnrespondedHandler, copyTextHandler } = require('../../../shared/callbacks');
 
 /**
  * Register callbacks for inline buttons produced by the daily digest:
@@ -11,6 +11,7 @@ const { markRespondedHandler, copyTextHandler } = require('../../../shared/callb
  */
 function setupDigestCallbacks() {
   registerOwnerCallback('mark_responded', markRespondedHandler('owner'));
+  registerOwnerCallback('unrespond', markUnrespondedHandler('owner'));
   registerOwnerCallback('copy_text',      copyTextHandler());
   registerOwnerCallback('digest_copy',    copyTextHandler()); // legacy alias
 }
