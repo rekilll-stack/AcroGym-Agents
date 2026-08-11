@@ -96,4 +96,31 @@ function buildFactPrompt(rawFact) {
   };
 }
 
-module.exports = { buildAnswerPrompt, buildFactPrompt, KB_PATH };
+/** Промпт-«редактор»: проверить черновик ответа перед отправкой. */
+function buildReviewPrompt(question, draft) {
+  return {
+    system: `You are the strict quality editor of AcroGym's client-relations
+assistant. You receive a client question and a draft reply. Check the draft
+against the knowledge base and the rules:
+
+1. Every fact, price, date and policy matches the knowledge base. Arithmetic
+   derived from it (e.g. 2 children x 1,100 = 2,200) must be correct.
+2. The words "trial" and "free" must not appear anywhere.
+3. All parts of the client's question are addressed (if they asked 2 things,
+   the draft answers 2 things).
+4. Nothing is promised that the rules forbid (specific slots, invented
+   discounts, refunds, facts absent from the base — parking, facilities etc.).
+5. Format: starts directly with the client reply, plain text, warm tone,
+   max 2 emojis; optional Russian note for Kristina after "———".
+
+If the draft passes ALL checks, output exactly: OK
+Otherwise output the corrected final message ONLY (same format), nothing else.
+
+KNOWLEDGE BASE:
+${knowledge()}`,
+    user: `Client question:\n${String(question).slice(0, 2000)}\n\nDraft reply:\n${String(draft).slice(0, 3000)}`,
+    maxTokens: 700,
+  };
+}
+
+module.exports = { buildAnswerPrompt, buildFactPrompt, buildReviewPrompt, KB_PATH };

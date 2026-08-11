@@ -12,7 +12,8 @@ const fs = require('fs');
 const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
 const { generateText } = require('../content-bot/llm');
-const { buildAnswerPrompt, buildFactPrompt, KB_PATH } = require('./prompts');
+const { buildAnswerPrompt, buildFactPrompt, buildReviewPrompt, KB_PATH } = require('./prompts');
+const { TEMPLATES } = require('./templates');
 const { createLogger } = require('../../shared/logger');
 const { writeHeartbeat } = require('../../shared/heartbeat');
 
@@ -88,7 +89,7 @@ const START_TEXT =
   'как лучше поступить с этим клиентом.\n\n' +
   'Обучение: напиши «запомни: парковка в молле бесплатная» — я оформлю факт и ' +
   'после подтверждения Кирилла запомню его навсегда.\n' +
-  'Команды: /gaps — вопросы, на которые я не знал ответа · /forget — забыть наш диалог.';
+  'Команды: /prices — прайс · /templates — готовые тексты · /gaps — вопросы без ответа · /forget — забыть диалог.';
 
 const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
 const busy = new Set();
@@ -108,6 +109,17 @@ bot.on('message', async (msg) => {
   if (text === '/forget') {
     delete history[String(chatId)]; saveHistorySoon();
     return void bot.sendMessage(chatId, '🧹 Диалог забыт, начинаем с чистого листа.').catch(() => {});
+  }
+  if (text === '/prices') {
+    // Секция Prices из живой базы знаний — единый источник правды.
+    const kb = fs.readFileSync(KB_PATH, 'utf8');
+    const m = kb.match(/## Prices[\s\S]*?(?=\n## )/);
+    const out = m ? m[0].replace(/^#+ /gm, '').replace(/\*\*/g, '') : 'Секция цен не найдена в базе.';
+    return void bot.sendMessage(chatId, out.slice(0, 4000)).catch(() => {});
+  }
+  if (text === '/templates') {
+    const kb = Object.entries(TEMPLATES).map(([key, t]) => [{ text: t.label, callback_data: 'tpl:' + key }]);
+    return void bot.sendMessage(chatId, '📎 Готовые тексты — жми, пришлю для копирования:', { reply_markup: { inline_keyboard: kb } }).catch(() => {});
   }
   if (text === '/gaps') {
     const gaps = readGaps();
@@ -146,8 +158,20 @@ bot.on('message', async (msg) => {
   try {
     await bot.sendChatAction(chatId, 'typing').catch(() => {});
     const hist = history[String(chatId)] || [];
-    const answer = (await generateText(buildAnswerPrompt(text, hist)) || '').trim();
-    if (!answer) throw new Error('пустой ответ LLM');
+    const draft = (await generateText(buildAnswerPrompt(text, hist)) || '').trim();
+    if (!draft) throw new Error('пустой ответ LLM');
+    // Второй проход — «редактор»: сверка цифр/правил/полноты. OK → берём черновик.
+    let answer = draft;
+    try {
+      const review = (await generateText(buildReviewPrompt(text, draft)) || '').trim();
+      if (review && review !== 'OK' && !/^OK\b/.test(review)) answer = review;
+    } catch (e) { logger.warn({ e: e.message }, 'review pass failed — отправляю черновик'); }
+    // Жёсткий детерминированный страж: запрещённые слова не пройдут даже мимо редактора.
+    if (/\b(trial|free)\b/i.test(answer.split('———')[0])) {
+      logger.warn('banned word slipped — форсирую переписывание');
+      const fix = (await generateText(buildReviewPrompt(text + '\n(REMINDER: the words trial/free are strictly banned)', answer)) || '').trim();
+      if (fix && fix !== 'OK') answer = fix;
+    }
     await bot.sendMessage(chatId, answer, { disable_web_page_preview: true });
     pushHistory(chatId, 'user', text);
     pushHistory(chatId, 'assistant', answer);
@@ -167,6 +191,11 @@ bot.on('message', async (msg) => {
 bot.on('callback_query', async (query) => {
   const data = query.data || '';
   const msg = query.message;
+  if (data.startsWith('tpl:')) {
+    const t = TEMPLATES[data.slice(4)];
+    if (t && msg) await bot.sendMessage(msg.chat.id, t.text, { disable_web_page_preview: true }).catch(() => {});
+    return void bot.answerCallbackQuery(query.id, { text: '📋 Зажми сообщение → Copy' }).catch(() => {});
+  }
   if (!msg || !pendingFacts.has(msg.message_id)) {
     return void bot.answerCallbackQuery(query.id).catch(() => {});
   }
