@@ -14,6 +14,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const cron = require('node-cron');
 const { generateText } = require('../content-bot/llm');
 const { buildAnswerPrompt, buildFactPrompt, buildReviewPrompt, KB_PATH } = require('./prompts');
+const { answer: engineAnswer } = require('./engine');
 const { TEMPLATES } = require('./templates');
 const { createLogger } = require('../../shared/logger');
 const { writeHeartbeat } = require('../../shared/heartbeat');
@@ -114,14 +115,7 @@ async function handleScreenshot(msg) {
       'Attached is a SCREENSHOT of a WhatsApp conversation with a client. Read it ' +
       'carefully, find the client\'s latest unanswered question(s), and produce the reply.';
     const hist = history[String(chatId)] || [];
-    const prompt = buildAnswerPrompt(q, hist);
-    const draft = (await generateText({ ...prompt, images: [{ media_type: 'image/jpeg', data }] }) || '').trim();
-    if (!draft) throw new Error('пустой ответ по скриншоту');
-    let answer = draft;
-    try {
-      const review = (await generateText(buildReviewPrompt('(screenshot of client chat) ' + caption, draft)) || '').trim();
-      if (review && review !== 'OK' && !/^OK\b/.test(review)) answer = review;
-    } catch (e) { logger.warn({ e: e.message }, 'review pass (vision) failed'); }
+    const answer = await engineAnswer(q, hist, [{ media_type: 'image/jpeg', data }]);
     await bot.sendMessage(chatId, answer, { disable_web_page_preview: true });
     pushHistory(chatId, 'user', '[скриншот переписки]' + (caption ? ' ' + caption : ''));
     pushHistory(chatId, 'assistant', answer);
@@ -217,20 +211,7 @@ bot.on('message', async (msg) => {
   try {
     await bot.sendChatAction(chatId, 'typing').catch(() => {});
     const hist = history[String(chatId)] || [];
-    const draft = (await generateText(buildAnswerPrompt(text, hist)) || '').trim();
-    if (!draft) throw new Error('пустой ответ LLM');
-    // Второй проход — «редактор»: сверка цифр/правил/полноты. OK → берём черновик.
-    let answer = draft;
-    try {
-      const review = (await generateText(buildReviewPrompt(text, draft)) || '').trim();
-      if (review && review !== 'OK' && !/^OK\b/.test(review)) answer = review;
-    } catch (e) { logger.warn({ e: e.message }, 'review pass failed — отправляю черновик'); }
-    // Жёсткий детерминированный страж: запрещённые слова не пройдут даже мимо редактора.
-    if (/\b(trial|free)\b/i.test(answer.split('———')[0])) {
-      logger.warn('banned word slipped — форсирую переписывание');
-      const fix = (await generateText(buildReviewPrompt(text + '\n(REMINDER: the words trial/free are strictly banned)', answer)) || '').trim();
-      if (fix && fix !== 'OK') answer = fix;
-    }
+    const answer = await engineAnswer(text, hist);
     await bot.sendMessage(chatId, answer, { disable_web_page_preview: true,
       reply_markup: { inline_keyboard: [[
         { text: '🔄 Другой вариант', callback_data: 'regen' },
