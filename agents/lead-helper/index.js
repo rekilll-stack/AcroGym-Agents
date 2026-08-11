@@ -37,7 +37,7 @@ const { markRespondedHandler, markUnrespondedHandler, copyTextHandler } = requir
 // below are wrapped so a nurture failure never touches heartbeat or polling.
 const nurture = require('../../shared/nurture');
 const { writeHeartbeat } = require('../../shared/heartbeat');
-const { buildGreetingPrompt, fallbackGreeting } = require('./prompts');
+const { buildGreetingPrompt, fallbackGreeting, welcomeDraft } = require('./prompts');
 const { buildDripContent } = require('./drip-content');
 
 // Test-only: freeze heartbeat writes while polling continues normally, so the
@@ -243,16 +243,8 @@ async function handleNew(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, 
   if (!result || result.changes === 0) return; // idempotency
   const leadId = result.lastInsertRowid;
 
-  // Age-segmented welcome draft via Claude; verbatim approved fallback if it fails.
-  let greetingText = null;
-  try {
-    greetingText = await generateText(buildGreetingPrompt({ parentName: parsed.parent_name, childAge: parsed.child_age }));
-  } catch (err) {
-    logger.warn({ err }, 'Claude unavailable — using static fallback draft');
-  }
-  if (!greetingText) {
-    greetingText = fallbackGreeting({ parentName: parsed.parent_name, childAge: parsed.child_age });
-  }
+  // Fixed owner-approved welcome draft (11.08.2026) — no LLM, deterministic.
+  const greetingText = welcomeDraft({ parentName: parsed.parent_name });
   if (greetingText) {
     _greetingCache.set(String(leadId), greetingText);
     updateLeadGreeting(leadId, greetingText); // persist to DB — survives restarts

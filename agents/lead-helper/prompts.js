@@ -292,7 +292,24 @@ function dripFallback({ touch, parentName, ageSegment } = {}) {
   return DRIP_FALLBACK[touch][seg](name);
 }
 
+// Fixed welcome draft (owner-approved verbatim, 11.08.2026). Replaces the
+// age-segmented AI draft for touch-1: owner wants ONE consistent message with
+// real facts (open date, mall, price, ages 2-16 + adults 18+). Name inserted
+// after "Hello", same as the earlier per-name drafts.
+function welcomeDraft({ parentName } = {}) {
+  const name = (parentName || '').trim();
+  const hello = name ? `Hello ${name}!` : 'Hello!';
+  return (
+    `${hello} \u{1F44B} This is AcroGym \u2014 thank you for your interest! \u{1F9E1}\n\n` +
+    `We're excited to welcome you to our brand-new gymnastics center \u2014 we open on ` +
+    `September 1st at Lagoona Mall, Doha! \u{1F938}\n\n` +
+    `We have classes for kids aged 2 to 16, in small groups matched by age \u2014 and adult ` +
+    `classes for 18+ too! A class costs around 100 QAR \u2014 come and see how you love it!\n\n` +
+    `Would you like me to book a spot for the first week of September? \u{1F60A}`
+  );
+}
+
 module.exports = {
-  buildGreetingPrompt, fallbackGreeting, ageSegment,
+  buildGreetingPrompt, fallbackGreeting, welcomeDraft, ageSegment,
   buildDripPrompt, dripFallback,
 };
