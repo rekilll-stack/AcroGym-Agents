@@ -118,7 +118,7 @@ function systemPrompt(segmentHint) {
  */
 function buildGreetingPrompt({ parentName, childAge } = {}) {
   const seg = ageSegment(childAge);
-  const name = (parentName || '').trim() || 'there';
+  const name = firstName(parentName) || 'there';
   const exemplar = FALLBACK[seg || 'neutral'](name);
   return {
     system: systemPrompt(seg ? SEGMENT_GUIDANCE[seg] : null),
@@ -137,7 +137,7 @@ function buildGreetingPrompt({ parentName, childAge } = {}) {
  */
 function fallbackGreeting({ parentName, childAge } = {}) {
   const seg = ageSegment(childAge) || 'neutral';
-  const name = (parentName || '').trim() || 'there';
+  const name = firstName(parentName) || 'there';
   return FALLBACK[seg](name);
 }
 
@@ -270,7 +270,7 @@ function dripSystemPrompt(touch, segmentHint) {
  */
 function buildDripPrompt({ touch, parentName, ageSegment } = {}) {
   const seg  = dripSegKey(ageSegment);
-  const name = (parentName || '').trim() || 'there';
+  const name = firstName(parentName) || 'there';
   const exemplar = DRIP_FALLBACK[touch][seg](name);
   const kind = touch === 2 ? 'follow-up' : 'pre-launch';
   return {
@@ -288,7 +288,7 @@ function buildDripPrompt({ touch, parentName, ageSegment } = {}) {
 /** Verbatim approved drip fallback — used when Claude is unavailable. */
 function dripFallback({ touch, parentName, ageSegment } = {}) {
   const seg  = dripSegKey(ageSegment);
-  const name = (parentName || '').trim() || 'there';
+  const name = firstName(parentName) || 'there';
   return DRIP_FALLBACK[touch][seg](name);
 }
 
@@ -296,8 +296,14 @@ function dripFallback({ touch, parentName, ageSegment } = {}) {
 // age-segmented AI draft for touch-1: owner wants ONE consistent message with
 // real facts (open date, mall, price, ages 2-16 + adults 18+). Name inserted
 // after "Hello", same as the earlier per-name drafts.
+// Only the first name goes into messages (owner 11.08: «фамилию не надо»).
+// "Mwende Ma Liv" -> "Mwende". Empty/whitespace -> ''.
+function firstName(raw) {
+  return String(raw || '').trim().split(/\s+/)[0] || '';
+}
+
 function welcomeDraft({ parentName } = {}) {
-  const name = (parentName || '').trim();
+  const name = firstName(parentName);
   const hello = name ? `Hello ${name}!` : 'Hello!';
   return (
     `${hello} \u{1F44B} This is AcroGym \u2014 thank you for your interest! \u{1F9E1}\n\n` +
@@ -310,6 +316,6 @@ function welcomeDraft({ parentName } = {}) {
 }
 
 module.exports = {
-  buildGreetingPrompt, fallbackGreeting, welcomeDraft, ageSegment,
+  buildGreetingPrompt, fallbackGreeting, welcomeDraft, firstName, ageSegment,
   buildDripPrompt, dripFallback,
 };
