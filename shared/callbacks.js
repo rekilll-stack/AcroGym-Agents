@@ -156,10 +156,10 @@ function copyTextHandler(greetingCache = null) {
       }
 
       if (text) {
-        // <pre> block → Telegram copies it to the clipboard on a single tap.
-        const esc = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        await bot.sendMessage(query.message.chat.id, `<pre>${esc}</pre>`, { parse_mode: 'HTML' });
-        await bot.answerCallbackQuery(query.id, { text: '📋 Tap the text above to copy it' });
+        // Plain message (no formatting) → on iPhone long-press the bubble → Copy
+        // grabs the whole text cleanly. <pre> tap-to-copy is unreliable on iOS.
+        await bot.sendMessage(query.message.chat.id, text, { disable_web_page_preview: true });
+        await bot.answerCallbackQuery(query.id, { text: '📋 Long-press the message above → Copy' });
       } else {
         await bot.answerCallbackQuery(query.id, {
           text: '⚠️ Draft not available. Greeting may not have been generated.',
