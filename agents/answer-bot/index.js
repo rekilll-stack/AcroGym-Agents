@@ -11,6 +11,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '../../.env') }
 const fs = require('fs');
 const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
+const cron = require('node-cron');
 const { generateText } = require('../content-bot/llm');
 const { buildAnswerPrompt, buildFactPrompt, buildReviewPrompt, KB_PATH } = require('./prompts');
 const { TEMPLATES } = require('./templates');
@@ -89,7 +90,7 @@ const START_TEXT =
   'как лучше поступить с этим клиентом.\n\n' +
   'Обучение: напиши «запомни: парковка в молле бесплатная» — я оформлю факт и ' +
   'после подтверждения Кирилла запомню его навсегда.\n' +
-  'Команды: /prices — прайс · /templates — готовые тексты · /gaps — вопросы без ответа · /forget — забыть диалог.';
+  'Команды: /prices — прайс · /templates — готовые тексты · /kb — что я выучил · /gaps — вопросы без ответа · /forget — забыть диалог.';
 
 const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
 const busy = new Set();
@@ -97,7 +98,13 @@ const busy = new Set();
 bot.on('message', async (msg) => {
   const chatId = msg.chat && msg.chat.id;
   const text = (msg.text || '').trim();
-  if (!chatId || !text) return;
+  if (!chatId) return;
+  if (!text) {
+    if (ALLOWED.includes(chatId) && (msg.photo || msg.voice || msg.document || msg.video)) {
+      bot.sendMessage(chatId, '🖼 Пока я понимаю только текст — перешли сообщение клиента текстом или перепиши вопрос словами.').catch(() => {});
+    }
+    return;
+  }
 
   if (!ALLOWED.includes(chatId)) {
     await bot.sendMessage(chatId, 'Sorry, this is a private assistant bot for the AcroGym team.').catch(() => {});
@@ -120,6 +127,14 @@ bot.on('message', async (msg) => {
   if (text === '/templates') {
     const kb = Object.entries(TEMPLATES).map(([key, t]) => [{ text: t.label, callback_data: 'tpl:' + key }]);
     return void bot.sendMessage(chatId, '📎 Готовые тексты — жми, пришлю для копирования:', { reply_markup: { inline_keyboard: kb } }).catch(() => {});
+  }
+  if (text === '/kb') {
+    const kb = fs.readFileSync(KB_PATH, 'utf8');
+    const m = kb.match(/## Learned facts[\s\S]*$/);
+    const out = m && m[0].split('\n').slice(1).join('\n').trim()
+      ? '📚 Чему я научился (сверх базовой базы):\n' + m[0].split('\n').slice(1).join('\n').trim()
+      : '📚 Выученных фактов пока нет — учите через «запомни: …»';
+    return void bot.sendMessage(chatId, out.slice(0, 4000)).catch(() => {});
   }
   if (text === '/gaps') {
     const gaps = readGaps();
@@ -224,6 +239,16 @@ bot.on('callback_query', async (query) => {
 bot.on('polling_error', (err) => logger.warn({ err: err.message }, 'polling_error'));
 process.on('uncaughtException', (err) => logger.fatal({ err }, 'Uncaught exception'));
 process.on('unhandledRejection', (err) => logger.error({ err }, 'Unhandled rejection'));
+
+// Понедельник 09:00 — дайджест пробелов владельцу (если накопились).
+cron.schedule('0 9 * * 1', () => {
+  const gaps = readGaps(20);
+  if (!gaps.length) return;
+  const out = '📚 Answer Bot: за неделю накопились вопросы без ответа в базе.\n' +
+    'Ответь на них через «запомни: …» — и бот будет закрывать их сам:\n\n' +
+    gaps.map((g, i) => `${i + 1}. ${g.q}`).join('\n');
+  bot.sendMessage(OWNER_ID, out.slice(0, 4000)).catch(() => {});
+}, { timezone: process.env.TIMEZONE || 'Asia/Qatar' });
 
 writeHeartbeat('answer-bot', 'started v2');
 setInterval(() => { try { writeHeartbeat('answer-bot', 'alive'); } catch (_) {} }, 60 * 60 * 1000);
