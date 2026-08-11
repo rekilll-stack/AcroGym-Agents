@@ -52,6 +52,8 @@ function pushHistory(chatId, role, text) {
   history[key] = history[key] || [];
   history[key].push({ role, text: String(text).slice(0, 1500) });
   if (history[key].length > HISTORY_TURNS * 2) history[key] = history[key].slice(-HISTORY_TURNS * 2);
+  // sanity: суммарный объём истории чата ≤ 8000 символов
+  while (history[key].reduce((n, h) => n + h.text.length, 0) > 8000 && history[key].length > 2) history[key].shift();
   saveHistorySoon();
 }
 
@@ -74,6 +76,7 @@ function readGaps(limit = 15) {
 // ── Обучение: «запомни: …» → превью → подтверждение владельца ─
 const pendingFacts = new Map(); // messageId → { fact, proposedBy }
 function appendFact(factLines) {
+  try { fs.copyFileSync(KB_PATH, KB_PATH + '.bak'); } catch (_) {}
   let kb = fs.readFileSync(KB_PATH, 'utf8');
   const header = '## Learned facts (approved by owner)';
   if (!kb.includes(header)) kb += `\n${header}\n`;
@@ -91,7 +94,7 @@ const START_TEXT =
   'как лучше поступить с этим клиентом.\n\n' +
   'Обучение: напиши «запомни: парковка в молле бесплатная» — я оформлю факт и ' +
   'после подтверждения Кирилла запомню его навсегда.\n' +
-  'Команды: /prices — прайс · /templates — готовые тексты · /kb — что я выучил · /gaps — вопросы без ответа · /forget — забыть диалог.';
+  'Команды: /prices — прайс · /templates — готовые тексты · /kb — что я выучил · /stats — статистика · /gaps — вопросы без ответа · /forget — забыть диалог.';
 
 const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
 const busy = new Set();
@@ -166,6 +169,15 @@ bot.on('message', async (msg) => {
     const kb = Object.entries(TEMPLATES).map(([key, t]) => [{ text: t.label, callback_data: 'tpl:' + key }]);
     return void bot.sendMessage(chatId, '📎 Готовые тексты — жми, пришлю для копирования:', { reply_markup: { inline_keyboard: kb } }).catch(() => {});
   }
+  if (text === '/stats') {
+    let lines = [];
+    try { lines = fs.readFileSync(LOG_PATH, 'utf8').trim().split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } catch (_) {}
+    const week = lines.filter(x => Date.now() - new Date(x.ts).getTime() < 7 * 864e5);
+    const gaps = week.filter(x => x.gap).length;
+    const out = `📊 За 7 дней: вопросов ${week.length}, из них без ответа в базе — ${gaps}.\nВсего за всё время: ${lines.length}.` +
+      (gaps ? '\n\nПосмотреть пробелы: /gaps' : '');
+    return void bot.sendMessage(chatId, out).catch(() => {});
+  }
   if (text === '/kb') {
     const kb = fs.readFileSync(KB_PATH, 'utf8');
     const m = kb.match(/## Learned facts[\s\S]*$/);
@@ -212,11 +224,14 @@ bot.on('message', async (msg) => {
     await bot.sendChatAction(chatId, 'typing').catch(() => {});
     const hist = history[String(chatId)] || [];
     const answer = await engineAnswer(text, hist);
-    await bot.sendMessage(chatId, answer, { disable_web_page_preview: true,
-      reply_markup: { inline_keyboard: [[
-        { text: '🔄 Другой вариант', callback_data: 'regen' },
-        { text: '✂️ Короче', callback_data: 'shorter' },
-      ]] } });
+    const kbRow = [
+      { text: '🔄 Другой вариант', callback_data: 'regen' },
+      { text: '✂️ Короче', callback_data: 'shorter' },
+    ];
+    const rows = [kbRow];
+    if (looksLikeGap(answer)) rows.push([{ text: '📨 Спросить Кирилла', callback_data: 'ask_owner' }]);
+    await bot.sendMessage(chatId, answer.slice(0, 4000), { disable_web_page_preview: true,
+      reply_markup: { inline_keyboard: rows } });
     lastQ.set(chatId, text);
     pushHistory(chatId, 'user', text);
     pushHistory(chatId, 'assistant', answer);
@@ -236,6 +251,13 @@ bot.on('message', async (msg) => {
 bot.on('callback_query', async (query) => {
   const data = query.data || '';
   const msg = query.message;
+  if (data === 'ask_owner') {
+    const chatId = msg && msg.chat && msg.chat.id;
+    if (!chatId || !ALLOWED.includes(chatId)) return void bot.answerCallbackQuery(query.id).catch(() => {});
+    const q = lastQ.get(chatId) || '(вопрос не сохранился)';
+    bot.sendMessage(OWNER_ID, `📨 Вопрос от Кристины/админа, на который у меня нет ответа в базе:\n\n«${q}»\n\nОтветь мне «запомни: …» — и я закрою этот пробел навсегда.`).catch(() => {});
+    return void bot.answerCallbackQuery(query.id, { text: '📨 Отправил Кириллу' }).catch(() => {});
+  }
   if (data === 'regen' || data === 'shorter') {
     const chatId = msg && msg.chat && msg.chat.id;
     if (!chatId || !ALLOWED.includes(chatId)) return void bot.answerCallbackQuery(query.id).catch(() => {});

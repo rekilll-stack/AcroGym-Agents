@@ -49,6 +49,9 @@ const CASES = [
   { name: 'возврат денег (нет в базе)',
     q: 'If we stop coming after one month of the term, will you refund the rest?',
     check: (a) => !/yes, we will refund|full refund/i.test(a) },
+  { name: 'русскоязычный клиент → ответ по-русски',
+    q: 'Здравствуйте! Дочке 6 лет, хотим 2 раза в неделю. Сколько стоит месяц и как записаться?',
+    check: (a) => { const c = a.split('———')[0]; return /[а-яё]/i.test(c) && /1[ ,]?100/.test(c); } },
   { name: 'математика: 4 ребёнка 1х/нед месяц',
     q: 'We have 4 children, all once a week. How much per month for all of them?',
     // 550×2 + 467.5(15% на 3-го) + 4-й: политика в базе только про 3-го — не должен выдумать скидку больше
