@@ -1,42 +1,96 @@
 'use strict';
 
-// AcroGym Answer Bot — «суфлёр Кристины».
-// Присылаешь вопрос клиента (или свой вопрос по-русски) → получаешь готовый
-// вежливый ответ для WhatsApp. Знания — agents/answer-bot/knowledge.md.
+// AcroGym Answer Bot — «суфлёр Кристины» v2.
+// v2 (ночь 12.08): память диалога, обучение новым фактам с подтверждением
+// владельца, журнал пробелов (/gaps), горячая перезагрузка базы знаний,
+// советы Кристине в русской пометке.
 // LLM — ТОЛЬКО подписочный шим (llm.js, $0), метёный API не трогаем.
 
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 
+const fs = require('fs');
+const path = require('path');
 const TelegramBot = require('node-telegram-bot-api');
 const { generateText } = require('../content-bot/llm');
-const { buildAnswerPrompt } = require('./prompts');
+const { buildAnswerPrompt, buildFactPrompt, KB_PATH } = require('./prompts');
 const { createLogger } = require('../../shared/logger');
 const { writeHeartbeat } = require('../../shared/heartbeat');
 
 const logger = createLogger('answer-bot');
 
 const TOKEN = process.env.ANSWER_BOT_TOKEN;
+const OWNER_ID = parseInt(process.env.ANSWER_BOT_OWNER_ID || '216299177', 10);
 const ALLOWED = String(process.env.ANSWER_BOT_CHAT_IDS || '216299177,572259729,8840043628')
   .split(',').map(s => parseInt(s.trim(), 10)).filter(Boolean);
 
+const DATA_DIR = path.join(__dirname, '../../data');
+const HISTORY_PATH = path.join(DATA_DIR, 'answer-bot-history.json');
+const LOG_PATH = path.join(DATA_DIR, 'answer-bot-log.jsonl');
+const HISTORY_TURNS = 8; // последних пар «вопрос-ответ» на чат
+
 if (!TOKEN) {
-  logger.error('ANSWER_BOT_TOKEN не задан в .env — создать бота в BotFather и вписать токен');
+  logger.error('ANSWER_BOT_TOKEN не задан в .env');
   process.exit(1);
 }
 
-const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
+// ── Память диалога (переживает рестарты) ─────────────────────
+let history = {};
+try { history = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8')); } catch (_) {}
+let _saveTimer = null;
+function saveHistorySoon() {
+  if (_saveTimer) return;
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null;
+    try { fs.writeFileSync(HISTORY_PATH, JSON.stringify(history)); } catch (e) { logger.warn({ e: e.message }, 'history save failed'); }
+  }, 1500);
+}
+function pushHistory(chatId, role, text) {
+  const key = String(chatId);
+  history[key] = history[key] || [];
+  history[key].push({ role, text: String(text).slice(0, 1500) });
+  if (history[key].length > HISTORY_TURNS * 2) history[key] = history[key].slice(-HISTORY_TURNS * 2);
+  saveHistorySoon();
+}
+
+// ── Журнал вопросов и пробелов ───────────────────────────────
+function logQA(chatId, q, a, gap) {
+  try {
+    fs.appendFileSync(LOG_PATH, JSON.stringify({ ts: new Date().toISOString(), chatId, q: q.slice(0, 500), a: a.slice(0, 500), gap }) + '\n');
+  } catch (_) {}
+}
+const GAP_MARKERS = [/i'?ll check/i, /get back to you/i, /уточни у кирилла/i, /нет в базе/i, /в базе н[ие]т/i];
+function looksLikeGap(answer) { return GAP_MARKERS.some(r => r.test(answer)); }
+function readGaps(limit = 15) {
+  try {
+    const lines = fs.readFileSync(LOG_PATH, 'utf8').trim().split('\n');
+    return lines.map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(x => x && x.gap).slice(-limit);
+  } catch { return []; }
+}
+
+// ── Обучение: «запомни: …» → превью → подтверждение владельца ─
+const pendingFacts = new Map(); // messageId → { fact, proposedBy }
+function appendFact(factLines) {
+  let kb = fs.readFileSync(KB_PATH, 'utf8');
+  const header = '## Learned facts (approved by owner)';
+  if (!kb.includes(header)) kb += `\n${header}\n`;
+  kb += `\n${factLines.trim()}\n`;
+  fs.writeFileSync(KB_PATH, kb); // prompts.js перечитает по mtime
+}
 
 const START_TEXT =
   'Привет! Я суфлёр AcroGym 🤸\n\n' +
-  'Пришли мне вопрос клиента (можно просто переслать его сообщение — на любом ' +
-  'языке) или спроси по-русски «что ответить, если…» — я пришлю готовый вежливый ' +
-  'ответ на английском. Останется скопировать (зажми сообщение → Copy) и отправить ' +
-  'клиенту в WhatsApp.\n\n' +
-  'Я знаю цены сезона 2026/27, даты термов, правила заморозки и 24 часов, зачёт ' +
-  'первого занятия, скидки и правила регистрации. Если чего-то не знаю — честно ' +
-  'скажу и посоветую уточнить у Кирилла.';
+  '• Пришли вопрос клиента (можно переслать сообщение как есть, любой язык) или ' +
+  'спроси по-русски «что ответить, если…» — пришлю готовый вежливый ответ на ' +
+  'английском (зажми → Copy → в WhatsApp).\n' +
+  '• Я помню наш диалог: можно уточнять «а если детей двое?» — пойму контекст.\n' +
+  '• После «———» пишу пометки лично тебе: чего не хватает в базе и мой совет, ' +
+  'как лучше поступить с этим клиентом.\n\n' +
+  'Обучение: напиши «запомни: парковка в молле бесплатная» — я оформлю факт и ' +
+  'после подтверждения Кирилла запомню его навсегда.\n' +
+  'Команды: /gaps — вопросы, на которые я не знал ответа · /forget — забыть наш диалог.';
 
-// Один вопрос за раз на чат — защита от дублей, пока LLM думает (~15-30с).
+const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
 const busy = new Set();
 
 bot.on('message', async (msg) => {
@@ -46,45 +100,102 @@ bot.on('message', async (msg) => {
 
   if (!ALLOWED.includes(chatId)) {
     await bot.sendMessage(chatId, 'Sorry, this is a private assistant bot for the AcroGym team.').catch(() => {});
-    logger.warn({ chatId }, 'Отказ: чат не в whitelist');
     return;
   }
 
-  if (text === '/start' || text === '/help') {
-    await bot.sendMessage(chatId, START_TEXT).catch(() => {});
+  // ── Команды ──
+  if (text === '/start' || text === '/help') return void bot.sendMessage(chatId, START_TEXT).catch(() => {});
+  if (text === '/forget') {
+    delete history[String(chatId)]; saveHistorySoon();
+    return void bot.sendMessage(chatId, '🧹 Диалог забыт, начинаем с чистого листа.').catch(() => {});
+  }
+  if (text === '/gaps') {
+    const gaps = readGaps();
+    const out = gaps.length
+      ? '❓ Вопросы, где мне не хватило базы знаний:\n\n' + gaps.map((g, i) => `${i + 1}. ${g.q}`).join('\n')
+      : '👍 Пробелов не накопилось — на всё отвечал по базе.';
+    return void bot.sendMessage(chatId, out.slice(0, 4000)).catch(() => {});
+  }
+
+  // ── Обучение: «запомни: …» / /learn … ──
+  const learnMatch = text.match(/^(?:\/learn|запомни)[:\s]+([\s\S]+)/i);
+  if (learnMatch) {
+    try {
+      await bot.sendChatAction(chatId, 'typing').catch(() => {});
+      const fact = (await generateText(buildFactPrompt(learnMatch[1]))).trim();
+      const preview = await bot.sendMessage(chatId,
+        `📚 Добавить в базу знаний?\n\n${fact}\n\n(подтвердить может Кирилл)`,
+        { reply_markup: { inline_keyboard: [[
+          { text: '✅ Добавить', callback_data: 'kb_add' },
+          { text: '❌ Отмена', callback_data: 'kb_cancel' },
+        ]] } });
+      pendingFacts.set(preview.message_id, { fact, proposedBy: chatId });
+    } catch (err) {
+      logger.error({ err }, 'learn flow failed');
+      await bot.sendMessage(chatId, '⚠️ Не получилось оформить факт, попробуй ещё раз.').catch(() => {});
+    }
     return;
   }
 
+  // ── Обычный вопрос → ответ ──
   if (busy.has(chatId)) {
     await bot.sendMessage(chatId, '⏳ Секунду, ещё думаю над прошлым вопросом…').catch(() => {});
     return;
   }
   busy.add(chatId);
-
   try {
     await bot.sendChatAction(chatId, 'typing').catch(() => {});
-    const answer = await generateText(buildAnswerPrompt(text));
-    const out = (answer || '').trim();
-    if (!out) throw new Error('пустой ответ LLM');
-    // Обычный текст без parse_mode — на iPhone копируется целиком (зажать → Copy).
-    await bot.sendMessage(chatId, out, { disable_web_page_preview: true });
+    const hist = history[String(chatId)] || [];
+    const answer = (await generateText(buildAnswerPrompt(text, hist)) || '').trim();
+    if (!answer) throw new Error('пустой ответ LLM');
+    await bot.sendMessage(chatId, answer, { disable_web_page_preview: true });
+    pushHistory(chatId, 'user', text);
+    pushHistory(chatId, 'assistant', answer);
+    logQA(chatId, text, answer, looksLikeGap(answer));
     writeHeartbeat('answer-bot', 'answered ok');
     logger.info({ chatId, q: text.slice(0, 80) }, 'Ответ отправлен');
   } catch (err) {
     logger.error({ err, chatId }, 'Ошибка генерации ответа');
     await bot.sendMessage(chatId,
-      '⚠️ Не получилось сгенерировать ответ (сбой на моей стороне). Попробуй ещё раз ' +
-      'через минуту; если повторится — скажи Кириллу.').catch(() => {});
+      '⚠️ Не получилось сгенерировать ответ. Попробуй ещё раз через минуту; если повторится — скажи Кириллу.').catch(() => {});
   } finally {
     busy.delete(chatId);
   }
 });
 
-bot.on('polling_error', (err) => logger.warn({ err: err.message }, 'polling_error'));
+// ── Подтверждение фактов (гейт: только Кирилл) ──
+bot.on('callback_query', async (query) => {
+  const data = query.data || '';
+  const msg = query.message;
+  if (!msg || !pendingFacts.has(msg.message_id)) {
+    return void bot.answerCallbackQuery(query.id).catch(() => {});
+  }
+  const { fact } = pendingFacts.get(msg.message_id);
+  if (data === 'kb_add') {
+    if (query.from.id !== OWNER_ID) {
+      return void bot.answerCallbackQuery(query.id, { text: '⛔ Подтвердить может только Кирилл', show_alert: true }).catch(() => {});
+    }
+    try {
+      appendFact(fact);
+      pendingFacts.delete(msg.message_id);
+      await bot.editMessageText(`✅ Добавлено в базу знаний:\n\n${fact}`, { chat_id: msg.chat.id, message_id: msg.message_id });
+      await bot.answerCallbackQuery(query.id, { text: '📚 Запомнил навсегда' }).catch(() => {});
+      logger.info({ fact: fact.slice(0, 100) }, 'KB fact approved');
+    } catch (err) {
+      logger.error({ err }, 'appendFact failed');
+      await bot.answerCallbackQuery(query.id, { text: '⚠️ Ошибка записи' }).catch(() => {});
+    }
+  } else if (data === 'kb_cancel') {
+    pendingFacts.delete(msg.message_id);
+    await bot.editMessageText('❌ Отменено, в базу не добавлял.', { chat_id: msg.chat.id, message_id: msg.message_id }).catch(() => {});
+    await bot.answerCallbackQuery(query.id).catch(() => {});
+  }
+});
 
+bot.on('polling_error', (err) => logger.warn({ err: err.message }, 'polling_error'));
 process.on('uncaughtException', (err) => logger.fatal({ err }, 'Uncaught exception'));
 process.on('unhandledRejection', (err) => logger.error({ err }, 'Unhandled rejection'));
 
-writeHeartbeat('answer-bot', 'started');
+writeHeartbeat('answer-bot', 'started v2');
 setInterval(() => { try { writeHeartbeat('answer-bot', 'alive'); } catch (_) {} }, 60 * 60 * 1000);
-logger.info({ allowed: ALLOWED }, 'Answer-bot running ✅ (подписочный LLM, whitelist активен)');
+logger.info({ allowed: ALLOWED, owner: OWNER_ID }, 'Answer-bot v2 running ✅ (память, обучение, советы)');

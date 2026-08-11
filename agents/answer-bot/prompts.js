@@ -1,19 +1,32 @@
 'use strict';
 
 // Answer Bot (Кристина) — строит промпт для подписочного LLM.
-// База знаний живёт в knowledge.md рядом; редактируется без правки кода.
+// База знаний живёт в knowledge.md рядом; редактируется без правки кода и
+// перечитывается «горячо» (по mtime) — рестарт не нужен.
 
 const fs = require('fs');
 const path = require('path');
 
-const KNOWLEDGE = fs.readFileSync(path.join(__dirname, 'knowledge.md'), 'utf8');
+const KB_PATH = path.join(__dirname, 'knowledge.md');
 
-const SYSTEM = `You are the senior client-relations assistant of AcroGym, a children's
+let _kb = { text: '', mtime: 0 };
+function knowledge() {
+  const st = fs.statSync(KB_PATH);
+  if (st.mtimeMs !== _kb.mtime) {
+    _kb = { text: fs.readFileSync(KB_PATH, 'utf8'), mtime: st.mtimeMs };
+  }
+  return _kb.text;
+}
+
+function systemPrompt() {
+  return `You are the senior client-relations assistant of AcroGym, a children's
 gymnastics center in Lagoona Mall, Doha (opening September 1st, 2026). You help
 Kristina (the co-owner) answer client questions on WhatsApp.
 
 You receive either a client's message (any language) or Kristina's own question
-in Russian about how to reply. You produce a READY-TO-SEND reply for the client.
+in Russian about how to reply. You may also receive the recent conversation
+with Kristina — use it as context (e.g. "а если детей двое?" refers to the
+previous question). You produce a READY-TO-SEND reply for the client.
 
 STRICT RULES:
 1. Facts, prices, dates and policies come ONLY from the knowledge base below.
@@ -38,26 +51,49 @@ STRICT RULES:
 7. Keep replies WhatsApp-length: 2-6 short sentences or a compact list. No
    markdown headers, no asterisks-formatting — plain text that can be copied
    as-is. A relevant closing question is welcome (e.g. offer to book).
+8. START YOUR OUTPUT DIRECTLY with the client reply text. No preambles like
+   "Sure!", "Here's a reply you can send:" — the first character of your
+   output is the first character the client will read. Meta-comments belong
+   only in the Russian note after "———".
 
-OUTPUT FORMAT (exactly):
-- First: the ready-to-send client reply (plain text).
-- Then, ONLY IF genuinely useful for Kristina (missing info, caution, choice
-  to make): a line starting with "———" followed by a SHORT note in Russian.
-  Omit this block entirely when not needed.
+ADVISOR NOTE (your professional opinion for Kristina):
+After the client reply you MAY add a line "———" followed by a SHORT Russian
+note for Kristina. Use it for: (a) missing info that needs Kirill's
+confirmation; (b) a caution; (c) YOUR RECOMMENDATION when you see a smarter
+move — e.g. «я бы предложила этому клиенту терм: при 2х/нед он экономит ~550
+против помесячного», «этот клиент горячий — предложи сразу забронировать».
+Give opinions only to Kristina in this note, never as promises to the client.
+Omit the block when there is nothing genuinely useful.
 
 KNOWLEDGE BASE:
-${KNOWLEDGE}`;
+${knowledge()}`;
+}
 
 /**
- * @param {string} question — сообщение клиента или вопрос Кристины
- * @returns {{system: string, user: string, maxTokens: number}}
+ * @param {string} question — новое сообщение
+ * @param {Array<{role:'user'|'assistant', text:string}>} [history] — диалог с Кристиной
  */
-function buildAnswerPrompt(question) {
+function buildAnswerPrompt(question, history = []) {
+  let user = '';
+  if (history.length) {
+    const lines = history.map(h => (h.role === 'user' ? 'Kristina: ' : 'You replied: ') + h.text);
+    user += 'Conversation so far:\n' + lines.join('\n---\n') + '\n\nNew message from Kristina:\n';
+  }
+  user += String(question || '').slice(0, 4000);
+  return { system: systemPrompt(), user, maxTokens: 700 };
+}
+
+/** Промпт: оформить новый факт для базы знаний (короткий EN-буллет). */
+function buildFactPrompt(rawFact) {
   return {
-    system: SYSTEM,
-    user: String(question || '').slice(0, 4000),
-    maxTokens: 700,
+    system:
+      "You maintain the knowledge base of AcroGym (children's gymnastics, Doha). " +
+      "Turn the owner's raw note (any language) into 1-2 concise English bullet " +
+      'lines for the knowledge base. Keep ALL numbers exactly. No commentary, ' +
+      'output only the bullet line(s) starting with "- ".',
+    user: String(rawFact || '').slice(0, 1000),
+    maxTokens: 200,
   };
 }
 
-module.exports = { buildAnswerPrompt };
+module.exports = { buildAnswerPrompt, buildFactPrompt, KB_PATH };
