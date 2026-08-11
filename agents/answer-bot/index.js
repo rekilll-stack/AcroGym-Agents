@@ -82,7 +82,7 @@ function appendFact(factLines) {
 
 const START_TEXT =
   'Привет! Я суфлёр AcroGym 🤸\n\n' +
-  '• Пришли вопрос клиента (можно переслать сообщение как есть, любой язык) или ' +
+  '• Пришли вопрос клиента — текстом или СКРИНШОТОМ переписки WhatsApp (я его прочитаю), или ' +
   'спроси по-русски «что ответить, если…» — пришлю готовый вежливый ответ на ' +
   'английском (зажми → Copy → в WhatsApp).\n' +
   '• Я помню наш диалог: можно уточнять «а если детей двое?» — пойму контекст.\n' +
@@ -94,14 +94,58 @@ const START_TEXT =
 
 const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
 const busy = new Set();
+const lastQ = new Map(); // chatId → последний вопрос (для 🔄/✂️)
+
+// Скриншот переписки WhatsApp → вижн: бот читает картинку и отвечает клиенту.
+async function handleScreenshot(msg) {
+  const chatId = msg.chat.id;
+  if (busy.has(chatId)) {
+    return void bot.sendMessage(chatId, '⏳ Секунду, ещё думаю над прошлым вопросом…').catch(() => {});
+  }
+  busy.add(chatId);
+  try {
+    await bot.sendChatAction(chatId, 'typing').catch(() => {});
+    const photo = msg.photo[msg.photo.length - 1]; // максимальное разрешение
+    const filePath = await bot.downloadFile(photo.file_id, require('os').tmpdir());
+    const data = fs.readFileSync(filePath).toString('base64');
+    try { fs.unlinkSync(filePath); } catch (_) {}
+    const caption = (msg.caption || '').trim();
+    const q = (caption ? caption + '\n\n' : '') +
+      'Attached is a SCREENSHOT of a WhatsApp conversation with a client. Read it ' +
+      'carefully, find the client\'s latest unanswered question(s), and produce the reply.';
+    const hist = history[String(chatId)] || [];
+    const prompt = buildAnswerPrompt(q, hist);
+    const draft = (await generateText({ ...prompt, images: [{ media_type: 'image/jpeg', data }] }) || '').trim();
+    if (!draft) throw new Error('пустой ответ по скриншоту');
+    let answer = draft;
+    try {
+      const review = (await generateText(buildReviewPrompt('(screenshot of client chat) ' + caption, draft)) || '').trim();
+      if (review && review !== 'OK' && !/^OK\b/.test(review)) answer = review;
+    } catch (e) { logger.warn({ e: e.message }, 'review pass (vision) failed'); }
+    await bot.sendMessage(chatId, answer, { disable_web_page_preview: true });
+    pushHistory(chatId, 'user', '[скриншот переписки]' + (caption ? ' ' + caption : ''));
+    pushHistory(chatId, 'assistant', answer);
+    logQA(chatId, '[screenshot] ' + caption, answer, looksLikeGap(answer));
+    writeHeartbeat('answer-bot', 'screenshot answered');
+    logger.info({ chatId }, 'Ответ по скриншоту отправлен');
+  } finally {
+    busy.delete(chatId);
+  }
+}
 
 bot.on('message', async (msg) => {
   const chatId = msg.chat && msg.chat.id;
   const text = (msg.text || '').trim();
   if (!chatId) return;
   if (!text) {
-    if (ALLOWED.includes(chatId) && (msg.photo || msg.voice || msg.document || msg.video)) {
-      bot.sendMessage(chatId, '🖼 Пока я понимаю только текст — перешли сообщение клиента текстом или перепиши вопрос словами.').catch(() => {});
+    if (ALLOWED.includes(chatId) && msg.photo && msg.photo.length) {
+      return void handleScreenshot(msg).catch(err => {
+        logger.error({ err }, 'screenshot flow failed');
+        bot.sendMessage(chatId, '⚠️ Не смог прочитать скриншот, попробуй ещё раз или перешли текстом.').catch(() => {});
+      });
+    }
+    if (ALLOWED.includes(chatId) && (msg.voice || msg.document || msg.video)) {
+      bot.sendMessage(chatId, '🎙 Голосовые и файлы пока не понимаю — пришли текст или скриншот переписки.').catch(() => {});
     }
     return;
   }
@@ -187,7 +231,12 @@ bot.on('message', async (msg) => {
       const fix = (await generateText(buildReviewPrompt(text + '\n(REMINDER: the words trial/free are strictly banned)', answer)) || '').trim();
       if (fix && fix !== 'OK') answer = fix;
     }
-    await bot.sendMessage(chatId, answer, { disable_web_page_preview: true });
+    await bot.sendMessage(chatId, answer, { disable_web_page_preview: true,
+      reply_markup: { inline_keyboard: [[
+        { text: '🔄 Другой вариант', callback_data: 'regen' },
+        { text: '✂️ Короче', callback_data: 'shorter' },
+      ]] } });
+    lastQ.set(chatId, text);
     pushHistory(chatId, 'user', text);
     pushHistory(chatId, 'assistant', answer);
     logQA(chatId, text, answer, looksLikeGap(answer));
@@ -206,6 +255,34 @@ bot.on('message', async (msg) => {
 bot.on('callback_query', async (query) => {
   const data = query.data || '';
   const msg = query.message;
+  if (data === 'regen' || data === 'shorter') {
+    const chatId = msg && msg.chat && msg.chat.id;
+    if (!chatId || !ALLOWED.includes(chatId)) return void bot.answerCallbackQuery(query.id).catch(() => {});
+    const q = lastQ.get(chatId);
+    if (!q || busy.has(chatId)) return void bot.answerCallbackQuery(query.id, { text: q ? '⏳ Уже думаю…' : 'Вопрос не найден — задай заново' }).catch(() => {});
+    busy.add(chatId);
+    bot.answerCallbackQuery(query.id, { text: data === 'regen' ? '🔄 Пишу другой вариант…' : '✂️ Сокращаю…' }).catch(() => {});
+    (async () => {
+      try {
+        await bot.sendChatAction(chatId, 'typing').catch(() => {});
+        const hist = history[String(chatId)] || [];
+        const extra = data === 'regen'
+          ? '\n\n(Kristina asks for an ALTERNATIVE version of the reply — different angle/wording, same facts.)'
+          : '\n\n(Kristina asks for a SHORTER version — 2-3 sentences maximum, keep the key facts.)';
+        const answer = (await generateText(buildAnswerPrompt(q + extra, hist)) || '').trim();
+        if (answer) {
+          await bot.sendMessage(chatId, answer, { disable_web_page_preview: true,
+            reply_markup: { inline_keyboard: [[
+              { text: '🔄 Другой вариант', callback_data: 'regen' },
+              { text: '✂️ Короче', callback_data: 'shorter' },
+            ]] } });
+          pushHistory(chatId, 'assistant', answer);
+        }
+      } catch (err) { logger.error({ err }, 'regen/shorter failed'); }
+      finally { busy.delete(chatId); }
+    })();
+    return;
+  }
   if (data.startsWith('tpl:')) {
     const t = TEMPLATES[data.slice(4)];
     if (t && msg) await bot.sendMessage(msg.chat.id, t.text, { disable_web_page_preview: true }).catch(() => {});
