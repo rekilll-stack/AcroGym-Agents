@@ -439,5 +439,18 @@ cron.schedule('0 9 * * 1', () => {
 }, { timezone: process.env.TIMEZONE || 'Asia/Qatar' });
 
 writeHeartbeat('answer-bot', 'started v2');
-setInterval(() => { try { writeHeartbeat('answer-bot', 'alive'); } catch (_) {} }, 60 * 60 * 1000);
+// Пульс каждые 5 минут: getMe (жив ли Telegram-канал) + самолечение поллинга.
+// Watchdog следит за свежестью этого heartbeat и рестартует при зависании.
+setInterval(async () => {
+  try {
+    if (!bot.isPolling()) {
+      logger.warn('polling мёртв — перезапускаю');
+      await bot.startPolling().catch(() => {});
+    }
+    await bot.getMe();
+    writeHeartbeat('answer-bot', 'getMe ok');
+  } catch (e) {
+    logger.warn({ e: e.message }, 'пульс не прошёл — heartbeat не обновляю');
+  }
+}, 5 * 60 * 1000);
 logger.info({ allowed: ALLOWED, owner: OWNER_ID }, 'Answer-bot v2 running ✅ (память, обучение, советы)');
