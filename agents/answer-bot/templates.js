@@ -44,6 +44,21 @@ const TEMPLATES = {
       'Registration takes 3 minutes: acrogym.org/register — would you like me to note ' +
       'your preferred days? 🧡',
   },
+  payment: {
+    label: '💳 Как считается оплата',
+    text:
+      "Thank you for asking — it's actually very simple! 🧡\n\n" +
+      '   🤸 First class — 100 QAR. If you decide to continue, this amount is ' +
+      "credited toward your first package — so it's not an extra cost 😊\n\n" +
+      '   📅 Then you choose a plan — monthly or full term. The monthly price ' +
+      "always stays the same: it's calculated on the average number of classes " +
+      'per month, so whether a month has 9 classes or 8, the price never changes.\n\n' +
+      '   🗓 Starting mid-month? No problem — you only pay for the classes ' +
+      'remaining until the end of that month, and from the next month the ' +
+      'regular price applies. You never pay for classes before your start date.\n\n' +
+      'Payment is made at the gym. Would you like me to send the exact prices ' +
+      'for your schedule? 😊',
+  },
   termpitch: {
     label: '💎 Почему терм выгоднее',
     text:

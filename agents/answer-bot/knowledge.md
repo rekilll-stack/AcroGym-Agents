@@ -80,6 +80,31 @@ through holidays, mall-based):
 - Terms & Conditions are accepted within the registration form (effective
   from 1 August 2026).
 
+## How payment works (counting classes, first class credit, mid-month start)
+
+- **First class — 100 QAR, paid once.** If the client continues, this 100 QAR
+  is **credited toward their first package** — it is not an extra cost.
+- After the first class the client picks a plan: **monthly** or **full term**.
+- **The monthly price is fixed every month.** It is calculated on the
+  **average** number of classes per month across the season — some months
+  have 9 classes, some have 8, but the price never changes and nothing is
+  recalculated.
+- **Joining mid-month (or mid-term): pro-rata.** The client pays **only for
+  the classes remaining** until the end of the current month (or term) —
+  never for classes before their start date. From the next month/term the
+  regular full price applies.
+- Owner-approved wording for these questions — use it as the gold standard:
+
+> Thank you for asking — it's actually very simple! 🧡
+>
+>    🤸 First class — 100 QAR. If you decide to continue, this amount is credited toward your first package — so it's not an extra cost 😊
+>
+>    📅 Then you choose a plan — monthly or full term. The monthly price always stays the same: it's calculated on the average number of classes per month, so whether a month has 9 classes or 8, the price never changes.
+>
+>    🗓 Starting mid-month? No problem — you only pay for the classes remaining until the end of that month, and from the next month the regular price applies. You never pay for classes before your start date.
+>
+> Payment is made at the gym. Would you like me to send the exact prices for your schedule? 😊
+
 ## Schedule
 
 - The detailed class timetable is being finalized and will be shared closer
