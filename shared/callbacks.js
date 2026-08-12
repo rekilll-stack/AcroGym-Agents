@@ -17,10 +17,20 @@ dayjs.extend(timezone);
 const { createLogger }                  = require('./logger');
 const { getLeadById, updateLeadStatusById } = require('./db');
 const { editMessage, escapeMd }         = require('./telegram');
+const { listCards }                     = require('./card-registry');
 const { t }                             = require('./i18n');
 
 const logger   = createLogger('callbacks');
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
+
+// Синхронизация карточек: обновить ВСЕ копии на других телефонах (админ-бот).
+async function syncAdminCards(leadId, exceptChatId, exceptMessageId, adminAppend, keyboard) {
+  for (const c of listCards(leadId)) {
+    if (c.chatId === exceptChatId && c.messageId === exceptMessageId) continue;
+    await editMessage('admin', c.chatId, c.messageId, c.text + adminAppend,
+      { reply_markup: { inline_keyboard: keyboard } }).catch(() => {});
+  }
+}
 
 // ─────────────────────────────────────────────────────────────
 // markRespondedHandler
@@ -72,6 +82,11 @@ function markRespondedHandler(botName) {
         ]] } }
       );
 
+      // Остальные телефоны видят тот же статус и ту же кнопку Undo
+      await syncAdminCards(leadId, query.message.chat.id, query.message.message_id,
+        `\n\n✅ Marked responded at ${time} (Doha)`,
+        [[{ text: '↩️ Undo (not contacted)', callback_data: `unrespond:${leadId}` }]]);
+
       await bot.answerCallbackQuery(query.id, { text: '✅ Marked as responded' });
     } catch (err) {
       logger.error({ err, leadId }, 'Error in markResponded callback');
@@ -116,6 +131,13 @@ function markUnrespondedHandler(botName) {
         originalText + appendText,
         { reply_markup: { inline_keyboard: keyboard } }
       );
+      await syncAdminCards(leadId, query.message.chat.id, query.message.message_id,
+        `\n\n↩️ Returned to waiting at ${time} (Doha)`,
+        [[
+          { text: '✅ I responded',    callback_data: `responded:${leadId}` },
+          { text: '📋 Copy text only', callback_data: `copy:${leadId}`      },
+        ]]);
+
       await bot.answerCallbackQuery(query.id, { text: '↩️ Back to waiting' });
     } catch (err) {
       logger.error({ err, leadId }, 'Error in markUnresponded callback');

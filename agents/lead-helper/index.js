@@ -31,6 +31,7 @@ const {
   findExistingLead,
 } = require('../../shared/db');
 const { markRespondedHandler, markUnrespondedHandler, copyTextHandler } = require('../../shared/callbacks');
+const { recordCards } = require('../../shared/card-registry');
 // Agent 3 nurture. Requiring this also registers the admin-side 'client_sent' /
 // 'copy_text' callbacks (via client-messaging) in THIS process, which polls the
 // Admin bot — so ✅ Sent on a nurture card is handled here. All nurture calls
@@ -264,7 +265,8 @@ async function handleNew(rowNumber, parsed, phoneNorm, whatsappNorm, emailNorm, 
 
   const card = buildCard(parsed, rowNumber, { header: headerLine }) + draft;
 
-  await sendToAdmin(card, { reply_markup: respondedKeyboard(leadId), disable_web_page_preview: true });
+  const _sent = await sendToAdmin(card, { reply_markup: respondedKeyboard(leadId), disable_web_page_preview: true });
+  recordCards(leadId, card, _sent);
   updateLeadStatusById(leadId, { status: 'notified', notified_at: new Date().toISOString() });
   logger.info({ rowNumber, leadId, client_type: parsed.client_type }, 'New lead — admin notified');
 }
@@ -278,7 +280,8 @@ async function handleReturning(rowNumber, parsed, phoneNorm, whatsappNorm, email
   const note   = '<i>This person has been with us before. Contact personally to discuss return terms.</i>';
   const card   = buildCard(parsed, rowNumber, { header, note });
 
-  await sendToAdmin(card, { reply_markup: contactedKeyboard(leadId), disable_web_page_preview: true });
+  const _sent = await sendToAdmin(card, { reply_markup: contactedKeyboard(leadId), disable_web_page_preview: true });
+  recordCards(leadId, card, _sent);
   updateLeadStatusById(leadId, { status: 'returning_notified', notified_at: new Date().toISOString() });
   logger.info({ rowNumber, leadId }, 'Returning client — admin notified');
 }
@@ -481,7 +484,8 @@ async function checkReminders() {
         ? `🚨 <b>Lead #${label} UNANSWERED for ${waitedH}h — needs action now</b>`
         : `⏰ <b>Reminder: Lead #${label} still waiting (${waitedH}h)</b>`;
       const card   = buildCard(lead, label, { header });
-      await sendToAdmin(card, { reply_markup: respondedKeyboard(lead.id), disable_web_page_preview: true });
+      const _sent = await sendToAdmin(card, { reply_markup: respondedKeyboard(lead.id), disable_web_page_preview: true });
+      recordCards(lead.id, card, _sent);
       updateLeadStatusById(lead.id, { reminder_sent_at: new Date().toISOString() });
       logger.info({ leadId: lead.id, rowNumber: lead.sheet_row_number }, 'Reminder sent');
     } catch (err) {
