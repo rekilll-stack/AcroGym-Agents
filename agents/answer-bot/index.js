@@ -228,6 +228,7 @@ bot.on('message', async (msg) => {
   const chatId = msg.chat && msg.chat.id;
   let text = (msg.text || '').trim();
   if (!chatId) return;
+  logger.info({ chatId, from: msg.from && msg.from.username, name: msg.from && msg.from.first_name, len: text.length, hasPhoto: !!msg.photo }, 'incoming');
   if (BTN_ALIASES[text]) text = BTN_ALIASES[text];
   if (!text) {
     if (ALLOWED.includes(chatId) && msg.photo && msg.photo.length) {
@@ -243,6 +244,7 @@ bot.on('message', async (msg) => {
   }
 
   if (!ALLOWED.includes(chatId)) {
+    logger.warn({ chatId, from: msg.from && msg.from.username }, 'ОТКАЗ: чат не в whitelist');
     await bot.sendMessage(chatId, 'Sorry, this is a private assistant bot for the AcroGym team.').catch(() => {});
     return;
   }
@@ -260,11 +262,8 @@ bot.on('message', async (msg) => {
     return void bot.sendMessage(chatId, S(chatId).forgot, { reply_markup: mainKeyboard(chatId) }).catch(() => {});
   }
   if (text === '/prices') {
-    // Секция Prices из живой базы знаний — единый источник правды.
-    const kb = fs.readFileSync(KB_PATH, 'utf8');
-    const m = kb.match(/## Prices[\s\S]*?(?=\n## )/);
-    const out = m ? m[0].replace(/^#+ /gm, '').replace(/\*\*/g, '') : 'Секция цен не найдена в базе.';
-    return void bot.sendMessage(chatId, out.slice(0, 4000), { reply_markup: mainKeyboard(chatId) }).catch(() => {});
+    // Красивый клиентский прайс из шаблонов; цифры сверяются с базой регрессией.
+    return void bot.sendMessage(chatId, TEMPLATES.prices.text, { reply_markup: mainKeyboard(chatId) }).catch(() => {});
   }
   if (text === '/templates') {
     const kb = Object.entries(TEMPLATES).map(([key, t]) => [{ text: t.label, callback_data: 'tpl:' + key }]);

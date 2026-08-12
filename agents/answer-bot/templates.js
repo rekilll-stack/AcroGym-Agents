@@ -4,6 +4,30 @@
 // Без LLM — мгновенно и дословно. Меняются здесь, действуют сразу после рестарта.
 
 const TEMPLATES = {
+  prices: {
+    label: '💰 Прайс (все цены)',
+    text:
+      'Here are our prices! 🧡\n\n' +
+      '💎 Term plan — most popular, best value. The price is fixed for the ' +
+      'whole term, whichever weekdays you choose:\n\n' +
+      '   1×/week — Term 1: 1,700 · Term 2: 1,100 · Term 3: 1,500\n' +
+      '   2×/week — Term 1: 3,300 · Term 2: 1,900 · Term 3: 3,000\n' +
+      '   3×/week — Term 1: 5,000 · Term 2: 2,900 · Term 3: 4,500\n\n' +
+      'Per class it works out to about 100–110 QAR 😊\n\n' +
+      '📅 Monthly plan — fixed price every month:\n\n' +
+      '   1×/week — 550\n' +
+      '   2×/week — 1,100\n' +
+      '   3×/week — 1,650\n\n' +
+      '🤸 Getting started & extras:\n\n' +
+      '   🌟 First class — 100 QAR, credited toward your first package\n' +
+      '   🎫 Single class — 250 QAR\n' +
+      '   👤 Personal training — 300 QAR (one child) · 400 QAR (two children)\n\n' +
+      '💝 Good to know:\n\n' +
+      '   👨‍👩‍👧‍👦 15% off for the 3rd child from the same family\n' +
+      '   🗓 Starting mid-month or mid-term? You only pay for the classes remaining\n\n' +
+      'All prices are in QAR, payment at the gym. Would you like me to help ' +
+      'choose the best option for your schedule? 😊',
+  },
   welcome: {
     label: '👋 Приветствие нового лида',
     text:
