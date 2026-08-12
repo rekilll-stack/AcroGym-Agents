@@ -16,8 +16,8 @@ const logger = createLogger('answer-bot');
  * @param {Array}  [images]  [{media_type, data(base64)}]
  * @returns {Promise<string>} финальный ответ
  */
-async function answer(question, history = [], images = null) {
-  const prompt = buildAnswerPrompt(question, history);
+async function answer(question, history = [], images = null, noteLang = 'ru') {
+  const prompt = buildAnswerPrompt(question, history, noteLang);
   const draft = (await generateText(images ? { ...prompt, images } : prompt) || '').trim();
   if (!draft) throw new Error('пустой ответ LLM');
 

@@ -18,7 +18,7 @@ function knowledge() {
   return _kb.text;
 }
 
-function systemPrompt() {
+function systemPrompt(noteLang = 'ru') {
   return `You are the senior client-relations assistant of AcroGym, a children's
 gymnastics center in Lagoona Mall, Doha (opening September 1st, 2026). You help
 Kristina (the co-owner) answer client questions on WhatsApp.
@@ -61,9 +61,9 @@ STRICT RULES:
    output is the first character the client will read. Meta-comments belong
    only in the Russian note after "———".
 
-ADVISOR NOTE (your professional opinion for Kristina):
-After the client reply you MAY add a line "———" followed by a SHORT Russian
-note for Kristina. Use it for: (a) missing info that needs Kirill's
+ADVISOR NOTE (your professional opinion for the admin):
+After the client reply you MAY add a line "———" followed by a SHORT note for
+the admin written in ${noteLang === 'en' ? 'ENGLISH' : 'RUSSIAN'}. Use it for: (a) missing info that needs Kirill's
 confirmation; (b) a caution; (c) YOUR RECOMMENDATION when you see a smarter
 move — e.g. «я бы предложила этому клиенту терм: при 2х/нед он экономит ~550
 против помесячного», «этот клиент горячий — предложи сразу забронировать».
@@ -81,14 +81,14 @@ ${knowledge()}`;
  * @param {string} question — новое сообщение
  * @param {Array<{role:'user'|'assistant', text:string}>} [history] — диалог с Кристиной
  */
-function buildAnswerPrompt(question, history = []) {
+function buildAnswerPrompt(question, history = [], noteLang = 'ru') {
   let user = '';
   if (history.length) {
     const lines = history.map(h => (h.role === 'user' ? 'Kristina: ' : 'You replied: ') + h.text);
     user += 'Conversation so far:\n' + lines.join('\n---\n') + '\n\nNew message from Kristina:\n';
   }
   user += String(question || '').slice(0, 4000);
-  return { system: systemPrompt(), user, maxTokens: 700 };
+  return { system: systemPrompt(noteLang), user, maxTokens: 700 };
 }
 
 /** Промпт: оформить новый факт для базы знаний (короткий EN-буллет). */

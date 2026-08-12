@@ -18,6 +18,7 @@ const { answer: engineAnswer } = require('./engine');
 const { TEMPLATES } = require('./templates');
 const { createLogger } = require('../../shared/logger');
 const { writeHeartbeat } = require('../../shared/heartbeat');
+const { getPreferredLanguage, setPreferredLanguage } = require('../../shared/preferences');
 
 const logger = createLogger('answer-bot');
 
@@ -84,27 +85,23 @@ function appendFact(factLines) {
   fs.writeFileSync(KB_PATH, kb); // prompts.js перечитает по mtime
 }
 
-const START_TEXT =
-  'Привет! Я суфлёр AcroGym 🤸\n\n' +
-  '• Пришли вопрос клиента — текстом или СКРИНШОТОМ переписки WhatsApp (я его прочитаю), или ' +
-  'спроси по-русски «что ответить, если…» — пришлю готовый вежливый ответ на ' +
-  'английском (зажми → Copy → в WhatsApp).\n' +
-  '• Я помню наш диалог: можно уточнять «а если детей двое?» — пойму контекст.\n' +
-  '• После «———» пишу пометки лично тебе: чего не хватает в базе и мой совет, ' +
-  'как лучше поступить с этим клиентом.\n\n' +
-  'Обучение: напиши «запомни: парковка в молле бесплатная» — я оформлю факт и ' +
-  'после подтверждения Кирилла запомню его навсегда.\n' +
-  'Внизу — кнопки: прайс, шаблоны, статистика, база, пробелы, новый диалог. Команды (/prices и т.д.) тоже работают.';
-
-// Постоянные кнопки внизу чата (команды остаются как алиасы).
-const MAIN_KEYBOARD = { keyboard: [
-  [{ text: '💰 Прайс' }, { text: '📎 Шаблоны' }],
-  [{ text: '📊 Статистика' }, { text: '📚 Что я выучил' }],
-  [{ text: '❓ Пробелы' }, { text: '🧹 Новый диалог' }],
-], resize_keyboard: true, is_persistent: true };
-const BTN_ALIASES = {
-  '💰 Прайс': '/prices', '📎 Шаблоны': '/templates', '📊 Статистика': '/stats',
-  '📚 Что я выучил': '/kb', '❓ Пробелы': '/gaps', '🧹 Новый диалог': '/forget',
+const START_TEXTS = {
+  ru:
+    'Привет! Я суфлёр AcroGym 🤸\n\n' +
+    '• Пришли вопрос клиента — текстом или СКРИНШОТОМ переписки WhatsApp (я его прочитаю) — ' +
+    'пришлю готовый вежливый ответ (зажми → Copy → в WhatsApp).\n' +
+    '• Я помню наш диалог: можно уточнять «а если детей двое?».\n' +
+    '• После «———» пишу пометки лично тебе: пробелы в базе и мой совет по клиенту.\n\n' +
+    'Обучение: «запомни: парковка бесплатная» → после подтверждения Кирилла запомню навсегда.\n' +
+    'Внизу — кнопки: прайс, шаблоны, статистика, база, пробелы, язык.',
+  en:
+    "Hi! I'm the AcroGym answer assistant 🤸\n\n" +
+    '• Send me a client question — as text or a WhatsApp SCREENSHOT (I can read it) — ' +
+    "and I'll return a ready-to-send polite reply (long-press → Copy → WhatsApp).\n" +
+    '• I remember our conversation: follow-ups like \"and for two kids?\" work.\n' +
+    '• After «———» I add private notes for you: knowledge gaps and my advice on the client.\n\n' +
+    'Teaching: \"remember: parking is free\" → after Kirill confirms, I keep it forever.\n' +
+    'Buttons below: prices, templates, stats, learned, gaps, language.',
 };
 
 const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
@@ -130,9 +127,9 @@ async function handleScreenshot(msg) {
       'Attached is a SCREENSHOT of a WhatsApp conversation with a client. Read it ' +
       'carefully, find the client\'s latest unanswered question(s), and produce the reply.';
     const hist = history[String(chatId)] || [];
-    const answer = await engineAnswer(q, hist, [{ media_type: 'image/jpeg', data }]);
+    const answer = await engineAnswer(q, hist, [{ media_type: 'image/jpeg', data }], uiLang(chatId));
     lastQ.set(chatId, '[скриншот переписки]' + (caption ? ' — ' + caption : ''));
-    const shotRows = looksLikeGap(answer) ? [[{ text: '📨 Спросить Кирилла', callback_data: 'ask_owner' }]] : [];
+    const shotRows = looksLikeGap(answer) ? [[{ text: S(chatId).btnAsk, callback_data: 'ask_owner' }]] : [];
     await bot.sendMessage(chatId, answer.slice(0, 4000), { disable_web_page_preview: true,
       ...(shotRows.length ? { reply_markup: { inline_keyboard: shotRows } } : {}) });
     pushHistory(chatId, 'user', '[скриншот переписки]' + (caption ? ' ' + caption : ''));
@@ -154,11 +151,11 @@ bot.on('message', async (msg) => {
     if (ALLOWED.includes(chatId) && msg.photo && msg.photo.length) {
       return void handleScreenshot(msg).catch(err => {
         logger.error({ err }, 'screenshot flow failed');
-        bot.sendMessage(chatId, '⚠️ Не смог прочитать скриншот, попробуй ещё раз или перешли текстом.').catch(() => {});
+        bot.sendMessage(chatId, S(chatId).shotErr).catch(() => {});
       });
     }
     if (ALLOWED.includes(chatId) && (msg.voice || msg.document || msg.video)) {
-      bot.sendMessage(chatId, '🎙 Голосовые и файлы пока не понимаю — пришли текст или скриншот переписки.').catch(() => {});
+      bot.sendMessage(chatId, S(chatId).onlyText).catch(() => {});
     }
     return;
   }
@@ -169,10 +166,16 @@ bot.on('message', async (msg) => {
   }
 
   // ── Команды ──
-  if (text === '/start' || text === '/help') return void bot.sendMessage(chatId, START_TEXT, { reply_markup: MAIN_KEYBOARD }).catch(() => {});
+  if (text === '/start' || text === '/help') return void bot.sendMessage(chatId, START_TEXTS[uiLang(chatId)], { reply_markup: mainKeyboard(chatId) }).catch(() => {});
+  if (text === '/language') {
+    return void bot.sendMessage(chatId, '🌐 Выбери язык / Choose language:', { reply_markup: { inline_keyboard: [[
+      { text: '🇷🇺 Русский', callback_data: 'lang:ru' },
+      { text: '🇬🇧 English', callback_data: 'lang:en' },
+    ]] } }).catch(() => {});
+  }
   if (text === '/forget') {
     delete history[String(chatId)]; saveHistorySoon();
-    return void bot.sendMessage(chatId, '🧹 Диалог забыт, начинаем с чистого листа.', { reply_markup: MAIN_KEYBOARD }).catch(() => {});
+    return void bot.sendMessage(chatId, S(chatId).forgot, { reply_markup: mainKeyboard(chatId) }).catch(() => {});
   }
   if (text === '/prices') {
     // Секция Prices из живой базы знаний — единый источник правды.
@@ -183,7 +186,7 @@ bot.on('message', async (msg) => {
   }
   if (text === '/templates') {
     const kb = Object.entries(TEMPLATES).map(([key, t]) => [{ text: t.label, callback_data: 'tpl:' + key }]);
-    return void bot.sendMessage(chatId, '📎 Готовые тексты — жми, пришлю для копирования:', { reply_markup: { inline_keyboard: kb } }).catch(() => {});
+    return void bot.sendMessage(chatId, S(chatId).tplPick, { reply_markup: { inline_keyboard: kb } }).catch(() => {});
   }
   if (text === '/stats') {
     let lines = [];
@@ -198,20 +201,20 @@ bot.on('message', async (msg) => {
     const kb = fs.readFileSync(KB_PATH, 'utf8');
     const m = kb.match(/## Learned facts[\s\S]*$/);
     const out = m && m[0].split('\n').slice(1).join('\n').trim()
-      ? '📚 Чему я научился (сверх базовой базы):\n' + m[0].split('\n').slice(1).join('\n').trim()
-      : '📚 Выученных фактов пока нет — учите через «запомни: …»';
+      ? S(chatId).kbHead + '\n' + m[0].split('\n').slice(1).join('\n').trim()
+      : S(chatId).kbEmpty;
     return void bot.sendMessage(chatId, out.slice(0, 4000)).catch(() => {});
   }
   if (text === '/gaps') {
     const gaps = readGaps();
     const out = gaps.length
-      ? '❓ Вопросы, где мне не хватило базы знаний:\n\n' + gaps.map((g, i) => `${i + 1}. ${g.q}`).join('\n')
-      : '👍 Пробелов не накопилось — на всё отвечал по базе.';
+      ? S(chatId).gapsHead + '\n\n' + gaps.map((g, i) => `${i + 1}. ${g.q}`).join('\n')
+      : S(chatId).noGaps;
     return void bot.sendMessage(chatId, out.slice(0, 4000)).catch(() => {});
   }
 
   // ── Обучение: «запомни: …» / /learn … ──
-  const learnMatch = text.match(/^(?:\/learn|запомни)[:\s]+([\s\S]+)/i);
+  const learnMatch = text.match(/^(?:\/learn|запомни|remember)[:\s]+([\s\S]+)/i);
   if (learnMatch) {
     try {
       await bot.sendChatAction(chatId, 'typing').catch(() => {});
@@ -233,11 +236,11 @@ bot.on('message', async (msg) => {
 
   // ── Обычный вопрос → ответ ──
   if (text.replace(/[\s\p{Emoji}]/gu, '').length < 3) {
-    return void bot.sendMessage(chatId, 'Напиши вопрос словами или перешли сообщение клиента — отвечу 🤸').catch(() => {});
+    return void bot.sendMessage(chatId, S(chatId).tooShort).catch(() => {});
   }
   if (busy.has(chatId)) {
     queued.set(chatId, text); // ответим сразу после текущего
-    await bot.sendMessage(chatId, '⏳ Думаю над прошлым вопросом — этот отвечу следом.').catch(() => {});
+    await bot.sendMessage(chatId, S(chatId).thinking).catch(() => {});
     return;
   }
   await answerText(chatId, text);
@@ -248,13 +251,13 @@ async function answerText(chatId, text) {
   try {
     await bot.sendChatAction(chatId, 'typing').catch(() => {});
     const hist = history[String(chatId)] || [];
-    const answer = await engineAnswer(text, hist);
+    const answer = await engineAnswer(text, hist, null, uiLang(chatId));
     const kbRow = [
-      { text: '🔄 Другой вариант', callback_data: 'regen' },
-      { text: '✂️ Короче', callback_data: 'shorter' },
+      { text: S(chatId).btnRegen, callback_data: 'regen' },
+      { text: S(chatId).btnShorter, callback_data: 'shorter' },
     ];
     const rows = [kbRow];
-    if (looksLikeGap(answer)) rows.push([{ text: '📨 Спросить Кирилла', callback_data: 'ask_owner' }]);
+    if (looksLikeGap(answer)) rows.push([{ text: S(chatId).btnAsk, callback_data: 'ask_owner' }]);
     await bot.sendMessage(chatId, answer.slice(0, 4000), { disable_web_page_preview: true,
       reply_markup: { inline_keyboard: rows } });
     lastQ.set(chatId, text);
@@ -266,7 +269,7 @@ async function answerText(chatId, text) {
   } catch (err) {
     logger.error({ err, chatId }, 'Ошибка генерации ответа');
     await bot.sendMessage(chatId,
-      '⚠️ Не получилось сгенерировать ответ. Попробуй ещё раз через минуту; если повторится — скажи Кириллу.').catch(() => {});
+      S(chatId).genErr).catch(() => {});
   } finally {
     busy.delete(chatId);
     const next = queued.get(chatId);
@@ -278,12 +281,19 @@ async function answerText(chatId, text) {
 bot.on('callback_query', async (query) => {
   const data = query.data || '';
   const msg = query.message;
+  if (data.startsWith('lang:')) {
+    const chatId = msg && msg.chat && msg.chat.id;
+    if (!chatId || !ALLOWED.includes(chatId)) return void bot.answerCallbackQuery(query.id).catch(() => {});
+    setPreferredLanguage(chatId, data.slice(5));
+    bot.answerCallbackQuery(query.id).catch(() => {});
+    return void bot.sendMessage(chatId, S(chatId).langSet, { reply_markup: mainKeyboard(chatId) }).catch(() => {});
+  }
   if (data === 'ask_owner') {
     const chatId = msg && msg.chat && msg.chat.id;
     if (!chatId || !ALLOWED.includes(chatId)) return void bot.answerCallbackQuery(query.id).catch(() => {});
     const q = lastQ.get(chatId) || '(вопрос не сохранился)';
     bot.sendMessage(OWNER_ID, `📨 Вопрос от Кристины/админа, на который у меня нет ответа в базе:\n\n«${q}»\n\nОтветь мне «запомни: …» — и я закрою этот пробел навсегда.`).catch(() => {});
-    return void bot.answerCallbackQuery(query.id, { text: '📨 Отправил Кириллу' }).catch(() => {});
+    return void bot.answerCallbackQuery(query.id, { text: S(chatId).askSent }).catch(() => {});
   }
   if (data === 'regen' || data === 'shorter') {
     const chatId = msg && msg.chat && msg.chat.id;
@@ -299,12 +309,12 @@ bot.on('callback_query', async (query) => {
         const extra = data === 'regen'
           ? '\n\n(Kristina asks for an ALTERNATIVE version of the reply — different angle/wording, same facts.)'
           : '\n\n(Kristina asks for a SHORTER version — 2-3 sentences maximum, keep the key facts.)';
-        const answer = (await generateText(buildAnswerPrompt(q + extra, hist)) || '').trim();
+        const answer = (await generateText(buildAnswerPrompt(q + extra, hist, uiLang(chatId))) || '').trim();
         if (answer) {
           await bot.sendMessage(chatId, answer, { disable_web_page_preview: true,
             reply_markup: { inline_keyboard: [[
-              { text: '🔄 Другой вариант', callback_data: 'regen' },
-              { text: '✂️ Короче', callback_data: 'shorter' },
+              { text: S(chatId).btnRegen, callback_data: 'regen' },
+              { text: S(chatId).btnShorter, callback_data: 'shorter' },
             ]] } });
           pushHistory(chatId, 'assistant', answer);
         }
@@ -316,7 +326,7 @@ bot.on('callback_query', async (query) => {
   if (data.startsWith('tpl:')) {
     const t = TEMPLATES[data.slice(4)];
     if (t && msg) await bot.sendMessage(msg.chat.id, t.text, { disable_web_page_preview: true }).catch(() => {});
-    return void bot.answerCallbackQuery(query.id, { text: '📋 Зажми сообщение → Copy' }).catch(() => {});
+    return void bot.answerCallbackQuery(query.id, { text: msg ? S(msg.chat.id).tplCopy : '📋' }).catch(() => {});
   }
   if (!msg || !pendingFacts.has(msg.message_id)) {
     return void bot.answerCallbackQuery(query.id).catch(() => {});
