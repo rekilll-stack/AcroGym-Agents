@@ -167,6 +167,23 @@ const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeou
 const busy = new Set();
 const queued = new Map();  // chatId → отложенное сообщение (пришло, пока бот думал)
 
+// Ответ шлём ДВУМЯ сообщениями: клиентская часть (чистая, для копирования)
+// с кнопками — и, отдельно, пометка для админа. Так Copy берёт только англ. текст.
+async function sendAnswer(chatId, answer, extraRows = []) {
+  const [client, ...noteParts] = answer.split(/\n?———\n?/);
+  const note = noteParts.join(' ').trim();
+  const rows = [[
+    { text: S(chatId).btnRegen, callback_data: 'regen' },
+    { text: S(chatId).btnShorter, callback_data: 'shorter' },
+  ], ...extraRows];
+  await bot.sendMessage(chatId, client.trim().slice(0, 4000), {
+    disable_web_page_preview: true, reply_markup: { inline_keyboard: rows } });
+  if (note) {
+    const head = uiLang(chatId) === 'en' ? '💬 Note for you:' : '💬 Для тебя:';
+    await bot.sendMessage(chatId, (head + '\n' + note).slice(0, 4000), { disable_web_page_preview: true }).catch(() => {});
+  }
+}
+
 // Последний вопрос берём из ПОСТОЯННОЙ истории — переживает рестарты.
 function lastQuestion(chatId) {
   const h = history[String(chatId)] || [];
@@ -196,8 +213,7 @@ async function handleScreenshot(msg) {
     const hist = history[String(chatId)] || [];
     const answer = await engineAnswer(q, hist, [{ media_type: 'image/jpeg', data }], uiLang(chatId));
     const shotRows = looksLikeGap(answer) ? [[{ text: S(chatId).btnAsk, callback_data: 'ask_owner' }]] : [];
-    await bot.sendMessage(chatId, answer.slice(0, 4000), { disable_web_page_preview: true,
-      ...(shotRows.length ? { reply_markup: { inline_keyboard: shotRows } } : {}) });
+    await sendAnswer(chatId, answer, shotRows);
     pushHistory(chatId, 'user', '[скриншот переписки]' + (caption ? ' ' + caption : ''));
     pushHistory(chatId, 'assistant', answer);
     logQA(chatId, '[screenshot] ' + caption, answer, looksLikeGap(answer));
@@ -318,14 +334,8 @@ async function answerText(chatId, text) {
     await bot.sendChatAction(chatId, 'typing').catch(() => {});
     const hist = history[String(chatId)] || [];
     const answer = await engineAnswer(text, hist, null, uiLang(chatId));
-    const kbRow = [
-      { text: S(chatId).btnRegen, callback_data: 'regen' },
-      { text: S(chatId).btnShorter, callback_data: 'shorter' },
-    ];
-    const rows = [kbRow];
-    if (looksLikeGap(answer)) rows.push([{ text: S(chatId).btnAsk, callback_data: 'ask_owner' }]);
-    await bot.sendMessage(chatId, answer.slice(0, 4000), { disable_web_page_preview: true,
-      reply_markup: { inline_keyboard: rows } });
+    const extraRows = looksLikeGap(answer) ? [[{ text: S(chatId).btnAsk, callback_data: 'ask_owner' }]] : [];
+    await sendAnswer(chatId, answer, extraRows);
     pushHistory(chatId, 'user', text);
     pushHistory(chatId, 'assistant', answer);
     logQA(chatId, text, answer, looksLikeGap(answer));
@@ -376,11 +386,7 @@ bot.on('callback_query', async (query) => {
           : '\n\n(Kristina asks for a SHORTER version — 2-3 sentences maximum, keep the key facts.)';
         const answer = (await generateText(buildAnswerPrompt(q + extra, hist, uiLang(chatId))) || '').trim();
         if (answer) {
-          await bot.sendMessage(chatId, answer, { disable_web_page_preview: true,
-            reply_markup: { inline_keyboard: [[
-              { text: S(chatId).btnRegen, callback_data: 'regen' },
-              { text: S(chatId).btnShorter, callback_data: 'shorter' },
-            ]] } });
+          await sendAnswer(chatId, answer);
           pushHistory(chatId, 'assistant', answer);
         }
       } catch (err) { logger.error({ err }, 'regen/shorter failed'); }
