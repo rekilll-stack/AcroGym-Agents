@@ -85,6 +85,65 @@ function appendFact(factLines) {
   fs.writeFileSync(KB_PATH, kb); // prompts.js перечитает по mtime
 }
 
+// Интерфейс RU/EN на выбор (общая таблица предпочтений с остальными ботами).
+function uiLang(chatId) { return getPreferredLanguage(chatId) === 'en' ? 'en' : 'ru'; }
+
+const STR = {
+  ru: {
+    thinking: '⏳ Думаю над прошлым вопросом — этот отвечу следом.',
+    tooShort: 'Напиши вопрос словами или перешли сообщение клиента — отвечу 🤸',
+    forgot: '🧹 Диалог забыт, начинаем с чистого листа.',
+    tplPick: '📎 Готовые тексты — жми, пришлю для копирования:',
+    tplCopy: '📋 Зажми сообщение → Copy',
+    noGaps: '👍 Пробелов не накопилось — на всё отвечал по базе.',
+    gapsHead: '❓ Вопросы, где мне не хватило базы знаний:',
+    kbEmpty: '📚 Выученных фактов пока нет — учите через «запомни: …»',
+    kbHead: '📚 Чему я научился (сверх базовой базы):',
+    genErr: '⚠️ Не получилось сгенерировать ответ. Попробуй ещё раз через минуту; если повторится — скажи Кириллу.',
+    onlyText: '🎙 Голосовые и файлы пока не понимаю — пришли текст или скриншот переписки.',
+    shotErr: '⚠️ Не смог прочитать скриншот, попробуй ещё раз или перешли текстом.',
+    askSent: '📨 Отправил Кириллу',
+    langSet: '🌐 Язык интерфейса: русский',
+    btnRegen: '🔄 Другой вариант', btnShorter: '✂️ Короче', btnAsk: '📨 Спросить Кирилла',
+    keyboard: [
+      [{ text: '💰 Прайс' }, { text: '📎 Шаблоны' }],
+      [{ text: '📊 Статистика' }, { text: '📚 Что я выучил' }],
+      [{ text: '❓ Пробелы' }, { text: '🌐 Language' }],
+    ],
+  },
+  en: {
+    thinking: '⏳ Still thinking about the previous question — yours is next.',
+    tooShort: 'Type the question in words or forward the client message — I will answer 🤸',
+    forgot: '🧹 Conversation cleared, starting fresh.',
+    tplPick: '📎 Ready-made texts — tap one to get a copyable message:',
+    tplCopy: '📋 Long-press the message → Copy',
+    noGaps: '👍 No gaps — everything was answered from the knowledge base.',
+    gapsHead: '❓ Questions where the knowledge base was not enough:',
+    kbEmpty: '📚 No learned facts yet — teach me via "remember: …"',
+    kbHead: '📚 What I have learned (beyond the base):',
+    genErr: '⚠️ Could not generate a reply. Try again in a minute; if it repeats — tell Kirill.',
+    onlyText: '🎙 I do not understand voice/files yet — send text or a chat screenshot.',
+    shotErr: '⚠️ Could not read the screenshot — try again or send it as text.',
+    askSent: '📨 Sent to Kirill',
+    langSet: '🌐 Interface language: English',
+    btnRegen: '🔄 Another version', btnShorter: '✂️ Shorter', btnAsk: '📨 Ask Kirill',
+    keyboard: [
+      [{ text: '💰 Prices' }, { text: '📎 Templates' }],
+      [{ text: '📊 Stats' }, { text: '📚 Learned' }],
+      [{ text: '❓ Gaps' }, { text: '🌐 Language' }],
+    ],
+  },
+};
+function S(chatId) { return STR[uiLang(chatId)]; }
+function mainKeyboard(chatId) { return { keyboard: S(chatId).keyboard, resize_keyboard: true, is_persistent: true }; }
+
+const BTN_ALIASES = {
+  '💰 Прайс': '/prices', '📎 Шаблоны': '/templates', '📊 Статистика': '/stats',
+  '📚 Что я выучил': '/kb', '❓ Пробелы': '/gaps', '🧹 Новый диалог': '/forget',
+  '💰 Prices': '/prices', '📎 Templates': '/templates', '📊 Stats': '/stats',
+  '📚 Learned': '/kb', '❓ Gaps': '/gaps', '🌐 Language': '/language',
+};
+
 const START_TEXTS = {
   ru:
     'Привет! Я суфлёр AcroGym 🤸\n\n' +
@@ -182,7 +241,7 @@ bot.on('message', async (msg) => {
     const kb = fs.readFileSync(KB_PATH, 'utf8');
     const m = kb.match(/## Prices[\s\S]*?(?=\n## )/);
     const out = m ? m[0].replace(/^#+ /gm, '').replace(/\*\*/g, '') : 'Секция цен не найдена в базе.';
-    return void bot.sendMessage(chatId, out.slice(0, 4000), { reply_markup: MAIN_KEYBOARD }).catch(() => {});
+    return void bot.sendMessage(chatId, out.slice(0, 4000), { reply_markup: mainKeyboard(chatId) }).catch(() => {});
   }
   if (text === '/templates') {
     const kb = Object.entries(TEMPLATES).map(([key, t]) => [{ text: t.label, callback_data: 'tpl:' + key }]);
