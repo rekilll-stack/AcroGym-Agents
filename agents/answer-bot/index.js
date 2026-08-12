@@ -98,7 +98,8 @@ const START_TEXT =
 
 const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
 const busy = new Set();
-const lastQ = new Map(); // chatId → последний вопрос (для 🔄/✂️)
+const lastQ = new Map();   // chatId → последний вопрос (для 🔄/✂️)
+const queued = new Map();  // chatId → отложенное сообщение (пришло, пока бот думал)
 
 // Скриншот переписки WhatsApp → вижн: бот читает картинку и отвечает клиенту.
 async function handleScreenshot(msg) {
@@ -119,7 +120,10 @@ async function handleScreenshot(msg) {
       'carefully, find the client\'s latest unanswered question(s), and produce the reply.';
     const hist = history[String(chatId)] || [];
     const answer = await engineAnswer(q, hist, [{ media_type: 'image/jpeg', data }]);
-    await bot.sendMessage(chatId, answer, { disable_web_page_preview: true });
+    lastQ.set(chatId, '[скриншот переписки]' + (caption ? ' — ' + caption : ''));
+    const shotRows = looksLikeGap(answer) ? [[{ text: '📨 Спросить Кирилла', callback_data: 'ask_owner' }]] : [];
+    await bot.sendMessage(chatId, answer.slice(0, 4000), { disable_web_page_preview: true,
+      ...(shotRows.length ? { reply_markup: { inline_keyboard: shotRows } } : {}) });
     pushHistory(chatId, 'user', '[скриншот переписки]' + (caption ? ' ' + caption : ''));
     pushHistory(chatId, 'assistant', answer);
     logQA(chatId, '[screenshot] ' + caption, answer, looksLikeGap(answer));
@@ -207,6 +211,7 @@ bot.on('message', async (msg) => {
           { text: '❌ Отмена', callback_data: 'kb_cancel' },
         ]] } });
       pendingFacts.set(preview.message_id, { fact, proposedBy: chatId });
+      if (pendingFacts.size > 20) pendingFacts.delete(pendingFacts.keys().next().value);
     } catch (err) {
       logger.error({ err }, 'learn flow failed');
       await bot.sendMessage(chatId, '⚠️ Не получилось оформить факт, попробуй ещё раз.').catch(() => {});
@@ -215,10 +220,18 @@ bot.on('message', async (msg) => {
   }
 
   // ── Обычный вопрос → ответ ──
+  if (text.replace(/[\s\p{Emoji}]/gu, '').length < 3) {
+    return void bot.sendMessage(chatId, 'Напиши вопрос словами или перешли сообщение клиента — отвечу 🤸').catch(() => {});
+  }
   if (busy.has(chatId)) {
-    await bot.sendMessage(chatId, '⏳ Секунду, ещё думаю над прошлым вопросом…').catch(() => {});
+    queued.set(chatId, text); // ответим сразу после текущего
+    await bot.sendMessage(chatId, '⏳ Думаю над прошлым вопросом — этот отвечу следом.').catch(() => {});
     return;
   }
+  await answerText(chatId, text);
+});
+
+async function answerText(chatId, text) {
   busy.add(chatId);
   try {
     await bot.sendChatAction(chatId, 'typing').catch(() => {});
@@ -244,8 +257,10 @@ bot.on('message', async (msg) => {
       '⚠️ Не получилось сгенерировать ответ. Попробуй ещё раз через минуту; если повторится — скажи Кириллу.').catch(() => {});
   } finally {
     busy.delete(chatId);
+    const next = queued.get(chatId);
+    if (next) { queued.delete(chatId); answerText(chatId, next).catch(() => {}); }
   }
-});
+}
 
 // ── Подтверждение фактов (гейт: только Кирилл) ──
 bot.on('callback_query', async (query) => {

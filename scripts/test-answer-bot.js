@@ -58,7 +58,27 @@ const CASES = [
     check: (a) => /550/.test(a) && !/40%|50% off/i.test(a) },
 ];
 
+// Статическая проверка: цифры в шаблонах существуют в базе знаний (защита от рассинхрона цен).
+function templatesConsistent() {
+  const kb = fs.readFileSync(require('path').join(__dirname, '../agents/answer-bot/knowledge.md'), 'utf8');
+  const { TEMPLATES } = require('../agents/answer-bot/templates');
+  const problems = [];
+  for (const [k, t] of Object.entries(TEMPLATES)) {
+    const nums = (t.text.match(/\d[\d,\.]{1,6}/g) || []).map(n => n.replace(/[,.]$/, ''));
+    for (const n of nums) {
+      if (['1', '2', '3'].includes(n)) continue; // счётные мелочи
+      if (!kb.includes(n)) problems.push(`${k}: ${n}`);
+    }
+    if (/\b(trial|free)\b/i.test(t.text)) problems.push(`${k}: запрещённое слово`);
+  }
+  return problems;
+}
+
 (async () => {
+  const tp = templatesConsistent();
+  console.log('=== шаблоны ↔ база:', tp.length ? '❌ ' + tp.join('; ') : '✅ цифры совпадают');
+  if (tp.length) process.exitCode = 1;
+
   const quick = process.argv.includes('--quick');
   const cases = quick ? CASES.filter((_, i) => i % 2 === 0) : CASES;
   let pass = 0, fail = 0;
