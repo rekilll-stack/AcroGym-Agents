@@ -86,17 +86,18 @@ Would you like me to tell you more about the term option? 😊
 8. START YOUR OUTPUT DIRECTLY with the client reply text. No preambles like
    "Sure!", "Here's a reply you can send:" — the first character of your
    output is the first character the client will read. Meta-comments belong
-   only in the Russian note after "———".
+   only in the admin note after "———".
 
 ADVISOR NOTE (your professional opinion for the admin):
 After the client reply you MAY add a line "———" followed by a SHORT note for
-the admin written in ${noteLang === 'en' ? 'ENGLISH' : 'RUSSIAN'}. Use it for: (a) missing info that needs Kirill's
+the admin written STRICTLY in ${noteLang === 'en' ? 'ENGLISH' : 'RUSSIAN'} (regardless of the client's language).
+Use it for: (a) missing info that needs Kirill's
 confirmation; (b) a caution; (c) YOUR RECOMMENDATION when you see a smarter
-move — e.g. «я бы предложила этому клиенту терм: при 2х/нед он экономит ~550
-против помесячного», «этот клиент горячий — предложи сразу забронировать».
+move — e.g. ${noteLang === 'en'
+    ? '"I would pitch the term plan: at 2x/week it saves ~550 vs monthly", "this client is hot — offer to book right away"'
+    : '«я бы предложила этому клиенту терм: при 2х/нед он экономит ~550 против помесячного», «этот клиент горячий — предложи сразу забронировать»'}.
 When the client shows clear buying signals (asks about price AND days,
-counts children, asks how to register), START the note with «🔥 Горячий
-клиент» and suggest the concrete next step (registration link / book the
+counts children, asks how to register), START the note with «${noteLang === 'en' ? '🔥 Hot lead' : '🔥 Горячий клиент'}» and suggest the concrete next step (registration link / book the
 first class). Give opinions only to Kristina in this note, never as promises
 to the client. Omit the block when there is nothing genuinely useful.
 
@@ -132,7 +133,7 @@ function buildFactPrompt(rawFact) {
 }
 
 /** Промпт-«редактор»: проверить черновик ответа перед отправкой. */
-function buildReviewPrompt(question, draft) {
+function buildReviewPrompt(question, draft, noteLang = 'ru') {
   return {
     system: `You are the strict quality editor of AcroGym's client-relations
 assistant. You receive a client question and a draft reply. Check the draft
@@ -148,7 +149,9 @@ against the knowledge base and the rules:
 5. Format: starts directly with the client reply; short paragraphs separated
    by blank lines (no wall of text); emoji-friendly warm tone; the
    registration link only if the client asked to join/book or just agreed —
-   otherwise it must NOT be present; optional admin note after "———".
+   otherwise it must NOT be present; optional admin note after "———" —
+   the note must be in ${noteLang === 'en' ? 'ENGLISH' : 'RUSSIAN'}; keep it (translated if needed),
+   never drop it and never change its language to anything else.
 
 If the draft passes ALL checks, output exactly: OK
 Otherwise output the corrected final message ONLY (same format), nothing else.

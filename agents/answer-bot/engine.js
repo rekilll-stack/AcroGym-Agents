@@ -23,7 +23,7 @@ async function answer(question, history = [], images = null, noteLang = 'ru') {
 
   let out = draft;
   try {
-    const review = (await generateText(buildReviewPrompt(question, draft)) || '').trim();
+    const review = (await generateText(buildReviewPrompt(question, draft, noteLang)) || '').trim();
     if (review && review !== 'OK' && !/^OK\b/.test(review)) out = review;
   } catch (e) { logger.warn({ e: e.message }, 'review pass failed — отправляю черновик'); }
 
@@ -32,7 +32,7 @@ async function answer(question, history = [], images = null, noteLang = 'ru') {
     logger.warn('banned word slipped — форсирую переписывание');
     try {
       const fix = (await generateText(buildReviewPrompt(
-        question + '\n(REMINDER: the words trial/free are strictly banned)', out)) || '').trim();
+        question + '\n(REMINDER: the words trial/free are strictly banned)', out, noteLang)) || '').trim();
       if (fix && fix !== 'OK' && !/^OK\b/.test(fix)) out = fix;
     } catch (_) { /* оставляем как есть — лучше с словом, чем без ответа */ }
   }
