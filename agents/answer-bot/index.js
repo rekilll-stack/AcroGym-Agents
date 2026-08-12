@@ -94,7 +94,18 @@ const START_TEXT =
   'как лучше поступить с этим клиентом.\n\n' +
   'Обучение: напиши «запомни: парковка в молле бесплатная» — я оформлю факт и ' +
   'после подтверждения Кирилла запомню его навсегда.\n' +
-  'Команды: /prices — прайс · /templates — готовые тексты · /kb — что я выучил · /stats — статистика · /gaps — вопросы без ответа · /forget — забыть диалог.';
+  'Внизу — кнопки: прайс, шаблоны, статистика, база, пробелы, новый диалог. Команды (/prices и т.д.) тоже работают.';
+
+// Постоянные кнопки внизу чата (команды остаются как алиасы).
+const MAIN_KEYBOARD = { keyboard: [
+  [{ text: '💰 Прайс' }, { text: '📎 Шаблоны' }],
+  [{ text: '📊 Статистика' }, { text: '📚 Что я выучил' }],
+  [{ text: '❓ Пробелы' }, { text: '🧹 Новый диалог' }],
+], resize_keyboard: true, is_persistent: true };
+const BTN_ALIASES = {
+  '💰 Прайс': '/prices', '📎 Шаблоны': '/templates', '📊 Статистика': '/stats',
+  '📚 Что я выучил': '/kb', '❓ Пробелы': '/gaps', '🧹 Новый диалог': '/forget',
+};
 
 const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
 const busy = new Set();
@@ -136,8 +147,9 @@ async function handleScreenshot(msg) {
 
 bot.on('message', async (msg) => {
   const chatId = msg.chat && msg.chat.id;
-  const text = (msg.text || '').trim();
+  let text = (msg.text || '').trim();
   if (!chatId) return;
+  if (BTN_ALIASES[text]) text = BTN_ALIASES[text];
   if (!text) {
     if (ALLOWED.includes(chatId) && msg.photo && msg.photo.length) {
       return void handleScreenshot(msg).catch(err => {
@@ -157,17 +169,17 @@ bot.on('message', async (msg) => {
   }
 
   // ── Команды ──
-  if (text === '/start' || text === '/help') return void bot.sendMessage(chatId, START_TEXT).catch(() => {});
+  if (text === '/start' || text === '/help') return void bot.sendMessage(chatId, START_TEXT, { reply_markup: MAIN_KEYBOARD }).catch(() => {});
   if (text === '/forget') {
     delete history[String(chatId)]; saveHistorySoon();
-    return void bot.sendMessage(chatId, '🧹 Диалог забыт, начинаем с чистого листа.').catch(() => {});
+    return void bot.sendMessage(chatId, '🧹 Диалог забыт, начинаем с чистого листа.', { reply_markup: MAIN_KEYBOARD }).catch(() => {});
   }
   if (text === '/prices') {
     // Секция Prices из живой базы знаний — единый источник правды.
     const kb = fs.readFileSync(KB_PATH, 'utf8');
     const m = kb.match(/## Prices[\s\S]*?(?=\n## )/);
     const out = m ? m[0].replace(/^#+ /gm, '').replace(/\*\*/g, '') : 'Секция цен не найдена в базе.';
-    return void bot.sendMessage(chatId, out.slice(0, 4000)).catch(() => {});
+    return void bot.sendMessage(chatId, out.slice(0, 4000), { reply_markup: MAIN_KEYBOARD }).catch(() => {});
   }
   if (text === '/templates') {
     const kb = Object.entries(TEMPLATES).map(([key, t]) => [{ text: t.label, callback_data: 'tpl:' + key }]);
