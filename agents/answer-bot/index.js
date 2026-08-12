@@ -165,8 +165,16 @@ const START_TEXTS = {
 
 const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
 const busy = new Set();
-const lastQ = new Map();   // chatId → последний вопрос (для 🔄/✂️)
 const queued = new Map();  // chatId → отложенное сообщение (пришло, пока бот думал)
+
+// Последний вопрос берём из ПОСТОЯННОЙ истории — переживает рестарты.
+function lastQuestion(chatId) {
+  const h = history[String(chatId)] || [];
+  for (let i = h.length - 1; i >= 0; i--) {
+    if (h[i].role === 'user') return h[i].text.startsWith('[скриншот') ? null : h[i].text;
+  }
+  return null;
+}
 
 // Скриншот переписки WhatsApp → вижн: бот читает картинку и отвечает клиенту.
 async function handleScreenshot(msg) {
@@ -187,7 +195,6 @@ async function handleScreenshot(msg) {
       'carefully, find the client\'s latest unanswered question(s), and produce the reply.';
     const hist = history[String(chatId)] || [];
     const answer = await engineAnswer(q, hist, [{ media_type: 'image/jpeg', data }], uiLang(chatId));
-    lastQ.set(chatId, '[скриншот переписки]' + (caption ? ' — ' + caption : ''));
     const shotRows = looksLikeGap(answer) ? [[{ text: S(chatId).btnAsk, callback_data: 'ask_owner' }]] : [];
     await bot.sendMessage(chatId, answer.slice(0, 4000), { disable_web_page_preview: true,
       ...(shotRows.length ? { reply_markup: { inline_keyboard: shotRows } } : {}) });
@@ -319,7 +326,6 @@ async function answerText(chatId, text) {
     if (looksLikeGap(answer)) rows.push([{ text: S(chatId).btnAsk, callback_data: 'ask_owner' }]);
     await bot.sendMessage(chatId, answer.slice(0, 4000), { disable_web_page_preview: true,
       reply_markup: { inline_keyboard: rows } });
-    lastQ.set(chatId, text);
     pushHistory(chatId, 'user', text);
     pushHistory(chatId, 'assistant', answer);
     logQA(chatId, text, answer, looksLikeGap(answer));
@@ -350,15 +356,15 @@ bot.on('callback_query', async (query) => {
   if (data === 'ask_owner') {
     const chatId = msg && msg.chat && msg.chat.id;
     if (!chatId || !ALLOWED.includes(chatId)) return void bot.answerCallbackQuery(query.id).catch(() => {});
-    const q = lastQ.get(chatId) || '(вопрос не сохранился)';
+    const q = lastQuestion(chatId) || '(вопрос не сохранился)';
     bot.sendMessage(OWNER_ID, `📨 Вопрос от Кристины/админа, на который у меня нет ответа в базе:\n\n«${q}»\n\nОтветь мне «запомни: …» — и я закрою этот пробел навсегда.`).catch(() => {});
     return void bot.answerCallbackQuery(query.id, { text: S(chatId).askSent }).catch(() => {});
   }
   if (data === 'regen' || data === 'shorter') {
     const chatId = msg && msg.chat && msg.chat.id;
     if (!chatId || !ALLOWED.includes(chatId)) return void bot.answerCallbackQuery(query.id).catch(() => {});
-    const q = lastQ.get(chatId);
-    if (!q || busy.has(chatId)) return void bot.answerCallbackQuery(query.id, { text: q ? '⏳ Уже думаю…' : 'Вопрос не найден — задай заново' }).catch(() => {});
+    const q = lastQuestion(chatId);
+    if (!q || busy.has(chatId)) return void bot.answerCallbackQuery(query.id, { text: q ? '⏳ Уже думаю…' : (uiLang(chatId) === 'en' ? 'Question not found — ask again' : 'Вопрос не найден — задай заново') }).catch(() => {});
     busy.add(chatId);
     bot.answerCallbackQuery(query.id, { text: data === 'regen' ? '🔄 Пишу другой вариант…' : '✂️ Сокращаю…' }).catch(() => {});
     (async () => {
