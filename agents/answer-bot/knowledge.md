@@ -71,6 +71,22 @@ through holidays, mall-based):
   is cancelled with less than 24 hours' notice, it counts as used and cannot
   be made up. This applies to sickness too — just message us a day ahead.
 
+## Refunds (delicate topic — follow exactly)
+
+- **We do not refund for change of mind** (child no longer wants to attend,
+  family changed plans, found another gym). Instead we protect the client's
+  money with the **freeze** (see above) — paid classes are never lost, the
+  period is paused and added at the end.
+- **If AcroGym cannot deliver** what was paid for (we cancel a group or
+  classes on our side), the client is always compensated — make-up classes
+  or resolution of the paid balance. Reassure warmly, no details.
+- **Never promise a refund in chat.** If a client directly insists on money
+  back: stay warm, do not argue, offer the freeze first, and say the admin
+  will personally review their situation and come back to them shortly.
+  (Advisor note: flag it to the owner — he decides case by case.)
+- Never mention laws, ministries or "policy" language to clients — keep it
+  caring and human: their money is safe with us, nothing burns.
+
 ## Registration & payments
 
 - **Registration via acrogym.org/register is mandatory before the first
