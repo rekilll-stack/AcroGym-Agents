@@ -12,6 +12,7 @@ dayjs.extend(timezone);
 const { createLogger }    = require('../../../shared/logger');
 const { createTranslator } = require('../../../shared/i18n');
 const { escapeMd }        = require('../../../shared/telegram');
+const { hoursWaiting }    = require('../../../shared/workhours');
 const {
   getDb,
   getDailyStats,
@@ -108,12 +109,14 @@ function buildIdentErrors(yesterdayStr) {
 
 function buildLongPending() {
   try {
+    // Часы — с учётом рабочего дня (ночь не считается, владелец 10.08),
+    // поэтому фильтр >24ч добираем в JS поверх сырой SQL-выборки.
     return getLongPending(24).map(lead => ({
       id:           lead.id,
       name:         lead.parent_name || '—',
       phone:        lead.parent_phone,
-      hoursWaiting: Math.floor((Date.now() - new Date(lead.notified_at).getTime()) / 3600000),
-    }));
+      hoursWaiting: hoursWaiting(lead.notified_at),
+    })).filter(l => l.hoursWaiting >= 24);
   } catch (err) {
     logger.warn({ err }, 'buildLongPending failed');
     return [];
@@ -199,7 +202,7 @@ async function buildInsight(stats, lang = 'en') {
 function buildAllPending() {
   try {
     return getAllPending(50, 0).map(lead => {
-      const h = Math.floor((Date.now() - new Date(lead.notified_at).getTime()) / 3600000);
+      const h = hoursWaiting(lead.notified_at);
       let urgency = '';
       if (h >= 24) urgency = '🚨';
       else if (h >= 8) urgency = '⚠️';

@@ -432,24 +432,8 @@ async function pollSheets() {
 // ─────────────────────────────────────────────────────────────
 
 // Ночной лид не должен будить напоминалками, а его 24ч-отсчёт честно стартует
-// с 9 утра (владелец 10.08). Катар — UTC+3 без переходов.
-const QATAR_OFFSET_MS = 3 * 3600e3;
-const WORK_START_H = 9, WORK_END_H = 21;
-
-function qatarHour(ts = Date.now()) {
-  return new Date(ts + QATAR_OFFSET_MS).getUTCHours();
-}
-
-/** Ночная нотификация (21:00–09:00) считается сделанной в ближайшие 9:00 утра. */
-function effectiveNotifiedMs(notifiedAt) {
-  const real = new Date(notifiedAt).getTime();
-  const loc = new Date(real + QATAR_OFFSET_MS);
-  const h = loc.getUTCHours();
-  if (h >= WORK_END_H) { loc.setUTCDate(loc.getUTCDate() + 1); loc.setUTCHours(WORK_START_H, 0, 0, 0); }
-  else if (h < WORK_START_H) { loc.setUTCHours(WORK_START_H, 0, 0, 0); }
-  else return real;
-  return loc.getTime() - QATAR_OFFSET_MS;
-}
+// с 9 утра (владелец 10.08). Общая логика с owner-bot — shared/workhours.
+const { WORK_START_H, WORK_END_H, qatarHour, effectiveNotifiedMs } = require('../../shared/workhours');
 
 async function checkReminders() {
   logger.debug('Checking reminders...');
