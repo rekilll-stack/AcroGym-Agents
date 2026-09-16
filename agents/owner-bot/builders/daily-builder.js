@@ -310,7 +310,7 @@ async function buildDigest({ dryRun = false, withCharts = false, lang = 'en' } =
 
   // ── Goal tracking ─────────────────────────────────────────
   const opening         = dayjs(OPENING_DATE).tz(TIMEZONE);
-  const daysLeft        = opening.diff(now.startOf('day'), 'day');
+  const daysLeft        = Math.max(0, opening.diff(now.startOf('day'), 'day')); // после открытия 0, не минус: «-» ломает MarkdownV2 (как в weekly/monthly)
   const TARGET_STUDENTS = 300;
   const TARGET_CONV     = 0.26;
   const neededLeads     = Math.round(TARGET_STUDENTS / TARGET_CONV);
