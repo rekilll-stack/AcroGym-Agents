@@ -117,6 +117,7 @@
     "btn_nurture": "📬 Очередь прогрева",
     "btn_nurture_soon": "📬 Прогрев (скоро)",
     "btn_export": "📤 Выгрузка отчётов",
+    "btn_task": "🧠 Задача диспетчеру",
     "btn_lang": "🌍 Язык",
     "btn_status": "🛠 Статус системы",
     "btn_help": "❓ Помощь",
@@ -171,6 +172,7 @@
     "overview_registrations": "• Регистраций \\(осн\\. форма\\): вчера {{day}} · всего {{total}}",
     "overview_in2_revenue": "• Выручка зала \\(in2\\): вчера {{day}} QAR · за месяц {{month}} QAR",
     "overview_in2_today": "• Сегодня в зале: {{classes}} занятий",
+    "overview_in2_trials": "• 🎯 Пробные: вчера {{day}} → купили {{dayBought}} · за 7 дней {{week}} → купили {{weekBought}}",
     "overview_in2_debt": "• ⚠️ Долги клиентов \\(in2\\): {{debt}} QAR \\({{count}} чел\\.\\)"
   },
   "weekly": {

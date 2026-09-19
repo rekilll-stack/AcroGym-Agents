@@ -418,6 +418,23 @@ async function buildDigest({ dryRun = false, withCharts = false, lang = 'en' } =
     if (today && today.classes > 0) {
       text += tr.t('daily.overview_in2_today', { classes: today.classes }) + '\n';
     }
+    /* Пробные и конверсия (владелец 18.09): единый источник правды — мост Джарвиса,
+       он сводит состав занятий in2 с ручными пробными из таблицы расписания. */
+    try {
+      const bridge = require('/home/admin/mcp-servers/jarvis-bridge/tools.js');
+      const weekFrom = now.subtract(7, 'day').format('YYYY-MM-DD');
+      const [day, week] = await Promise.all([
+        bridge.callTool('trials_day', { date: yesterdayStr }).then(JSON.parse),
+        bridge.callTool('trials_range', { from: weekFrom, to: yesterdayStr }).then(JSON.parse),
+      ]);
+      if (day && week && (day.total > 0 || week.total > 0)) {
+        text += tr.t('daily.overview_in2_trials', {
+          day: day.total, dayBought: day.bought, week: week.total, weekBought: week.bought,
+        }) + '\n';
+      }
+    } catch (err) {
+      logger.warn({ err: err.message }, '[daily] in2 trials line skipped');
+    }
     const cust = await in2.customersSummary(null).catch(() => null);
     if (cust && cust.debtors > 0) {
       text += tr.t('daily.overview_in2_debt', { debt: cust.debtTotal, count: cust.debtors }) + '\n';

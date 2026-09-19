@@ -117,6 +117,7 @@
     "btn_nurture": "📬 Nurture queue",
     "btn_nurture_soon": "📬 Nurture (coming soon)",
     "btn_export": "📤 Export reports",
+    "btn_task": "🧠 Task for dispatcher",
     "btn_lang": "🌍 Language",
     "btn_status": "🛠 System status",
     "btn_help": "❓ Help",
@@ -171,6 +172,7 @@
     "overview_registrations": "• Registrations \\(main form\\): {{day}} yesterday · {{total}} total",
     "overview_in2_revenue": "• Gym revenue \\(in2\\): {{day}} QAR yesterday · {{month}} QAR this month",
     "overview_in2_today": "• Gym today: {{classes}} classes scheduled",
+    "overview_in2_trials": "• 🎯 Trials: {{day}} yesterday → {{dayBought}} bought · {{week}} in 7 days → {{weekBought}} bought",
     "overview_in2_debt": "• ⚠️ Client debt \\(in2\\): {{debt}} QAR \\({{count}} clients\\)"
   },
   "weekly": {
