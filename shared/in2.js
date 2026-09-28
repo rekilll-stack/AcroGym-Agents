@@ -25,8 +25,11 @@ async function _rawFetch(path, { method = 'GET', body, token } = {}) {
   const headers = { 'User-Agent': UA, Accept: 'application/json' };
   if (body) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
+  /* Таймаут обязателен: у undici его нет, зависший запрос in2 висел бы минутами,
+     а телефон обрывает сокет и показывает сырую ошибку (грабля 31.08). */
   const res = await fetch(`${API}${path}`, {
     method, headers, body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) {
     const detail = (await res.text().catch(() => '')).slice(0, 200);
@@ -54,6 +57,16 @@ async function call(path, opts = {}) {
     if (e.status === 401) { // токен протух раньше срока — один повтор со свежим
       return _rawFetch(path, { ...opts, token: await _accessToken(true) });
     }
+    /* Разовые икоты in2 (сеть, 429, 5xx) ловим ретраем — но ТОЛЬКО для GET:
+       он идемпотентен. POST/PUT не повторяем — таймаут после успешной записи
+       дал бы дубль (грабля 31.08: экран «кто записан» показал сырой текст
+       ошибки «in2 GET /classes/events: ...» вместо данных). */
+    const method = (opts.method || 'GET').toUpperCase();
+    const transient = !e.status || e.status === 429 || e.status >= 500;
+    if (method === 'GET' && transient) {
+      await new Promise((r) => setTimeout(r, 1500));
+      return _rawFetch(path, { ...opts, token: await _accessToken() });
+    }
     throw e;
   }
 }
@@ -61,18 +74,36 @@ async function call(path, opts = {}) {
 // ── Низкоуровневые обёртки ───────────────────────────────────
 const fmt = (d) => d instanceof Date ? d.toISOString().slice(0, 10) : String(d);
 
+/* Тестовые клиенты удалены перед запуском (29.08), но их транзакции остались в отчёте API
+   (в панели in2 их уже нет). Всё, что раньше открытия, в наши цифры не берём. */
+const SEASON_START = '2026-09-01';
+const txIso = (d) => { const v = String(d || ''); return v.includes('/') ? v.slice(0, 10).split('/').reverse().join('-') : v.slice(0, 10); };
+
+/* ВЫРУЧКА = РЕАЛЬНО ПОЛУЧЕННЫЕ ДЕНЬГИ (владелец 08.09: «revenue не учитывает долги»).
+   in2: /reports/sales — это ВЫСТАВЛЕННЫЕ счета (у нас все с paymentMethod «On Account»), деньги приходят в /reports/cash
+   (RECEIPT/PAYMENT; у карт amount уже без 3 % → берём amountNoCommission; REFUND минусуем).
+   total = получено, invoiced = выставлено, debt = долг за период. */
 async function salesTotals(fromDate, toDate) {
-  const r = await call('/reports/sales', { method: 'POST', body: { fromDate: fmt(fromDate), toDate: fmt(toDate) } });
+  const body = { fromDate: fmt(fromDate), toDate: fmt(toDate) };
+  const [r, c] = await Promise.all([
+    call('/reports/sales', { method: 'POST', body }),
+    call('/reports/cash', { method: 'POST', body }).catch(() => null),
+  ]);
   if (!r) return null;
-  const total = ['totalPackagesAmount', 'totalProductsAmount', 'totalReservationsAmount', 'totalOthersAmount']
-    .reduce((s, k) => s + (Number(r[k]) || 0), 0);
+  const tx = Array.isArray(r.transactions) ? r.transactions : [];
+  const real = tx.filter((x) => txIso(x.date) >= SEASON_START); /* дозапусковые тестовые операции не считаем */
+  const invoiced = real.reduce((a, x) => a + (Number(x.amount) || Number(x.total) || 0), 0);
+  const ctx = (c && Array.isArray(c.transactions) ? c.transactions : []).filter((x) => txIso(x.date) >= SEASON_START && x.clientId && !x.supplierId); /* 28.09: в кассе in2 теперь и оплаты поставщикам (расходы, синк «Финансы» → in2) — это не деньги от клиентов */
+  const received = ctx.reduce((a, x) => {
+    const v = Number(x.amountNoCommission ?? x.amount) || 0;
+    return a + (String(x.transactionType).toUpperCase() === 'REFUND' ? -v : v);
+  }, 0);
+  const shareOf = (k) => (invoiced ? Math.round(received * (Number(r[k]) || 0) / invoiced) : 0); /* разбивка по видам — пропорционально счетам */
   return {
-    total,
-    packages: Number(r.totalPackagesAmount) || 0,
-    products: Number(r.totalProductsAmount) || 0,
-    reservations: Number(r.totalReservationsAmount) || 0,
-    others: Number(r.totalOthersAmount) || 0,
-    transactions: Array.isArray(r.transactions) ? r.transactions.length : 0,
+    total: Math.round(c ? received : invoiced), /* касса недоступна — честно возвращаем счета */
+    received: Math.round(received), invoiced: Math.round(invoiced), debt: Math.round(invoiced - received), cashOk: !!c,
+    packages: shareOf('totalPackagesAmount'), products: shareOf('totalProductsAmount'), reservations: shareOf('totalReservationsAmount'), others: shareOf('totalOthersAmount'),
+    transactions: real.length, payments: ctx.length,
   };
 }
 
@@ -137,9 +168,12 @@ async function opsSummary(fromDate, toDate) {
   const clientNames = new Map();          // id → имя (для churn-списка)
   const byDate = new Map();               // 'YYYY-MM-DD' → визиты (для графиков)
   let capacitySum = 0, booked = 0, fullClasses = 0;
+  /* occurrence'ы пулом по 8 (было последовательно: 0.43с × 65-200 = 30-90с на отчёт) */
+  const occMap = new Map();
+  for (let i = 0; i < events.length; i += 8) await Promise.all(events.slice(i, i + 8).map((ev) => occurrence(ev.id).then((o) => occMap.set(ev.id, o)).catch(() => {})));
   for (const ev of events) {
-    let occ = null, att = [];
-    try { occ = await occurrence(ev.id); att = extractAttendees(occ); }
+    let occ = occMap.get(ev.id) || null, att = [];
+    try { att = occ ? extractAttendees(occ) : []; }
     catch { /* одна битая запись не валит сводку */ }
     if (occ && occ.isCancelled) continue;
     const visited = att.filter(attendedFlag);
@@ -206,9 +240,13 @@ async function membershipsSummary(monthStartStr, expiringDays = 14) {
   const horizon = new Date(today.getTime() + expiringDays * 86400000).toISOString().slice(0, 10);
   const todayStr = today.toISOString().slice(0, 10);
   const out = { active: 0, newThisMonth: 0, frozen: 0, expiringSoon: [], truncated: list.length > MEMBERSHIP_FETCH_CAP };
-  for (const c of list.slice(0, MEMBERSHIP_FETCH_CAP)) {
-    let ms = [];
-    try { ms = await call(`/customers/${c.id}/customer-memberships`); } catch { continue; }
+  /* пул по 10: последовательный N+1 по базе занимал минуты (аудит 01.09) */
+  const capped = list.slice(0, MEMBERSHIP_FETCH_CAP);
+  const results = [];
+  for (let i = 0; i < capped.length; i += 10)
+    results.push(...await Promise.all(capped.slice(i, i + 10).map((c) =>
+      call(`/customers/${c.id}/customer-memberships`).then((ms) => ({ c, ms })).catch(() => ({ c, ms: null })))));
+  for (const { c, ms } of results) {
     if (!Array.isArray(ms)) continue;
     for (const m of ms) {
       const status = String(m.status || '').toUpperCase();
