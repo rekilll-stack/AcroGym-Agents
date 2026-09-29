@@ -163,7 +163,7 @@ const START_TEXTS = {
     'Buttons below: prices, templates, stats, learned, gaps, language.',
 };
 
-const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } } });
+const bot = new TelegramBot(TOKEN, { polling: { interval: 1500, params: { timeout: 30 } }, request: { timeout: 60000 } }); // без таймаута long-poll виснет навсегда (см. shared/telegram.js)
 const busy = new Set();
 const queued = new Map();  // chatId → отложенное сообщение (пришло, пока бот думал)
 

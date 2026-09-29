@@ -27,11 +27,16 @@ let _adminBot  = null;
 let _ownerBot  = null;
 let _pollingBot = null; // единый бот для приёма callbacks
 
+// Без таймаута запрос к Telegram на полуоткрытом сокете висит вечно: 28.09 после ECONNRESET
+// long-poll ADMIN_BOT завис на сутки и кнопки «I responded» перестали работать. 60 с тишины
+// на сокете (не общий лимит — загрузка видео и long-poll 10–30 с не задеты) → ошибка → опрос идёт дальше.
+const TG_REQUEST = { timeout: 60000 };
+
 function getAdminBot() {
   if (_adminBot) return _adminBot;
   const token = process.env.ADMIN_BOT_TOKEN;
   if (!token) throw new Error('ADMIN_BOT_TOKEN не задан в .env');
-  _adminBot = new TelegramBot(token, { polling: false });
+  _adminBot = new TelegramBot(token, { polling: false, request: TG_REQUEST });
   return _adminBot;
 }
 
@@ -39,7 +44,7 @@ function getOwnerBot() {
   if (_ownerBot) return _ownerBot;
   const token = process.env.OWNER_BOT_TOKEN;
   if (!token) throw new Error('OWNER_BOT_TOKEN не задан в .env');
-  _ownerBot = new TelegramBot(token, { polling: false });
+  _ownerBot = new TelegramBot(token, { polling: false, request: TG_REQUEST });
   return _ownerBot;
 }
 
@@ -264,7 +269,7 @@ function startCallbackPolling() {
     const token = process.env.ADMIN_BOT_TOKEN;
     if (!token) return;
 
-    _pollingBot = new TelegramBot(token, { polling: true });
+    _pollingBot = new TelegramBot(token, { polling: true, request: TG_REQUEST });
 
     _pollingBot.on('callback_query', async (query) => {
       const data = query.data || '';
@@ -390,7 +395,7 @@ function startOwnerPolling() {
 
     const ownerChatIds = parseChatIds('OWNER_CHAT_IDS');
 
-    _ownerPollingBot = new TelegramBot(token, { polling: true });
+    _ownerPollingBot = new TelegramBot(token, { polling: true, request: TG_REQUEST });
 
     // Текстовые сообщения (команды + plain text для /export flow)
     _ownerPollingBot.on('message', async (msg) => {

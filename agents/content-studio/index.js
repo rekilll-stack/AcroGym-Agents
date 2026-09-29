@@ -63,7 +63,7 @@ function activate(tokens) {
   const speakers = SPEAKING.filter((k) => validTok(tokens[k]));
   const roleKeys = ['moderator', ...speakers];
   const bots = {};
-  for (const k of roleKeys) bots[k] = new TelegramBot(tokens[k], { polling: k === 'moderator' });
+  for (const k of roleKeys) bots[k] = new TelegramBot(tokens[k], { polling: k === 'moderator', request: { timeout: 60000 } }); // без таймаута long-poll виснет навсегда (см. shared/telegram.js)
   const mod = bots.moderator;
   // Меню команд (показывается по «/» в чате).
   mod.setMyCommands([

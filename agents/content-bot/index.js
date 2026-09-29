@@ -464,7 +464,7 @@ function start() {
   acquireLock();
   logger.info({ pid: process.pid, allowed: ALLOWED }, 'Content-bot starting');
 
-  const bot = new TelegramBot(TOKEN, { polling: true });
+  const bot = new TelegramBot(TOKEN, { polling: true, request: { timeout: 60000 } }); // без таймаута long-poll виснет навсегда (см. shared/telegram.js)
 
   // ── Messages (commands + free-text topics) ──
   bot.on('message', async (msg) => {
