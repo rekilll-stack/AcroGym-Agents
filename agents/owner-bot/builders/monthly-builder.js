@@ -334,15 +334,15 @@ async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttac
       text += `*${escapeMd(tr.t('monthly.gym_coaches'))}*\n`;
       sections.coaches.list.slice(0, 6).forEach((t, i) => {
         const rev = t.revenue != null ? `, ${escapeMd(tr.t('monthly.gym_trainer_revenue'))} ${escapeMd(String(t.revenue))} QAR` : '';
-        text += `${i + 1}\. ${escapeMd(t.name)} — ${t.classes} ${escapeMd(tr.t('monthly.gym_classes_word'))}, ${t.visits} ${escapeMd(tr.t('monthly.gym_visits_word'))}, ${t.uniqueClients} ${escapeMd(tr.t('monthly.gym_clients_word'))}, ${escapeMd(tr.t('monthly.gym_pay'))} \~${escapeMd(String(t.estPay))} QAR${rev}\n`;
+        text += `${i + 1}\\. ${escapeMd(t.name)} — ${t.classes} ${escapeMd(tr.t('monthly.gym_classes_word'))}, ${t.visits} ${escapeMd(tr.t('monthly.gym_visits_word'))}, ${t.uniqueClients} ${escapeMd(tr.t('monthly.gym_clients_word'))}, ${escapeMd(tr.t('monthly.gym_pay'))} \\~${escapeMd(String(t.estPay))} QAR${rev}\n`;
       });
     }
     if (in2customers && in2customers.total > 0) {
       text += `• ${escapeMd(tr.t('monthly.gym_customers'))}: ${in2customers.total}`;
-      if (in2customers.newThisMonth) text += ` \(${escapeMd(tr.t('monthly.gym_customers_new'))}: ${in2customers.newThisMonth}\)`;
+      if (in2customers.newThisMonth) text += ` \\(${escapeMd(tr.t('monthly.gym_customers_new'))}: ${in2customers.newThisMonth}\\)`;
       text += '\n';
       if (in2customers.debtors > 0) {
-        text += `• ⚠️ ${escapeMd(tr.t('monthly.gym_debt'))}: ${in2customers.debtTotal} QAR \(${in2customers.debtors}\)\n`;
+        text += `• ⚠️ ${escapeMd(tr.t('monthly.gym_debt'))}: ${in2customers.debtTotal} QAR \\(${in2customers.debtors}\\)\n`;
       }
     }
     if (in2churn && in2churn.lost > 0) {
@@ -354,14 +354,14 @@ async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttac
       const parts = [];
       if (in2members.newThisMonth) parts.push(`${escapeMd(tr.t('monthly.gym_memberships_new'))}: ${in2members.newThisMonth}`);
       if (in2members.frozen) parts.push(`${escapeMd(tr.t('monthly.gym_memberships_frozen'))}: ${in2members.frozen}`);
-      if (parts.length) text += ` \(${parts.join(' · ')}\)`;
+      if (parts.length) text += ` \\(${parts.join(' · ')}\\)`;
       text += '\n';
       if (in2members.expiringSoon.length) {
         text += `• ⏳ ${escapeMd(tr.t('monthly.gym_expiring'))}:\n`;
         for (const m of in2members.expiringSoon.slice(0, 5)) {
           text += `  ↳ ${escapeMd(m.client)} — ${escapeMd(m.membership || '')} ${escapeMd(tr.t('monthly.gym_until'))} ${escapeMd(m.expiry)}\n`;
         }
-        if (in2members.expiringSoon.length > 5) text += `  ↳ \+${in2members.expiringSoon.length - 5}\n`;
+        if (in2members.expiringSoon.length > 5) text += `  ↳ \\+${in2members.expiringSoon.length - 5}\n`;
       }
     }
     text += '\n';

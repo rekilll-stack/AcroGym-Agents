@@ -35,7 +35,7 @@ async function sendWeeklySlice({ withCharts = false, dryRun = false, lang = 'en'
     logger.error({ err }, '[weekly] buildWeeklySlice failed');
     if (!dryRun) {
       await sendToOwner(
-        `🚨 Owner\-bot: weekly slice build failed\n\`${escapeMd(err.message)}\``,
+        `🚨 Owner\\-bot: weekly slice build failed\n\`${escapeMd(err.message)}\``,
         { chatIds },
       ).catch(() => {});
     }

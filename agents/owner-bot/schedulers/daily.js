@@ -34,7 +34,7 @@ async function sendDailyDigest({ withCharts = false, dryRun = false, lang = 'en'
   } catch (err) {
     logger.error({ err }, '[daily] buildDigest failed');
     if (!dryRun) {
-      await sendToOwner(`🚨 Owner\-bot: digest build failed\n\`${escapeMd(err.message)}\``).catch(() => {});
+      await sendToOwner(`🚨 Owner\\-bot: digest build failed\n\`${escapeMd(err.message)}\``).catch(() => {});
     }
     return;
   }

@@ -32,7 +32,7 @@ async function sendMonthlyReport({ dryRun = false, lang = 'en', month, chatIds =
     logger.error({ err }, '[monthly] buildMonthlyReport failed');
     if (!dryRun) {
       await sendToOwner(
-        `🚨 Owner\-bot: monthly report build failed\n\`${escapeMd(err.message)}\``,
+        `🚨 Owner\\-bot: monthly report build failed\n\`${escapeMd(err.message)}\``,
         { chatIds },
       ).catch(() => {});
     }
