@@ -2,95 +2,121 @@
 
 // Готовые (утверждённые владельцем) тексты для мгновенной отправки клиентам.
 // Без LLM — мгновенно и дословно. Меняются здесь, действуют сразу после рестарта.
+// Все цифры обязаны совпадать с knowledge.md (сверяет scripts/test-answer-bot.js).
 
 const TEMPLATES = {
   prices: {
-    label: '💰 Прайс (все цены)',
+    label: { ru: '💰 Прайс (все цены)', en: '💰 Price list (all prices)' },
     text:
       'Here are our prices! 🧡\n\n' +
-      '💎 Term plan — most popular, best value. The price is fixed for the ' +
-      'whole term, whichever weekdays you choose:\n\n' +
-      '   1×/week — Term 1: 1,700 · Term 2: 1,100 · Term 3: 1,500\n' +
-      '   2×/week — Term 1: 3,300 · Term 2: 1,900 · Term 3: 3,000\n' +
-      '   3×/week — Term 1: 5,000 · Term 2: 2,900 · Term 3: 4,500\n\n' +
-      'Per class it works out to about 100–110 QAR 😊\n\n' +
-      '📅 Monthly plan — fixed price every month:\n\n' +
+      '📅 Monthly plan — fixed price, covers 30 days from your start date:\n\n' +
       '   1×/week — 550\n' +
       '   2×/week — 1,100\n' +
-      '   3×/week — 1,650\n\n' +
+      '   3×/week — 1,500\n\n' +
+      '✨ Renewal bonus: renew your monthly plan on the day it ends — save 5% on the next month\n\n' +
       '🤸 Getting started & extras:\n\n' +
-      '   🌟 First class — 100 QAR, credited toward your first package\n' +
+      '   🌟 First class — 100 QAR, credited toward your plan if you continue right after\n' +
       '   🎫 Single class — 250 QAR\n' +
-      '   👤 Personal training — 300 QAR (one child) · 400 QAR (two children)\n\n' +
+      '   👤 Personal training — 300 QAR per session (pack of 10: 2,700)\n' +
+      '   👥 Two children together — 400 QAR per session (pack of 10: 3,600)\n\n' +
       '💝 Good to know:\n\n' +
       '   👨‍👩‍👧‍👦 15% off for the 3rd child from the same family\n' +
-      '   🗓 Starting mid-month or mid-term? You only pay for the classes remaining\n\n' +
-      'All prices are in QAR, payment at the gym. Would you like me to help ' +
-      'choose the best option for your schedule? 😊',
+      '   💳 Payment by bank transfer or Fawran — just send us the screenshot\n\n' +
+      'All prices are in QAR. Would you like me to help choose the best option ' +
+      'for your schedule? 😊',
   },
   welcome: {
-    label: '👋 Приветствие нового лида',
+    label: { ru: '👋 Приветствие нового лида', en: '👋 Welcome a new lead' },
+    // Текст утверждён владельцем 06.09 (тот же, что lead-helper welcomeDraft).
     text:
       'Hello! 👋 This is AcroGym — thank you for your interest! 🧡\n\n' +
-      "We're excited to welcome you to our brand-new gymnastics center — we open on " +
-      'September 1st at Lagoona Mall, Doha! 🤸\n\n' +
-      'We have classes for kids aged 2 to 16, in small groups matched by age — and adult ' +
-      'classes for 18+ too! A class costs around 100 QAR — come and see how you love it!\n\n' +
-      'Would you like me to book a spot for the first week of September? 😊',
+      "We're open at Lagoona Mall, 1st floor, Doha — classes are running now! 🤸\n\n" +
+      'We have classes for kids aged 1.5 to 16 in small groups matched by age, and adult ' +
+      'classes for 18+ too. The first class is 100 QAR — if you continue, it counts ' +
+      'toward your package.\n\n' +
+      'Would you like me to find a time for your child this week? 😊',
   },
   register: {
-    label: '📝 Просьба зарегистрироваться',
+    label: { ru: '📝 Просьба зарегистрироваться', en: '📝 Ask to register' },
     text:
       'Thank you for your interest in AcroGym! 🤸\n\n' +
       "To book your child's first class, please complete our quick registration form:\n" +
       '👉 acrogym.org/register\n\n' +
       "It takes about 3 minutes and covers everything we need — your child's details and " +
-      'our terms. Registration is required before the first visit.\n\n' +
+      'our terms. Registration is required before the first class.\n\n' +
       "Once you're done, we'll confirm your class time on WhatsApp. See you at AcroGym, " +
       'Lagoona Mall! 🧡',
   },
-  freeze: {
-    label: '❄️ Правила заморозки/пропусков',
-    text:
-      "We don't deduct money for missed classes — instead we offer a freeze, so nothing " +
-      'is lost 🧡 On the term plan you can freeze up to 2 weeks per term, and on the ' +
-      'monthly plan up to 1 week per month; the paid period is simply paused and added ' +
-      'at the end.\n\n' +
-      'Please just let our admin know at least 24 hours in advance — a class cancelled ' +
-      "with less than 24 hours' notice counts as used. 😊",
-  },
   firstclass: {
-    label: '🤸 Приглашение на первое занятие',
+    label: { ru: '🤸 Приглашение на первое занятие', en: '🤸 Invite to first class' },
     text:
-      'The best way to start is our first class — 100 QAR 🤸 It is a full class in the ' +
-      'group matched to your child’s age, with our professional coaches. And the good ' +
-      'news: the 100 QAR is credited toward your first package when you sign up!\n\n' +
-      'Registration takes 3 minutes: acrogym.org/register — would you like me to note ' +
-      'your preferred days? 🧡',
+      'The best way to start is our first class — 100 QAR 🤸 It is a full 50-minute class ' +
+      'in the group matched to your child’s age, and after class the coach will share ' +
+      'feedback with you.\n\n' +
+      'And the good news: if you continue right after the first class, the 100 QAR is ' +
+      'credited toward your monthly plan!\n\n' +
+      'Registration takes 3 minutes: acrogym.org/register — which days suit you best? 🧡',
+  },
+  bring: {
+    label: { ru: '🎒 Что взять с собой', en: '🎒 What to bring' },
+    text:
+      'Here is what to bring for the class 🤸\n\n' +
+      '   👕 Comfortable sportswear\n' +
+      '   🧦 Non-slip grip socks (shoes off before the mat)\n' +
+      '   💧 A water bottle\n' +
+      '   🎀 Long hair tied up, and no jewellery or watches\n\n' +
+      'Please arrive 10 minutes early. See you at Lagoona Mall, 1st Floor! 🧡',
+  },
+  freeze: {
+    label: { ru: '❄️ Правила заморозки/пропусков', en: '❄️ Freeze & missed classes' },
+    text:
+      'If your child has to miss a class, just let our admin know at least 24 hours ' +
+      'in advance 🧡 We record the absence and extend your plan: up to 1 week per ' +
+      'paid month.\n\n' +
+      "A class cancelled with less than 24 hours' notice, or a no-show, counts as " +
+      'used. 😊',
   },
   payment: {
-    label: '💳 Как считается оплата',
+    label: { ru: '💳 Как считается оплата', en: '💳 How payment works' },
     text:
       "Thank you for asking — it's actually very simple! 🧡\n\n" +
-      '   🤸 First class — 100 QAR. If you decide to continue, this amount is ' +
-      "credited toward your first package — so it's not an extra cost 😊\n\n" +
-      '   📅 Then you choose a plan — monthly or full term. The monthly price ' +
-      "always stays the same: it's calculated on the average number of classes " +
-      'per month, so whether a month has 9 classes or 8, the price never changes.\n\n' +
-      '   🗓 Starting mid-month? No problem — you only pay for the classes ' +
-      'remaining until the end of that month, and from the next month the ' +
-      'regular price applies. You never pay for classes before your start date.\n\n' +
-      'Payment is made at the gym. Would you like me to send the exact prices ' +
-      'for your schedule? 😊',
+      '   🤸 First class — 100 QAR. If you continue right after it, this amount is ' +
+      "credited toward your plan — so it's not an extra cost 😊\n\n" +
+      '   📅 The monthly plan has a fixed price and covers 30 days from your start ' +
+      "date — it isn't tied to calendar months, so you never pay for days before " +
+      'you join and the price is the same every time.\n\n' +
+      '   ✨ Renew on the day your plan ends and you save 5% on the next month.\n\n' +
+      'Payment is easiest by bank transfer or Fawran — please send us the ' +
+      'screenshot. Would you like me to send the exact price for your schedule? 😊',
   },
-  termpitch: {
-    label: '💎 Почему терм выгоднее',
+  renewal: {
+    label: { ru: '🔁 Продление −5%', en: '🔁 Renewal −5%' },
     text:
-      'Our term plan is the most popular option and the best value 🧡 The price is fixed ' +
-      'for the whole term whichever days you choose, and per class it works out to about ' +
-      '100–110 QAR — versus 125 QAR on the monthly plan and 250 QAR pay-as-you-go.\n\n' +
-      'Plus the freeze option is bigger on the term plan: up to 2 weeks per term. Would ' +
-      'you like me to send the exact term prices for your schedule? 😊',
+      'A little bonus for you 🧡 If you renew your monthly plan on the day it ends, ' +
+      'you save 5% on the next month:\n\n' +
+      '   1×/week — 522.5 instead of 550\n' +
+      '   2×/week — 1,045 instead of 1,100\n' +
+      '   3×/week — 1,425 instead of 1,500\n\n' +
+      'Shall I reserve the same days for the next month? 😊',
+  },
+  holidays: {
+    label: { ru: '🗓 Каникулы', en: '🗓 Holidays' },
+    text:
+      'Here are our breaks this season 🗓\n\n' +
+      '   ❄️ Winter break: 18 Dec – 3 Jan — classes resume on 4 January\n' +
+      '   🌸 Spring break: 8 – 20 March — classes resume on 21 March\n\n' +
+      'The season runs until 24 June — the last week of classes is 18–24 June ' +
+      "(your group's last class depends on its day). 🤸",
+  },
+  twice: {
+    label: { ru: '💪 Почему 2 раза в неделю', en: '💪 Why 2× a week' },
+    text:
+      'Once a week is a lovely start 🧡 Many families add a second day, because ' +
+      'children learn through repetition — with shorter gaps between classes, ' +
+      'skills stick and confidence grows noticeably faster.\n\n' +
+      'And it is the same price per class: 550 at 1×/week vs 1,100 at 2×/week ' +
+      '(3×/week is 1,500 — the best value per class).\n\n' +
+      'Would you like me to suggest a second day that fits your schedule? 😊',
   },
 };
 

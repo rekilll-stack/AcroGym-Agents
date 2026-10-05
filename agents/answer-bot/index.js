@@ -14,7 +14,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const cron = require('node-cron');
 const { generateText } = require('../content-bot/llm');
 const { buildAnswerPrompt, buildFactPrompt, buildReviewPrompt, KB_PATH } = require('./prompts');
-const { answer: engineAnswer } = require('./engine');
+const { answer: engineAnswer, deepAnswer } = require('./engine');
 const { TEMPLATES } = require('./templates');
 const { createLogger } = require('../../shared/logger');
 const { writeHeartbeat } = require('../../shared/heartbeat');
@@ -50,6 +50,17 @@ function saveHistorySoon() {
 }
 function pushHistory(chatId, role, text) {
   const key = String(chatId);
+  // Последний вопрос храним отдельно: длинные ответы вытесняют его из
+  // истории (кап 8000 символов), а кнопкам 🔄/✂️ он нужен всегда.
+  if (role === 'user' && !String(text).startsWith('[скриншот')) {
+    (history._lastQ = history._lastQ || {})[key] = String(text).slice(0, 1500);
+  }
+  // Последний ответ тоже храним отдельно: кнопки 🔄/✂️ ПЕРЕДЕЛЫВАЮТ его,
+  // а не отвечают на вопрос заново (16.08: повторный ответ вслепую дал «Yes,
+  // price per child» — бред без контекста).
+  if (role === 'assistant') {
+    (history._lastA = history._lastA || {})[key] = String(text).slice(0, 3000);
+  }
   history[key] = history[key] || [];
   history[key].push({ role, text: String(text).slice(0, 1500) });
   if (history[key].length > HISTORY_TURNS * 2) history[key] = history[key].slice(-HISTORY_TURNS * 2);
@@ -64,7 +75,7 @@ function logQA(chatId, q, a, gap) {
     fs.appendFileSync(LOG_PATH, JSON.stringify({ ts: new Date().toISOString(), chatId, q: q.slice(0, 500), a: a.slice(0, 500), gap }) + '\n');
   } catch (_) {}
 }
-const GAP_MARKERS = [/i'?ll check/i, /get back to you/i, /уточни у кирилла/i, /нет в базе/i, /в базе н[ие]т/i];
+const GAP_MARKERS = [/let me (check|confirm)/i, /i'?ll check/i, /get back to you/i, /уточни у кирилла/i, /нет в базе/i, /в базе н[ие]т/i];
 function looksLikeGap(answer) { return GAP_MARKERS.some(r => r.test(answer)); }
 function readGaps(limit = 15) {
   try {
@@ -91,6 +102,7 @@ function uiLang(chatId) { return getPreferredLanguage(chatId) === 'en' ? 'en' : 
 const STR = {
   ru: {
     thinking: '⏳ Думаю над прошлым вопросом — этот отвечу следом.',
+    deep: '🔎 Нестандартный вопрос — ищу полный ответ в памяти клуба и документах (до минуты)…',
     tooShort: 'Напиши вопрос словами или перешли сообщение клиента — отвечу 🤸',
     forgot: '🧹 Диалог забыт, начинаем с чистого листа.',
     tplPick: '📎 Готовые тексты — жми, пришлю для копирования:',
@@ -113,6 +125,7 @@ const STR = {
   },
   en: {
     thinking: '⏳ Still thinking about the previous question — yours is next.',
+    deep: '🔎 Non-standard question — searching the club memory and documents for a full answer (up to a minute)…',
     tooShort: 'Type the question in words or forward the client message — I will answer 🤸',
     forgot: '🧹 Conversation cleared, starting fresh.',
     tplPick: '📎 Ready-made texts — tap one to get a copyable message:',
@@ -186,9 +199,11 @@ async function sendAnswer(chatId, answer, extraRows = []) {
 
 // Последний вопрос берём из ПОСТОЯННОЙ истории — переживает рестарты.
 function lastQuestion(chatId) {
+  const stored = history._lastQ && history._lastQ[String(chatId)];
+  if (stored) return stored;
   const h = history[String(chatId)] || [];
   for (let i = h.length - 1; i >= 0; i--) {
-    if (h[i].role === 'user') return h[i].text.startsWith('[скриншот') ? null : h[i].text;
+    if (h[i].role === 'user' && !h[i].text.startsWith('[скриншот')) return h[i].text;
   }
   return null;
 }
@@ -266,7 +281,7 @@ bot.on('message', async (msg) => {
     return void bot.sendMessage(chatId, TEMPLATES.prices.text, { reply_markup: mainKeyboard(chatId) }).catch(() => {});
   }
   if (text === '/templates') {
-    const kb = Object.entries(TEMPLATES).map(([key, t]) => [{ text: t.label, callback_data: 'tpl:' + key }]);
+    const kb = Object.entries(TEMPLATES).map(([key, t]) => [{ text: t.label[uiLang(chatId)] || t.label.en, callback_data: 'tpl:' + key }]);
     return void bot.sendMessage(chatId, S(chatId).tplPick, { reply_markup: { inline_keyboard: kb } }).catch(() => {});
   }
   if (text === '/stats') {
@@ -332,7 +347,13 @@ async function answerText(chatId, text) {
   try {
     await bot.sendChatAction(chatId, 'typing').catch(() => {});
     const hist = history[String(chatId)] || [];
-    const answer = await engineAnswer(text, hist, null, uiLang(chatId));
+    let answer = await engineAnswer(text, hist, null, uiLang(chatId));
+    if (looksLikeGap(answer)) { // нестандартный вопрос → ищем в памяти клуба и документах (владелец 05.10)
+      await bot.sendMessage(chatId, S(chatId).deep).catch(() => {});
+      await bot.sendChatAction(chatId, 'typing').catch(() => {});
+      try { answer = await deepAnswer(text, hist, uiLang(chatId)); }
+      catch (e) { logger.warn({ e: e.message }, 'deep answer failed — отправляю обычный'); }
+    }
     const extraRows = looksLikeGap(answer) ? [[{ text: S(chatId).btnAsk, callback_data: 'ask_owner' }]] : [];
     await sendAnswer(chatId, answer, extraRows);
     pushHistory(chatId, 'user', text);
@@ -380,9 +401,15 @@ bot.on('callback_query', async (query) => {
       try {
         await bot.sendChatAction(chatId, 'typing').catch(() => {});
         const hist = history[String(chatId)] || [];
+        const prevA = (history._lastA || {})[String(chatId)] || '';
+        // Кнопки ПЕРЕДЕЛЫВАЮТ последний ответ, а не отвечают заново: без
+        // этого при потере контекста выходил бред («Yes, price per child»).
+        const base = prevA
+          ? `\n\nThe reply that was already sent to the client:\n"""\n${prevA}\n"""\n`
+          : '';
         const extra = data === 'regen'
-          ? '\n\n(Kristina asks for an ALTERNATIVE version of the reply — different angle/wording, same facts.)'
-          : '\n\n(Kristina asks for a SHORTER version — 2-3 sentences maximum, keep the key facts.)';
+          ? base + '\n(Kristina asks for an ALTERNATIVE version of the reply above. Rephrase it with different wording and structure, but keep the SAME facts, prices and ALL core recommendations — more classes per week for results, a steady monthly plan. No new angles, offers, facts or topics. This is a rewrite, not a rethink.)'
+          : base + '\n(Kristina asks for a SHORTER version of the reply above. HARD LIMIT: 6 short lines max, under 60 words. Keep: the direct answer, the most relevant price line, ONE sentence with the core recommendation (2×/week for faster progress, same price per class), one short closing question. Cut everything else. Do NOT re-answer the question from scratch — condense the reply above.)';
         const answer = (await generateText(buildAnswerPrompt(q + extra, hist, uiLang(chatId))) || '').trim();
         if (answer) {
           await sendAnswer(chatId, answer);

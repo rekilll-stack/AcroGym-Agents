@@ -36,13 +36,14 @@ const MAX_TURNS = parseInt(process.env.CONTENT_DESIGNER_MAX_TURNS || '30', 10);
 const TIMEOUT_MS = parseInt(process.env.CONTENT_DESIGNER_TIMEOUT_MS || '300000', 10); // 5 min
 const MAX_COST_USD = parseFloat(process.env.MAX_POST_COST_USD || '0.5');
 
-function runCli(prompt, { model = MODEL, maxTurns = MAX_TURNS, timeoutMs = TIMEOUT_MS } = {}) {
+function runCli(prompt, { model = MODEL, maxTurns = MAX_TURNS, timeoutMs = TIMEOUT_MS, permissionMode = 'bypassPermissions', extraArgs = [], cwd } = {}) {
   const args = [
     '-p', prompt,
     '--model', model,
     '--max-turns', String(maxTurns),
-    '--permission-mode', 'bypassPermissions',
+    '--permission-mode', permissionMode,
     '--output-format', 'json',
+    ...extraArgs,
   ];
   // 🔴 Strip ANTHROPIC_API_KEY from the child env: with an API key present the
   // CLI runs in API-key mode where the claude.ai CONNECTORS (Canva/Metricool)
@@ -53,7 +54,7 @@ function runCli(prompt, { model = MODEL, maxTurns = MAX_TURNS, timeoutMs = TIMEO
   delete childEnv.ANTHROPIC_AUTH_TOKEN;
 
   return new Promise((resolve) => {
-    execFile(CLI, args, { timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024, env: childEnv }, (err, stdout, stderr) => {
+    execFile(CLI, args, { cwd, timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024, env: childEnv }, (err, stdout, stderr) => {
       if (err && !stdout) {
         return resolve({ ok: false, error: `cli: ${err.message}`, costUsd: 0, raw: (stderr || '').slice(0, 500) });
       }
