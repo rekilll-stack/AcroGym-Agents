@@ -67,10 +67,10 @@ function acquireLock() {
     if (!isNaN(existingPid)) {
       try {
         process.kill(existingPid, 0); // throws ESRCH if dead
-        console.error(`[owner-bot] Already running as PID ${existingPid}. Exiting.`);
-        process.exit(1);
         // after a reboot the old PID may belong to another process — require it to be this bot
         if (!fs.readFileSync(`/proc/${existingPid}/cmdline`, "utf8").includes(__dirname)) throw new Error("pid reused");
+        console.error(`[owner-bot] Already running as PID ${existingPid}. Exiting.`);
+        process.exit(1);
       } catch {
         // Stale lock — previous process is gone
         console.warn(`[owner-bot] Stale lock (PID ${existingPid} dead). Overwriting.`);
