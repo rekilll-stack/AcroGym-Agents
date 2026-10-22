@@ -27,7 +27,7 @@ dayjs.extend(tz);
 const { createLogger }     = require('../../../shared/logger');
 const { createTranslator } = require('../../../shared/i18n');
 const { escapeMd }         = require('../../../shared/telegram');
-const { generateText }     = require('../../../shared/claude');
+const { generateText }     = require('../../content-bot/llm.js');
 const {
   countLeadsInRange,
   getTypeBreakdownInRange,
@@ -87,7 +87,7 @@ async function buildWeeklyInsight(stats) {
         model:     'claude-opus-5',
       }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Claude insight timeout (15s)')), 15000)
+        setTimeout(() => reject(new Error('Claude insight timeout (120s)')), 120000)
       ),
     ]);
 

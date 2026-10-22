@@ -161,6 +161,12 @@ async function menuCallbackHandler(query, bot) {
       break;
     }
 
+    case 'task': {
+      const handleTask = require('../commands/task');
+      await handleTask({ chat: { id: chatId }, text: '/task' }, bot);
+      break;
+    }
+
     case 'status': {
       const handleStatus = require('../commands/status');
       await handleStatus({ chat: { id: chatId }, text: '/status' }, bot);

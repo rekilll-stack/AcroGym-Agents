@@ -36,7 +36,9 @@ const TZ = process.env.TIMEZONE || 'Asia/Qatar';
 // agent filled the wrong layer → split photos; verify missed it). NOTHING
 // auto-publishes — every scheduled build still goes to the owner for ✅.
 const PLAN = [
-  { name: 'weekly-recap', cron: '0 18 * * 4', theme: 'Weekly recap: highlights from training this week at AcroGym', slides: 4, routine: false },
+  /* 🔴 ОТКЛЮЧЁН владельцем 28.08.2026: сборка падала (designer agent: spawn claude ENOENT — авто-апдейт CLI
+     подменял бинарь во время запуска). Включать только по явной просьбе владельца — вернуть строку ниже. */
+  // { name: 'weekly-recap', cron: '0 18 * * 4', theme: 'Weekly recap: highlights from training this week at AcroGym', slides: 4, routine: false },
 ];
 
 const PLAN_SYSTEM = `You write Instagram carousel copy for AcroGym Qatar — a kids' gymnastics & acrobatics club in Doha. Audience: parents of children 3–14. Voice: warm, energetic, safe, professional. Output language: ENGLISH only — the THEME may be written in Russian or any language, but ALWAYS write every headline, body and caption in ENGLISH (this is published copy for the audience).

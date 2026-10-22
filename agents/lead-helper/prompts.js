@@ -6,7 +6,7 @@
 // referred to impersonally (we don't capture a child name). Age-segmented tone.
 
 const BRAND =
-  "AcroGym, a children's gymnastics center opening September 2026 in The Pearl, " +
+  "AcroGym, a children's gymnastics center open at Lagoona Mall, 1st floor, Doha, " +
   "Qatar. Brand voice: reliability, energy, movement, safety, professionalism.";
 
 // Per-segment angle for the model. Segments mirror the REAL class grid
@@ -292,7 +292,8 @@ function dripFallback({ touch, parentName, ageSegment } = {}) {
   return DRIP_FALLBACK[touch][seg](name);
 }
 
-// Fixed welcome draft (owner-approved verbatim, 11.08.2026). Replaces the
+// Fixed welcome draft (owner-approved verbatim, 11.08.2026; text updated 06.09.2026 —
+// the gym is open, so no more "we open on September 1st"). Replaces the
 // age-segmented AI draft for touch-1: owner wants ONE consistent message with
 // real facts (open date, mall, price, ages 2-16 + adults 18+). Name inserted
 // after "Hello", same as the earlier per-name drafts.
@@ -307,11 +308,11 @@ function welcomeDraft({ parentName } = {}) {
   const hello = name ? `Hello ${name}!` : 'Hello!';
   return (
     `${hello} \u{1F44B} This is AcroGym \u2014 thank you for your interest! \u{1F9E1}\n\n` +
-    `We're excited to welcome you to our brand-new gymnastics center \u2014 we open on ` +
-    `September 1st at Lagoona Mall, Doha! \u{1F938}\n\n` +
-    `We have classes for kids aged 2 to 16, in small groups matched by age \u2014 and adult ` +
-    `classes for 18+ too! A class costs around 100 QAR \u2014 come and see how you love it!\n\n` +
-    `Would you like me to book a spot for the first week of September? \u{1F60A}`
+    `We're open at Lagoona Mall, 1st floor, Doha \u2014 classes are running now! \u{1F938}\n\n` +
+    `We have classes for kids aged 2 to 16 in small groups matched by age, and adult ` +
+    `classes for 18+ too. The first class is 100 QAR \u2014 if you continue, it counts ` +
+    `toward your package.\n\n` +
+    `Would you like me to find a time for your child this week? \u{1F60A}`
   );
 }
 

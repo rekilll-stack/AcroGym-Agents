@@ -2,13 +2,14 @@
 
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 
-process.setMaxListeners(30); // many plugins + cron + guards = 26+ exit listeners (warning seen at 25)
+process.setMaxListeners(40); // many plugins + cron + guards = 31+ exit listeners (warning seen at 30)
 
 const cron = require('node-cron');
 
 const { createLogger }  = require('../../shared/logger');
 const {
   registerOwnerCommand,
+  registerOwnerTextHandler,
   registerOwnerTextTrigger,
   startOwnerPolling,
   getOwnerPollingErrorStats,
@@ -39,6 +40,7 @@ const handleHelp      = require('./commands/help');
 const handleExport    = require('./commands/export');
 const handleLang      = require('./commands/lang');
 const handleBroadcast = require('./commands/broadcast');
+const handleTask      = require('./commands/task');
 
 // Callbacks
 const { setupDigestCallbacks } = require('./callbacks/digest-callbacks');
@@ -163,6 +165,8 @@ async function start() {
   registerOwnerCommand('/broadcast', handleBroadcast);
   registerOwnerCommand('/lang',      handleLang);
   registerOwnerCommand('/help',      handleHelp);
+  registerOwnerCommand('/task',      handleTask);
+  registerOwnerTextHandler('task',   handleTask.handleTaskText);
 
   // Persistent bottom button "☰ Main menu" (both languages) → toggle the console.
   for (const label of persistentMenuLabels()) {

@@ -28,7 +28,7 @@ const {
   getYesterdayResponded,
 } = require('../../../shared/db');
 const { getWeeklySourceFunnel } = require('../../../shared/db');
-const { generateText } = require('../../../shared/claude');
+const { generateText } = require('../../content-bot/llm.js');
 
 const logger       = createLogger('owner-bot');
 const TIMEZONE     = process.env.TIMEZONE || 'Asia/Qatar';
@@ -190,7 +190,7 @@ async function buildInsight(stats, lang = 'en') {
         model:     'claude-opus-5',
       }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Claude insight timeout (15s)')), 15000)
+        setTimeout(() => reject(new Error('Claude insight timeout (120s)')), 120000)
       ),
     ]);
   } catch (err) {

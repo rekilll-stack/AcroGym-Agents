@@ -121,7 +121,20 @@ function noLig(str) {
 
 // ── Main export function ─────────────────────────────────────
 
-async function generatePdf({ period = 'month', lang = 'en', dateFrom, dateTo } = {}) {
+/** С 26.08.2026 PDF бота = фирменный «отчёт руководителя» (тот же, что в приложении Jarvis):
+ *  5 страниц — обложка/сводка/финансы/тренеры/зал+клиенты. Источник: jarvis-bridge/app-pdf.js.
+ *  Старый pdfkit-вариант оставлен как generatePdfLegacy (фолбэк при ошибке рендера). */
+async function generatePdf(opts = {}) {
+  try {
+    const { generateAppPdf } = require('/home/admin/mcp-servers/jarvis-bridge/app-pdf.js');
+    return await generateAppPdf({ dateFrom: opts.dateFrom, dateTo: opts.dateTo, lang: opts.lang === 'en' ? 'en' : 'ru' });
+  } catch (e) {
+    logger.warn({ err: String(e.message) }, 'app-pdf недоступен — фолбэк на legacy pdfkit');
+    return generatePdfLegacy(opts);
+  }
+}
+
+async function generatePdfLegacy({ period = 'month', lang = 'en', dateFrom, dateTo } = {}) {
   const tx = buildTx(lang);
 
   // ── Shared data (DB + derived) ────────────────────────────

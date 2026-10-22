@@ -65,7 +65,7 @@ TEXT: ${m.body.replace(/\s+/g, ' ').slice(0, 2600)}${(m.attachTexts || []).map((
 - Если дата только ПРЕДЛАГАЕТСЯ («можете ли прийти 16-го?») и ещё не подтверждена — "status":"proposed": в календарь такое не попадает, только в суть письма.
 
 Правила:
-- cat: school = Queens School / OpenApply (дети Кирилла); mall = Lagoona Mall / Darwish Holding (аренда зала, операционка); bank = Commercial Bank CBQ или QNB; other = всё остальное (госорганы, поставщики, сервисы, личное) — но ТОЛЬКО если требует внимания; noise = реклама, рассылки, автоуведомления сервисов, соцсети.
+- cat: school = Queens School / OpenApply / Seesaw (сообщения учителей детей Кирилла: India Collings — Матвей, Jemma Johnston — Есения); mall = Lagoona Mall / Darwish Holding (аренда зала, операционка); bank = Commercial Bank CBQ или QNB; other = всё остальное (госорганы, поставщики, сервисы, личное) — но ТОЛЬКО если требует внимания; noise = реклама, рассылки, автоуведомления сервисов, соцсети.
 - ПРИОРИТЕТ: письма Queens и Lagoona/Darwish разбирай МАКСИМАЛЬНО ПОДРОБНО — 3-6 пунктов в detail: кто пишет и в какой роли, что именно сообщают/просят, все даты, суммы, имена, требования, что нужно сделать Кириллу и к какому сроку. Пиши так, чтобы Кириллу НЕ пришлось открывать письмо.
 - Если есть вложения (FILES) — упомяни их в detail отдельным пунктом: что за файл и что с ним делать.
 - ВРЕМЯ СОБЫТИЯ: копируй как в письме, НЕ додумывай AM/PM. Если написано «7:30» без am/pm — смотри на контекст: «drop your child off», «morning», «coffee morning», «before school» = УТРО (07:30); «evening», «after school», «pick-up» = вечер. Школьные встречи в Катаре обычно утром, до уроков. Сомневаешься — ставь то время, что в письме, и добавь пункт в detail с цитатой строки о времени.
@@ -252,7 +252,7 @@ async function digest() {
   let total = 0, evN = 0;
   const byCat = {};
   for (const [acc, gm] of boxes()) {
-    const mails = await fetchNew('newer_than:' + (process.env.MAIL_WINDOW || '1d') + ' -in:spam -from:me', +(process.env.MAIL_CAP || 60), gm); /* MAIL_WINDOW=8d — добор после простоя */
+    const mails = await fetchNew('newer_than:' + (process.env.MAIL_WINDOW || '1d') + ' -in:spam -in:sent', +(process.env.MAIL_CAP || 60), gm); /* MAIL_WINDOW=8d — добор после простоя */
     if (!mails.length) continue;
     total += mails.length;
     for (const mm of mails) { mm.acc = acc; await ccaWatch(mm); }
@@ -294,7 +294,7 @@ async function urgentCheck() {
   let lastErr = null;
   for (const [acc, gm] of boxes()) {
   try { /* изоляция ящиков: сбой одного не глушит второй (грабля 30-31.08) */
-  const mails = await fetchNew('newer_than:2h -in:spam -from:me', 25, gm);
+  const mails = await fetchNew('newer_than:2h -in:spam -in:sent', 25, gm);
   if (!mails.length) continue;
   for (const mm of mails) { mm.acc = acc; await ccaWatch(mm); }
   const res = await classifyAll(mails, acc);

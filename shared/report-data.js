@@ -12,6 +12,7 @@
  */
 
 const {
+  getDb,
   countLeadsInRange,
   getSourceBreakdownInRange,
   getLeadsByDayRange,
@@ -157,10 +158,15 @@ async function buildReportData({ period = 'month', lang = 'en', dateFrom, dateTo
   const minIdx = lineData.length ? lineData.indexOf(Math.min(...lineData)) : 0;
 
   // ── Funnel ─────────────────────────────────────────────────
-  const respondedCount = quality.total_responded || 0;
+  /* 11.10 (Джарвис 17.7, C01/W04): «отвечено» — из ТОГО ЖЕ набора, что totalLeads (сутки Дохи, не legacy); было: числитель по Дохе только client_type='new', знаменатель по UTC */
+  const respondedCount = getDb().prepare(`
+    SELECT COUNT(*) AS cnt FROM leads
+    WHERE date(datetime(created_at),'+3 hours') BETWEEN ? AND ?
+      AND client_type != 'legacy' AND responded_at IS NOT NULL
+  `).get(dateFrom, dateTo).cnt;
 
   // ── Response time (honest, derived from notified_at→responded_at avg) ──
-  const avgResponseSeconds = (quality.avg_seconds != null && respondedCount > 0)
+  const avgResponseSeconds = (quality.avg_seconds != null && (quality.total_responded || 0) > 0)
     ? quality.avg_seconds
     : null;
 

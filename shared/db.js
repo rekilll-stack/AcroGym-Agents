@@ -558,12 +558,13 @@ function getTopUnanswered(limit = 3) {
   `).all(limit);
 }
 
+/* 11.10 (Джарвис 17.7, C01): сутки Дохи — та же SQL-форма, что у графика (getLeadsByDayRange); было BETWEEN по UTC-строкам → KPI ≠ сумме графика */
 function countLeadsInRange(startDateStr, endDateStr) {
   return getDb().prepare(`
     SELECT COUNT(*) as cnt FROM leads
-    WHERE created_at BETWEEN ? AND ?
+    WHERE date(datetime(created_at),'+3 hours') BETWEEN ? AND ?
       AND client_type != 'legacy'
-  `).get(`${startDateStr} 00:00:00`, `${endDateStr} 23:59:59`).cnt;
+  `).get(startDateStr, endDateStr).cnt;
 }
 
 /**

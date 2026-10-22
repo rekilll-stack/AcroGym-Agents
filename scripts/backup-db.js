@@ -180,21 +180,22 @@ function captionTime() {
  * (sendDocumentToOwner swallows per-chat send errors) is treated as failure so
  * it surfaces via the 🔴 path. Returns the message_id.
  */
-async function sendOffsite(gzPath) {
-  const buf     = fs.readFileSync(gzPath);
-  const name    = path.basename(gzPath);
-  const caption =
-    `AcroGym DB backup\n${name}\n${captionTime()} Doha · ${fmtSize(buf.length)} · daily backup`;
+/* 27.09 (аудит #269): в Telegram база уходила открытым gzip (имена и ДР детей, телефоны родителей) —
+   теперь off-site копия шифруется gpg AES256 паролем SYSTEM_BACKUP_PASSPHRASE и проверяется обратной расшифровкой. Локальная .gz не меняется. */
+function encryptForOffsite(gzBuf) {
+  const PP = process.env.SYSTEM_BACKUP_PASSPHRASE || '';
+  if (PP.length < 10) throw new Error('SYSTEM_BACKUP_PASSPHRASE не задан — открытую базу наружу не шлю');
+  const { execFileSync } = require('child_process');
+  const gpg = (args, input) => execFileSync('gpg', ['--batch', '--quiet', '--passphrase-fd', '0', '--no-symkey-cache', ...args], { input: Buffer.concat([Buffer.from(PP + '\n'), input]), maxBuffer: 256 * 1024 * 1024 });
+  const enc = gpg(['--yes', '--symmetric', '--cipher-algo', 'AES256', '-o', '-'], gzBuf);
+  if (!gpg(['--decrypt', '-o', '-'], enc).equals(gzBuf)) throw new Error('шифрованная копия не расшифровалась обратно');
+  return enc;
+}
 
-  // parse_mode:null → plain-text caption, no parser to break on stray chars.
-  const results = await sendDocumentToOwner(buf, name, caption, { parse_mode: null });
-
-  const sent = Array.isArray(results) ? results.find(r => r && r.message_id) : null;
-  if (!sent) {
-    throw new Error('Telegram off-site: документ не принят (нет message_id в ответе sendDocument)');
-  }
-  logger.info({ file: name, message_id: sent.message_id }, 'off-site sent to Telegram');
-  return sent.message_id;
+async function sendOffsite(gzPath) { /* 27.09: вместо Telegram — Яндекс.Диск, зашифрованной */
+  const enc = gzPath + '.gpg'; fs.writeFileSync(enc, encryptForOffsite(fs.readFileSync(gzPath)), { mode: 0o600 });
+  try { const y = require('../shared/yadisk'); const dest = await y.upload(enc, 'leads-db'); const rotated = await y.rotate('leads-db', 14); logger.info({ dest, rotated }, 'off-site uploaded to Yandex.Disk'); return dest; }
+  finally { fs.unlinkSync(enc); }
 }
 
 function rotateLocal(dir, keep) {

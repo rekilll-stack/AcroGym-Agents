@@ -51,3 +51,25 @@ data/studio-week-queue.json
 data/lead-poller-state.json
 docs/payslips/
 data/payroll-overrides.json
+docs/velantis-ui-1.4-shots/
+
+# 22.10: секреты, бэкапы файлов, рантайм и персональные данные (клиенты, дети, банк) — не в git
+.secrets/
+*.bak
+*.bak-*
+*.orig
+*.pre-*
+bak-*/
+__pycache__/
+leads.db
+assets/
+docs/bank/
+data/answer-bot-history.json
+data/answer-bot-log.jsonl
+data/seesaw/
+data/tennis*.json
+data/udst.json
+data/in2-snapshot/
+data/lead-cards.json
+data/mirror-*
+data/skills-scout.json

@@ -1,7 +1,7 @@
 {
   "_comment": "Autopilot carousel template. The agent COPIES templateDesignId, then on each page fills the EXACT element ids below (copy-design preserves ids). bg = full-bleed background image; headline/body/cta = text elements. This removes guesswork so a cheap model places photo+text in the right layers. If the template is changed, re-read its element ids via start-editing-transaction and update this map.",
   "carousel": {
-    "templateDesignId": "DAHN3K_RhAo",
+    "templateDesignId": "DAHSL9owMvg",
     "pages": {
       "1": { "role": "cover", "bg": "PBwKlqpk4kb0QcQT-LBjY09YnK5gjSmrL-LBgbxxyzJxwLmmS0", "headline": "PBwKlqpk4kb0QcQT-LBvQ2SLzYkt0xhXW-LB972YR28mQqSTMq", "cta": "PBwKlqpk4kb0QcQT-LBJTnPltTBxz1LYB" },
       "2": { "role": "inner", "bg": "PBV7t1kqf2NkfFnp", "headline": "PBV7t1kqf2NkfFnp-LBsDNSbg2ryfM3gz", "body": "PBV7t1kqf2NkfFnp-LBzfFdnbQ9H6KQBj" },

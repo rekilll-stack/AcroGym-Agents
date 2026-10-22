@@ -1,0 +1,129 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "API для бронирования корта в UDC — подтверждения",
+    "description": "Передача подтверждённых броней теннисного корта UDC в календарь и раздел тенниса владельца.",
+    "version": "1.1.0"
+  },
+  "servers": [
+    {
+      "url": "https://hook.acrogym.org"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "paths": {
+    "/tennis": {
+      "post": {
+        "operationId": "addTennisBooking",
+        "summary": "Передать одну подтверждённую бронь корта UDC",
+        "description": "Вызывать только после подтверждения UDC. Объединять соседние подтверждённые часы одного корта в одну запись. Передавать только date, from, to и court. Время по Дохе UTC+3. При сетевой ошибке или HTTP 5xx повторить тот же запрос до трёх раз с паузой 60 секунд; после исчерпания попыток сообщить владельцу. HTTP 401 не повторять.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "date",
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Дата игры YYYY-MM-DD, от вчера до 60 дней вперёд.",
+                    "example": "2026-10-22"
+                  },
+                  "from": {
+                    "type": "string",
+                    "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+                    "description": "Начало по Дохе, HH:MM.",
+                    "example": "19:00"
+                  },
+                  "to": {
+                    "type": "string",
+                    "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+                    "description": "Конец по Дохе, HH:MM, позже from.",
+                    "example": "21:00"
+                  },
+                  "court": {
+                    "type": "string",
+                    "description": "Giardino либо Family Park (Costa Malaz).",
+                    "example": "Family Park"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Принято либо уже зарегистрировано. calendar=false означает отложенное добавление, а не подтверждение наличия в календаре.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "calendar": {
+                      "type": "boolean"
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Неверные данные. Исправить по err, сохранив факты подтверждения UDC.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "err": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Неверный ключ: остановиться без повторов и сообщить владельцу."
+          },
+          "403": {
+            "description": "Доступ заблокирован: остановиться до исправления доступа владельцем сервера."
+          },
+          "500": {
+            "description": "Временная серверная ошибка: до трёх повторов с паузой 60 секунд, затем сообщить владельцу."
+          }
+        }
+      }
+    }
+  }
+}

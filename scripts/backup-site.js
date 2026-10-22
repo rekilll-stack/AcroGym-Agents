@@ -59,7 +59,7 @@ const MUST_NOT_MATCH = /(^|\/)\.env$/m; // no secrets in the archive
 const EXCLUDES = [
   `${SITE_REL}/node_modules`, `${SITE_REL}/.nuxt`, `${SITE_REL}/.output`,
   `${SITE_REL}/dist`, `${SITE_REL}/.git`, `${SITE_REL}/public/img`,
-  `${SITE_REL}/public/video`, `${SITE_REL}/.env`,
+  `${SITE_REL}/public/video`, `${SITE_REL}/public/game-ultra`, `${SITE_REL}/.env`,  // game-ultra: превью, владелец 25.09 «не бэкапь»
   `${ADMIN_REL}/node_modules`, `${ADMIN_REL}/.git`, `${ADMIN_REL}/.env`,
   `${ADMIN_REL}/data/*.log`,
 ];
@@ -153,11 +153,10 @@ async function sendOffsite(gzPath, entryCount) {
   const caption =
     `AcroGym site backup\n${name}\n${captionTime()} Doha · ${fmtSize(buf.length)} · ${entryCount} files · daily`;
 
-  const results = await sendDocumentToOwner(buf, name, caption, { parse_mode: null });
-  const sent = Array.isArray(results) ? results.find((r) => r && r.message_id) : null;
-  if (!sent) throw new Error('Telegram off-site: документ не принят (нет message_id)');
-  logger.info({ file: name, message_id: sent.message_id }, 'off-site sent to Telegram');
-  return sent.message_id;
+  /* 27.09: вместо Telegram — Яндекс.Диск (код сайта публичный, без шифрования) */
+  const y = require('../shared/yadisk'); const dest = await y.upload(gzPath, 'site'); const rotated = await y.rotate('site', 14);
+  logger.info({ dest, rotated, caption }, 'off-site uploaded to Yandex.Disk');
+  return dest;
 }
 
 function rotateLocal(dir, keep) {

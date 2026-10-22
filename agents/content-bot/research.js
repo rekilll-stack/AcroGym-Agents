@@ -51,7 +51,15 @@ function buildPrompt(lang = 'ru') {
   try { prev = fs.readFileSync(BRIEF_PATH, 'utf8'); } catch { /* first run */ }
   const reportLang = lang === 'en' ? 'English' : 'Russian';
   return [
-    'You are AcroGym Qatar\'s personal SENIOR social-media strategist. AcroGym is a kids\' gymnastics & acrobatics club in Doha with a new gym at Lagoona Mall; audience = parents of children 3-14; brand voice = warm, energetic, safe, professional.',
+    'You are AcroGym Qatar\'s personal SENIOR social-media strategist. AcroGym is a kids\' gymnastics & acrobatics club in Doha with its own gym at Lagoona Mall, 1st floor; brand voice = warm, energetic, safe, professional.',
+    '',
+    'FACTS ABOUT ACROGYM (ground truth — never contradict, never invent beyond this):',
+    '  - Ages 2-16 in groups (2-3, 3-4, 4-6, 5-7, 7-10, 10-16) plus adult 18+ evening classes. Audience = parents of children 2-16.',
+    '  - 65 classes a week, seven days, max 10 children per class, 4 full-time coaches. Own dedicated hall, air-conditioned, parents can watch.',
+    '  - The first class costs 100 QAR and is credited towards the package. THERE IS NO FREE TRIAL in our public offer. (The only exception is a prize coupon inside the AcroGym Runner game, currently switched OFF — it is not advertised on Instagram.)',
+    '  - Prices: Monthly 550 / 1100 / 1500 QAR for 1 / 2 / 3 times a week; Term 1 (8 Sep - 17 Dec) 1600 / 3100 / 4700; single class 250; 15% off the third child in a family.',
+    '  - 61 families refused photo/video consent — their children must never appear in content.',
+    '  - Founder-coach Kristina: Master of Sports of Russia in sports acrobatics, European Championship medalist.',
     'TASK: run a fresh, deep competitive & market analysis for Instagram, then output an updated strategy brief AND an owner report.',
     '',
     'Use WEB SEARCH / web fetch to research these Qatar competitors (current followers, posting cadence, dominant content themes & formats — Reels vs carousels vs photos, tone, what seems to drive engagement, any campaigns/offers):',
@@ -66,7 +74,7 @@ function buildPrompt(lang = 'ru') {
     '(A concise STRATEGY BRIEF in Markdown that REPLACES the existing brief — the content planner reads this as context. Keep the structure: market landscape table, what rivals over-do, AcroGym\'s differentiation/opportunities, content pillars, voice & visual guardrails. Keep it truthful — no invented prices/dates/names. ~400-600 words.)',
     '',
     '===REPORT===',
-    `(An OWNER-FACING report written ENTIRELY in ${reportLang}, Markdown, SCANNABLE and under ~450 words. Sections (translate the headings into ${reportLang}): "What competitors are doing now" (key numbers/observations, 1 line per competitor), "What works / trends", "Recommendation for the coming cycle" (3-5 concrete steps: which posts/stories/formats), "What to avoid". Speak to the owner directly, like his trusted SMM lead.)`,
+    `(An OWNER-FACING report written ENTIRELY in ${reportLang}, Markdown, SCANNABLE and under ~450 words. Sections (translate the headings into ${reportLang}): "What competitors are doing now" (key numbers/observations, 1 line per competitor), "What works / trends", "Recommendation for the coming cycle" (3-5 concrete steps: which posts/stories/formats), "What to avoid". Speak to the owner directly, like his trusted SMM lead. In "What to avoid", every item MUST be labelled as one of two kinds: an OBSERVED mistake from our own data (then quote the number that proves it) or a STANDING RULE for future posts (then phrase it as a rule, e.g. "rule: we have no free trial, so never promise one"). Never phrase a standing rule so that it reads as something the owner already did — he reads this report as feedback on his work.)`,
     '',
     'Output ONLY those two delimited sections. Begin now.',
     prev ? `\n(Previous brief for reference — improve on it, note what changed:)\n${prev}` : '',

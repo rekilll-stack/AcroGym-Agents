@@ -118,6 +118,21 @@ const TEMPLATES = {
       '(3×/week is 1,500 — the best value per class).\n\n' +
       'Would you like me to suggest a second day that fits your schedule? 😊',
   },
+  refund: {
+    label: { ru: '🙏 Возврат: ребёнок не хочет ходить', en: '🙏 Refund: child stops attending' },
+    // Текст утверждён владельцем 20.10 (T&C V1, раздел 4 — fees are non-refundable).
+    text:
+      'Hello,\n\n' +
+      "Thank you for letting us know. We completely understand: children's interests change, " +
+      "and that's perfectly okay.\n\n" +
+      "Once a period is paid, your child's place in the group is held for them until the end of " +
+      "that period and can't be offered to another child. That's why our fees are non-refundable, " +
+      'as set out in Section 4 of the Terms & Conditions accepted at registration:\n' +
+      'https://docs.google.com/document/d/1s8J_xgIcfMEnB4HCdZIpGkoT2KsdCWXd/\n\n' +
+      "Your child is welcome to attend the remaining classes, and our door is always open if they'd " +
+      'like to come back 🧡\n\n' +
+      'Warm regards,\nAcroGym Sports Academy',
+  },
 };
 
 module.exports = { TEMPLATES };

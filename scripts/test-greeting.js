@@ -27,7 +27,7 @@ if (!process.env.ACROGYM_DB_PATH || process.env.ACROGYM_DB_PATH.includes('data/a
 
 require('../shared/db').getDb(); // open the temp DB (honor convention; no prod mutation)
 const { ageSegment, fallbackGreeting, buildGreetingPrompt } = require('../agents/lead-helper/prompts');
-const { generateText } = require('../shared/claude');
+const { generateText } = require('../agents/content-bot/llm.js');
 
 let pass = 0, fail = 0;
 const test = (n, fn) => { try { fn(); console.log('  ✅', n); pass++; } catch (e) { console.log('  ❌', n, '\n     ' + e.message); fail++; } };

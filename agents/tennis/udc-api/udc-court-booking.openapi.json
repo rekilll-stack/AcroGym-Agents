@@ -1,0 +1,1517 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "API для бронирования корта в UDC",
+    "version": "v1",
+    "description": "API для бронирования корта в UDC. Схема получена 2026-10-15. Вход и чтение проверены на реальном API. Записи бронирования и создания платёжных сессий проверены только в автоматических тестах."
+  },
+  "security": [
+    {
+      "Bearer": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://tpiapp.udcqatar.com"
+    }
+  ],
+  "paths": {
+    "/api/Account/login": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Admin.UserServices.ViewModel.RequestVM.LoginRequestVM"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Admin.UserServices.ViewModel.RequestVM.LoginRequestVM"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Admin.UserServices.ViewModel.RequestVM.LoginRequestVM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Common.ViewModel.ResponseVM.LoginResponseVMAccount]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Common.ViewModel.ResponseVM.LoginResponseVMAccount]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Common.ViewModel.ResponseVM.LoginResponseVMAccount]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Account/refreshtoken": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Admin.UserServices.ViewModel.RequestVM.RefreshTokenVM"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Admin.UserServices.ViewModel.RequestVM.RefreshTokenVM"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Admin.UserServices.ViewModel.RequestVM.RefreshTokenVM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Common.ViewModel.ResponseVM.LoginResponseVMAccount]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Common.ViewModel.ResponseVM.LoginResponseVMAccount]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Common.ViewModel.ResponseVM.LoginResponseVMAccount]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Amenities/GetAll": {
+      "get": {
+        "tags": [
+          "Amenities"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesResponseVM]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesResponseVM]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesResponseVM]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Amenities/GetDuration": {
+      "post": {
+        "tags": [
+          "Amenities"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Request.AmenitiesSlotsRequestVM"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Request.AmenitiesSlotsRequestVM"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Request.AmenitiesSlotsRequestVM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[System.Int32]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[System.Int32]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[System.Int32]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Amenities/GetBookedAmenity": {
+      "get": {
+        "tags": [
+          "Amenities"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenitiesResponseVM]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenitiesResponseVM]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenitiesResponseVM]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Amenities/GetAllSlots": {
+      "post": {
+        "tags": [
+          "Amenities"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Request.AmenitiesSlotsRequestVM"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Request.AmenitiesSlotsRequestVM"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Request.AmenitiesSlotsRequestVM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesSlotsResponseVM]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesSlotsResponseVM]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesSlotsResponseVM]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Amenities/BookAmenities": {
+      "post": {
+        "tags": [
+          "Amenities"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Request.BookAmenitiesRequestVM"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Request.BookAmenitiesRequestVM"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Request.BookAmenitiesRequestVM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenityResponseVM]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenityResponseVM]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenityResponseVM]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Common/get-languages": {
+      "get": {
+        "tags": [
+          "Common"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[System.String]]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[System.String]]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[System.String]]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Payment/paymentAuth": {
+      "post": {
+        "tags": [
+          "Payment"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.RequestVM.PaymentAuthenticationRequestVM"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.RequestVM.PaymentAuthenticationRequestVM"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.RequestVM.PaymentAuthenticationRequestVM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentAuthResponseVM]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentAuthResponseVM]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentAuthResponseVM]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Payment/paymentConfirmation": {
+      "post": {
+        "tags": [
+          "Payment"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.RequestVM.PaymentRequestVM"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.RequestVM.PaymentRequestVM"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.RequestVM.PaymentRequestVM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentTransactionResponseVM]"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentTransactionResponseVM]"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentTransactionResponseVM]"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "apiKey",
+        "description": "JWT Authorization header using the Bearer scheme.",
+        "name": "Authorization",
+        "in": "header"
+      }
+    },
+    "schemas": {
+      "TV.UDC.API.Areas.Admin.UserServices.ViewModel.RequestVM.LoginRequestVM": {
+        "required": [
+          "password",
+          "userName",
+          "userTimeZoneOffset"
+        ],
+        "type": "object",
+        "properties": {
+          "userName": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "password": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "rememberMe": {
+            "type": "boolean"
+          },
+          "userTimeZoneOffset": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Admin.UserServices.ViewModel.RequestVM.RefreshTokenVM": {
+        "required": [
+          "userTimeZoneOffset"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "nullable": true
+          },
+          "refreshToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "userTimeZoneOffset": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Amenities.ViewModel.Request.AmenitiesSlotsRequestVM": {
+        "type": "object",
+        "properties": {
+          "amenityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Amenities.ViewModel.Request.BookAmenitiesRequestVM": {
+        "type": "object",
+        "properties": {
+          "amenityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amenityTypeId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "languageId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isPaymentRequired": {
+            "type": "boolean"
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "bookingDayId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bookingStartTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bookingEndTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bookingTimeSlotId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bookingCharges": {
+            "type": "number",
+            "format": "double"
+          },
+          "bookingChargesAfterDiscount": {
+            "type": "number",
+            "format": "double"
+          },
+          "precinctLock": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesResponseVM": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "amenityTypeId": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "openTime": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "closeTime": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "string",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "string",
+            "nullable": true
+          },
+          "primaryImage": {
+            "type": "string",
+            "nullable": true
+          },
+          "secondaryImage": {
+            "type": "string",
+            "nullable": true
+          },
+          "thumbnailImage": {
+            "type": "string",
+            "nullable": true
+          },
+          "startDay": {
+            "type": "string",
+            "nullable": true
+          },
+          "endDay": {
+            "type": "string",
+            "nullable": true
+          },
+          "precinctLock": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesSlotsResponseVM": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amenityId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "amenityTypeId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dayId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "day": {
+            "type": "string",
+            "nullable": true
+          },
+          "timeSlotId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "timeSlot": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isPaymentRequired": {
+            "type": "boolean"
+          },
+          "bookingCost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "duration": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "isAvailable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "isInException": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenitiesResponseVM": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amenityName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bookingDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "bookingDay": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "bookingStartDateTime": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "bookingEndDateTime": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "bookingTimeSlot": {
+            "type": "string",
+            "nullable": true
+          },
+          "bookingCharges": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "bookingPaymentDeadLine": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bookingReferenceNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "paymentStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "bookingExpiry": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenityResponseVM": {
+        "type": "object",
+        "properties": {
+          "bookingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referenceNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiryDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Common.ViewModel.ResponseVM.LoginResponseVMAccount": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "nullable": true
+          },
+          "refreshToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "roleID": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "userName": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hasQidExpiryUpdateRequest": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Payment.ViewModel.RequestVM.OrderRequestVM": {
+        "required": [
+          "amount",
+          "currency",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Payment.ViewModel.RequestVM.PaymentAuthenticationRequestVM": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.RequestVM.OrderRequestVM"
+          },
+          "paymentPlanItemsIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "nullable": true
+          },
+          "unitId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookedAmenityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customerOnboardingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "registryTransactionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Payment.ViewModel.RequestVM.PaymentRequestVM": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "orderId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.CustomerResponseVM": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.OrderResponseVM": {
+        "required": [
+          "amount",
+          "currency",
+          "description",
+          "number"
+        ],
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "string",
+            "nullable": true
+          },
+          "amount": {
+            "type": "string",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentAuthResponseVM": {
+        "type": "object",
+        "properties": {
+          "redirectURL": {
+            "type": "string",
+            "nullable": true
+          },
+          "orderId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentTransactionResponseVM": {
+        "type": "object",
+        "properties": {
+          "payment_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.OrderResponseVM"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.CustomerResponseVM"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[System.Int32]]": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "successful": {
+            "type": "boolean"
+          },
+          "codeStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageNo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalRecord": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sortColumn": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortAscending": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "searchFilters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionSearchFieldResponseVM"
+            },
+            "nullable": true
+          },
+          "roleID": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[System.String]]": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "successful": {
+            "type": "boolean"
+          },
+          "codeStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageNo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalRecord": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sortColumn": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortAscending": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "searchFilters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionSearchFieldResponseVM"
+            },
+            "nullable": true
+          },
+          "roleID": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesResponseVM]]": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesResponseVM"
+            },
+            "nullable": true
+          },
+          "successful": {
+            "type": "boolean"
+          },
+          "codeStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageNo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalRecord": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sortColumn": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortAscending": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "searchFilters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionSearchFieldResponseVM"
+            },
+            "nullable": true
+          },
+          "roleID": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesSlotsResponseVM]]": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Response.AmenitiesSlotsResponseVM"
+            },
+            "nullable": true
+          },
+          "successful": {
+            "type": "boolean"
+          },
+          "codeStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageNo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalRecord": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sortColumn": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortAscending": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "searchFilters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionSearchFieldResponseVM"
+            },
+            "nullable": true
+          },
+          "roleID": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[System.Collections.Generic.List`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenitiesResponseVM]]": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenitiesResponseVM"
+            },
+            "nullable": true
+          },
+          "successful": {
+            "type": "boolean"
+          },
+          "codeStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageNo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalRecord": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sortColumn": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortAscending": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "searchFilters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionSearchFieldResponseVM"
+            },
+            "nullable": true
+          },
+          "roleID": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenityResponseVM]": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TV.UDC.API.Areas.Amenities.ViewModel.Response.BookedAmenityResponseVM"
+          },
+          "successful": {
+            "type": "boolean"
+          },
+          "codeStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageNo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalRecord": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sortColumn": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortAscending": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "searchFilters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionSearchFieldResponseVM"
+            },
+            "nullable": true
+          },
+          "roleID": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Common.ViewModel.ResponseVM.LoginResponseVMAccount]": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TV.UDC.API.Areas.Common.ViewModel.ResponseVM.LoginResponseVMAccount"
+          },
+          "successful": {
+            "type": "boolean"
+          },
+          "codeStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageNo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalRecord": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sortColumn": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortAscending": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "searchFilters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionSearchFieldResponseVM"
+            },
+            "nullable": true
+          },
+          "roleID": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentAuthResponseVM]": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentAuthResponseVM"
+          },
+          "successful": {
+            "type": "boolean"
+          },
+          "codeStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageNo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalRecord": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sortColumn": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortAscending": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "searchFilters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionSearchFieldResponseVM"
+            },
+            "nullable": true
+          },
+          "roleID": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Core.ViewModel.ResponseVM.ActionResponseVM`1[TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentTransactionResponseVM]": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TV.UDC.API.Areas.Payment.ViewModel.ResponseVM.PaymentTransactionResponseVM"
+          },
+          "successful": {
+            "type": "boolean"
+          },
+          "codeStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageNo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalRecord": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sortColumn": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortAscending": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "searchFilters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TV.UDC.API.Core.ViewModel.ResponseVM.ActionSearchFieldResponseVM"
+            },
+            "nullable": true
+          },
+          "roleID": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TV.UDC.API.Core.ViewModel.ResponseVM.ActionSearchFieldResponseVM": {
+        "type": "object",
+        "properties": {
+          "columnName": {
+            "type": "string",
+            "nullable": true
+          },
+          "searchText": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

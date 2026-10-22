@@ -34,5 +34,8 @@
     "node": ">=20.0.0"
   },
   "author": "AcroGym",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "overrides": {
+    "request": "npm:@cypress/request@^3.0.10"
+  }
 }

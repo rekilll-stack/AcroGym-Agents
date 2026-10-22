@@ -44,6 +44,13 @@ const WATCHED = [
   // cron → 70-min threshold tolerates one transient miss, catches a real
   // stall within the hour. pm2:false → no auto-restart (cron re-runs itself).
   { name: 'registrations-poller', thresholdMs: 70 * 60 * 1000, kind: 'cron', pm2: false },
+  // Meta-поллер: цикл 15 мин; порог 50 мин = 3 пропуска. ГРАБЛЯ 30.07-01.09: выпал из pm2
+  // на рестарте демона и 2 месяца никто не заметил — Make был единственным путём Meta-лидов.
+  { name: 'lead-poller', thresholdMs: 50 * 60 * 1000, kind: 'telegram' },
+  // Почтовый секретарь: urgent-крон каждый час; 130 мин = 2 пропуска (грабля 30-31.08: сутки молчал).
+  { name: 'mail-digest', thresholdMs: 130 * 60 * 1000, kind: 'cron', pm2: false },
+  // Мост приложения Джарвис: пульс раз в минуту из server2.js; 5 мин = 4 пропуска. Аудит 02.09: падение моста не замечал никто.
+  { name: 'jarvis-bridge', thresholdMs: 5 * 60 * 1000, kind: 'bridge' },
 ];
 
 // Backup dead-man's-switch: the daily cron drops a .db.gz into backups/daily/
@@ -156,6 +163,15 @@ function evaluate(agent, hb, proc, now) {
   const uptimeMs = proc && proc.pmUptime && status === 'online' ? now - proc.pmUptime : 0;
   const warmingUp = status === 'online' && uptimeMs > 0 && uptimeMs < agent.thresholdMs;
 
+  // 0.5) Намеренная остановка. `pm2 stop` ставит статус 'stopped' — это ручное
+  // действие человека (техобслуживание), а не падение: упавший процесс pm2
+  // сам поднимает, а сдавшись помечает 'errored'/'not-found'. Тревожить не о
+  // чем, но агент попадёт в утренний пинг строкой «выключен вручную», чтобы
+  // выключенным его не забыли навсегда.
+  if (proc && status === 'stopped') {
+    return { problem: false, reason: 'muted', detailHtml: '' };
+  }
+
   // 1) Process not online (and pm2 known) → crashed / stopped
   if (proc && status !== 'online') {
     return {
@@ -176,6 +192,8 @@ function evaluate(agent, hb, proc, now) {
   if (isStale) {
     const what = agent.kind === 'sheets'
       ? `Нет успешного цикла опроса Google Sheets уже <b>${fmtMins(ageMs)} мин</b>`
+      : agent.kind === 'bridge'
+      ? `Мост приложения Джарвис не подаёт пульс уже <b>${fmtMins(ageMs)} мин</b> — экраны приложения не загрузятся`
       : `Нет успешного цикла Telegram-probe уже <b>${fmtMins(ageMs)} мин</b>`;
     const procLine = proc
       ? `Процесс в PM2: <b>online</b> → завис (процесс жив, циклы стоят).`
@@ -232,6 +250,13 @@ async function tick() {
 
     const prev = (getAlertState(agent.name) || {}).alert_state || 'ok';
 
+    // Выключен вручную: молчим и снимаем тревогу БЕЗ сообщения «восстановлен»
+    // (он не восстановился — его остановили намеренно).
+    if (reason === 'muted') {
+      if (prev !== 'ok') { setAlertState(agent.name, 'ok', now); logger.info({ agent: agent.name }, 'muted (pm2 stopped)'); }
+      continue;
+    }
+
     if (problem && prev === 'ok') {
       // Auto-recover a hung agent (process online but poll loop frozen — pm2
       // won't restart it on its own). Crashes ('down') are left to pm2.
@@ -271,10 +296,14 @@ async function tick() {
 
 async function dailyPing() {
   const lines = ['✅ <b>watchdog жив</b>, агенты под наблюдением.'];
+  const snap = await pm2Snapshot();
   for (const agent of WATCHED) {
     const hb  = (() => { try { return readHeartbeat(agent.name); } catch { return null; } })();
     const age = hb && hb.last_ok_at ? `${fmtMins(Date.now() - hb.last_ok_at)} мин назад` : 'нет данных';
-    lines.push(`• ${htmlEscape(agent.name)}: последний ок ${age}`);
+    const st  = snap ? (snap.get(agent.name) || {}).status : null;
+    lines.push(st === 'stopped'
+      ? `• ${htmlEscape(agent.name)}: ⏸ <b>выключен вручную</b> (тревог не шлю)`
+      : `• ${htmlEscape(agent.name)}: последний ок ${age}`);
   }
 
   const bk = backupFreshness();

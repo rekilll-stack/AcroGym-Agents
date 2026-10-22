@@ -22,7 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('canvas');
 const yandex = require('../agents/content-bot/yandex');
-const { generateText } = require('../shared/claude');
+const { generateText } = require('../agents/content-bot/llm.js');
 
 const MODEL = process.env.CONTENT_CATALOG_MODEL || 'claude-haiku-4-5-20251001';
 const OUT = path.join(__dirname, '..', 'data', 'photo-catalog.json');

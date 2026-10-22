@@ -9,7 +9,7 @@
 // into nurture.buildAndSendQueue via { buildContent } (default there stays the
 // placeholder, so this real content only ships where lead-helper wires it).
 
-const { generateText } = require('../../shared/claude');
+const { generateText } = require('../content-bot/llm.js');
 const { createLogger }  = require('../../shared/logger');
 const { buildDripPrompt, dripFallback } = require('./prompts');
 

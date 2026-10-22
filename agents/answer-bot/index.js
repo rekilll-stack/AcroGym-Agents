@@ -106,7 +106,7 @@ const STR = {
     tooShort: 'Напиши вопрос словами или перешли сообщение клиента — отвечу 🤸',
     forgot: '🧹 Диалог забыт, начинаем с чистого листа.',
     tplPick: '📎 Готовые тексты — жми, пришлю для копирования:',
-    tplCopy: '📋 Зажми сообщение → Copy',
+    tplCopy: '📋 Жми «Copy» над текстом — и вставляй в WhatsApp',
     noGaps: '👍 Пробелов не накопилось — на всё отвечал по базе.',
     gapsHead: '❓ Вопросы, где мне не хватило базы знаний:',
     kbEmpty: '📚 Выученных фактов пока нет — учите через «запомни: …»',
@@ -129,7 +129,7 @@ const STR = {
     tooShort: 'Type the question in words or forward the client message — I will answer 🤸',
     forgot: '🧹 Conversation cleared, starting fresh.',
     tplPick: '📎 Ready-made texts — tap one to get a copyable message:',
-    tplCopy: '📋 Long-press the message → Copy',
+    tplCopy: '📋 Tap «Copy» above the text, then paste into WhatsApp',
     noGaps: '👍 No gaps — everything was answered from the knowledge base.',
     gapsHead: '❓ Questions where the knowledge base was not enough:',
     kbEmpty: '📚 No learned facts yet — teach me via "remember: …"',
@@ -226,7 +226,15 @@ async function handleScreenshot(msg) {
       'Attached is a SCREENSHOT of a WhatsApp conversation with a client. Read it ' +
       'carefully, find the client\'s latest unanswered question(s), and produce the reply.';
     const hist = history[String(chatId)] || [];
-    const answer = await engineAnswer(q, hist, [{ media_type: 'image/jpeg', data }], uiLang(chatId));
+    let answer = await engineAnswer(q, hist, [{ media_type: 'image/jpeg', data }], uiLang(chatId));
+    if (looksLikeGap(answer)) { // глубокий режим и для скриншотов: картинку уже прочитал первый проход — даём его черновик
+      await bot.sendMessage(chatId, S(chatId).deep).catch(() => {});
+      await bot.sendChatAction(chatId, 'typing').catch(() => {});
+      const dq = (caption ? caption + '\n\n' : '') + 'A client wrote in WhatsApp (screenshot). The first draft reply, written after reading the screenshot, was:\n"""\n' +
+        answer + '\n"""\nResearch the open points and write the full reply to the client.';
+      try { answer = await deepAnswer(dq, hist, uiLang(chatId)); }
+      catch (e) { logger.warn({ e: e.message }, 'deep answer (screenshot) failed — отправляю обычный'); }
+    }
     const shotRows = looksLikeGap(answer) ? [[{ text: S(chatId).btnAsk, callback_data: 'ask_owner' }]] : [];
     await sendAnswer(chatId, answer, shotRows);
     pushHistory(chatId, 'user', '[скриншот переписки]' + (caption ? ' ' + caption : ''));
@@ -422,7 +430,9 @@ bot.on('callback_query', async (query) => {
   }
   if (data.startsWith('tpl:')) {
     const t = TEMPLATES[data.slice(4)];
-    if (t && msg) await bot.sendMessage(msg.chat.id, t.text, { disable_web_page_preview: true }).catch(() => {});
+    // Блок кода: в Telegram у него кнопка «Copy» — текст для WhatsApp копируется одним нажатием.
+    const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (t && msg) await bot.sendMessage(msg.chat.id, '<pre><code class="language-WhatsApp">' + esc(t.text) + '</code></pre>', { parse_mode: 'HTML', disable_web_page_preview: true }).catch(() => {});
     return void bot.answerCallbackQuery(query.id, { text: msg ? S(msg.chat.id).tplCopy : '📋' }).catch(() => {});
   }
   if (!msg || !pendingFacts.has(msg.message_id)) {

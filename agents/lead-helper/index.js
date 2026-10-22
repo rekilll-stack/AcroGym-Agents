@@ -10,7 +10,7 @@ const { fetchAllResponses } = require('../../shared/sheets');
 const { mapColumns }        = require('../../shared/column-mapper');
 const { parseClientType }   = require('../../shared/client-type');
 const { normalizePhone, normalizeEmail } = require('../../shared/normalize');
-const { generateText }      = require('../../shared/claude');
+const { generateText }      = require('../content-bot/llm.js');
 const { sendToAdmin }       = require('../../shared/notify');
 const {
   editMessage,
@@ -597,4 +597,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { saveLead };
+module.exports = { saveLead, buildCard, respondedKeyboard };

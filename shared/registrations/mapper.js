@@ -79,7 +79,12 @@ function mapRow(headers, values) {
   const optin_at       = whatsapp_optin ? submitted_at : null;
   const optin_version  = whatsapp_optin ? OPTIN_VERSION : null;
 
-  const photo_consent = anyNonEmpty(hs, values, n => n.includes('photographed') || n.includes('social media')) ? 1 : 0;
+  /* ⚠️ 08.09: в форме это вопрос с ответами «Yes – I grant…» / «No – I do not grant…», а не галочка.
+     Раньше считали согласием ЛЮБОЙ непустой ответ → у 61 семьи «No» лежало как «да». Согласие = ответ начинается с Yes;
+     нет ответа = нет согласия (безопасный дефолт, речь о фото детей). */
+  const photoAns = (hs || []).map((h, i) => [String(h || '').toLowerCase(), String((values || [])[i] ?? '').trim()])
+    .filter(([n, v]) => v && (n.includes('photographed') || n.includes('social media'))).map(([, v]) => v);
+  const photo_consent = photoAns.length && photoAns.every(a => /^\s*yes/i.test(a)) ? 1 : 0;
   const tc_accepted   = anyNonEmpty(hs, values, n => n.includes('acceptance')) ? 1 : 0;
 
   // Children: linked name↔dob groups, branch-aware. Store the time-INVARIANT

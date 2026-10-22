@@ -600,6 +600,7 @@ module.exports = {
   sendMediaGroupToOwner,
   sendDocumentToOwner,
   editMessage,
+  getOwnerBot, // 13.10: mirror-live закрепляет сообщение-счётчик
   registerCallback,
   startCallbackPolling,
   registerOwnerCallback,

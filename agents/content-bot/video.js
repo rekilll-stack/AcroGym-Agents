@@ -122,19 +122,27 @@ async function cleanReel(inputPath, { maxSeconds } = {}) {
  * @param {object} [opts] { maxSeconds }
  * @returns {Promise<{buffer:Buffer, poster:Buffer}>}
  */
-async function brandReel(inputPath, { maxSeconds } = {}) {
+async function brandReel(inputPath, { maxSeconds, title, subtitle, startSeconds } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'reel-brand-'));
   const outMp4 = path.join(dir, 'reel.mp4');
   const posterPng = path.join(dir, 'poster.png');
   // logo-white reads on most footage (busy/coloured); ~22% of the 1080 canvas.
   const logo = path.join(__dirname, '../../config/brand/logo-white.png');
+  /* подписи (владелец 12.09): большая строка белым + вторая брендовым оранжевым, над зоной интерфейса Instagram */
+  const FONT = '/usr/share/fonts/opentype/montserrat/Montserrat-ExtraBold.otf';
+  const esc = (t) => String(t).replace(/[\\:']/g, (c) => '\\' + c); /* drawtext ест \ : ' */
+  const dt = [];
+  if (title) dt.push(`drawtext=fontfile=${FONT}:text='${esc(title)}':fontcolor=white:fontsize=78:x=(w-text_w)/2:y=h-450:box=1:boxcolor=black@0.38:boxborderw=22:shadowcolor=black@0.55:shadowx=0:shadowy=5`);
+  if (subtitle) dt.push(`drawtext=fontfile=${FONT}:text='${esc(subtitle)}':fontcolor=0xF37021:fontsize=48:x=(w-text_w)/2:y=h-350:box=1:boxcolor=black@0.38:boxborderw=18:shadowcolor=black@0.55:shadowx=0:shadowy=4`);
   const fc = [
     '[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[v]',
     '[1:v]scale=240:-1,format=rgba,colorchannelmixer=aa=0.9[lg]',
-    '[v][lg]overlay=W-w-40:40,format=yuv420p[out]',
+    `[v][lg]overlay=W-w-40:40${dt.length ? ',' + dt.join(',') : ''},format=yuv420p[out]`,
   ].join(';');
   const args = [
-    '-y', '-i', inputPath, '-i', logo,
+    '-y',
+    ...(startSeconds ? ['-ss', String(startSeconds)] : []), /* срезать тёмный въезд: первые 2 секунды рилса решают */
+    '-i', inputPath, '-i', logo,
     '-filter_complex', fc,
     '-map', '[out]', '-map', '0:a:0?', // branded video + her audio (if any)
     '-dn', '-map_metadata', '-1',

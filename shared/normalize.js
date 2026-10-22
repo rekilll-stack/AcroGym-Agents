@@ -9,7 +9,13 @@
  */
 function normalizePhone(raw) {
   if (!raw) return null;
-  let digits = String(raw).replace(/\D/g, '');
+  // 27.08.2026: восточно-арабские (٠-٩) и персидские (۰-۹) цифры транслитерируем в ASCII —
+  // клиенты Катара так вводят номера; \D их выбрасывал и лид терялся (кейс Heba Badr).
+  // KEEP IN SYNC с нодой «Validate token + normalize» n8n website-workflow.
+  const s = String(raw)
+    .replace(/[\u0660-\u0669]/g, (ch) => String(ch.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (ch) => String(ch.charCodeAt(0) - 0x06F0));
+  let digits = s.replace(/\D/g, '');
   if (!digits) return null;
 
   // Remove leading zeros

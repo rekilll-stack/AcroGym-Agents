@@ -35,12 +35,12 @@ async function upload1(localFile, kind, name) {
   for (let i = 0; i < 20; i++) { const m = await req('GET', `${API}/resources?${q({ path: dest, fields: 'size' })}`); if (m.status === 200 && m.js && m.js.size === size) return dest; await new Promise((r) => setTimeout(r, 3000)); }
   throw new Error('на Диске размер не совпал с локальным: ' + dest);
 }
-/* 03.10: одна сетевая икота (read ECONNRESET в 03:34) роняла ночной бэкап сайта — до 3 попыток; повтор безопасен (overwrite + сверка размера) */
+/* 03.10: одна сетевая икота (read ECONNRESET в 03:34) роняла ночной бэкап сайта — до 5 попыток (≈5 мин, 11.10); повтор безопасен (overwrite + сверка размера) */
 const NET = /ECONNRESET|ETIMEDOUT|EPIPE|EAI_AGAIN|ENOTFOUND|socket hang up|таймаут|: 5\d\d /;
 async function upload(localFile, kind, name, wait = 30000) {
   for (let i = 1; ; i++) {
     try { return await upload1(localFile, kind, name); }
-    catch (e) { if (i >= 3 || !NET.test((e.code || '') + ' ' + e.message)) throw e; await new Promise((r) => setTimeout(r, wait * i)); }
+    catch (e) { if (i >= 5 || !NET.test((e.code || '') + ' ' + e.message)) throw e; await new Promise((r) => setTimeout(r, wait * i)); } /* 11.10: Я.Диск отдавал 500 дольше 1,5 мин — 5 попыток ≈ 5 мин */
   }
 }
 /* оставить на Диске последние keep файлов вида kind (по имени — в именах дата) */

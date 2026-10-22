@@ -11,8 +11,8 @@ const in2 = require('/home/admin/acrogym/shared/in2');
 const ARG = process.argv.slice(2);
 const OCC = (ARG.find((a) => a.startsWith('--occ=')) || '').split('=')[1];
 const DATE = ARG.find((a) => /^\d{4}-\d{2}-\d{2}$/.test(a)) || new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
-/* правило владельца: будни до 12:00 — 6 мест, суббота и всё дневное — 10 */
-const slotsFor = (date, hhmm) => { const d = new Date(date + 'T00:00:00Z').getUTCDay(); return (d !== 6 && d !== 0 && +hhmm.slice(0, 2) < 12) ? 6 : 10; };
+/* правило владельца: будни до 12:00 — 6 мест; пятница (с 10.10), суббота и всё дневное — 10 */
+const slotsFor = (date, hhmm) => { const d = new Date(date + 'T00:00:00Z').getUTCDay(); return (d !== 6 && d !== 0 && d !== 5 && +hhmm.slice(0, 2) < 12) ? 6 : 10; };
 
 const readForm = (page) => page.evaluate(() => {
   const val = (ph) => { const i = document.querySelector(`input[placeholder="${ph}"]`); return i ? i.value : null; };

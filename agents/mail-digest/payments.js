@@ -29,6 +29,20 @@ const KEYS = 'Transaction Type|Transaction Reference|Company Name|Alias Name|Deb
 const field = (t, k) => { const m = new RegExp('(?:' + k + ')\\s*:\\s*(.*?)\\s*(?=(?:' + KEYS + ')\\s*:|Should you|$)').exec(t); return m ? m[1].replace(/^#/, '').trim() : ''; };
 const iso = (dmy) => { const m = /(\d{1,2})[/-](\w{2,3}|\d{1,2})[/-](\d{4})/.exec(dmy || ''); if (!m) return null; const mon = isNaN(+m[2]) ? 'JanFebMarAprMayJunJulAugSepOctNovDec'.indexOf(m[2].slice(0, 3)) / 3 + 1 : +m[2]; return `${m[3]}-${String(mon).padStart(2, '0')}-${m[1].padStart(2, '0')}`; };
 const num = (s) => +String(s || '').replace(/,/g, '') || 0;
+/* 14.10 грабля: SWIFT в рупиях (PKR 17 806,27) записался как 17 806 QAR — переводили только USD. Теперь любая валюта → QAR:
+   USD — по привязке 3.64; прочие — курс дня open.er-api.com (кэш в mail.db fx на дату), запасной — грубая таблица; курса нет вовсе — не записываем (вернётся через 10 мин). */
+DB.exec('CREATE TABLE IF NOT EXISTS fx (d TEXT, cur TEXT, rate REAL, PRIMARY KEY (d, cur))');
+const FX_ROUGH = { EUR: 3.95, GBP: 4.6, AED: 0.991, SAR: 0.97, KWD: 11.85, OMR: 9.46, BHD: 9.66, PKR: 1 / 76, INR: 1 / 23, RUB: 1 / 22, TRY: 1 / 10, CNY: 0.5 }; /* QAR за 1 единицу; только если сеть недоступна */
+async function toQar(cur, amount) {
+  if (!cur || cur === 'QAR') return { qar: amount, rate: 1 };
+  if (cur === 'USD') return { qar: Math.round(amount * USD * 100) / 100, rate: USD };
+  const d = new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+  let rate = (DB.prepare('SELECT rate FROM fx WHERE d=? AND cur=?').get(d, cur) || {}).rate, src = 'курс дня';
+  if (!rate) { try { const r = await fetch('https://open.er-api.com/v6/latest/QAR', { signal: AbortSignal.timeout(10000) }).then((x) => x.json()); const per = r && r.rates && r.rates[cur]; if (per > 0) { rate = 1 / per; DB.prepare('INSERT OR REPLACE INTO fx(d,cur,rate) VALUES(?,?,?)').run(d, cur, rate); } } catch (_) { /* сеть */ } }
+  if (!rate && FX_ROUGH[cur]) { rate = FX_ROUGH[cur]; src = 'примерный курс'; }
+  if (!rate) return null;
+  return { qar: Math.round(amount * rate * 100) / 100, rate, src };
+}
 
 /* письмо банка → операция {ref, type, date, benef, amount(QAR), cref} или null */
 async function parse(id) {
@@ -43,8 +57,9 @@ async function parse(id) {
     const txt = execFileSync(PY, ['-c', 'import sys\nfrom pypdf import PdfReader\nr=PdfReader(sys.argv[1])\nif r.is_encrypted: r.decrypt(sys.argv[2])\nprint(" ".join((p.extract_text() or "") for p in r.pages))', tmp, CR], { timeout: 60000 }).toString().replace(/\s+/g, ' ');
     fs.unlinkSync(tmp);
     const cur = /amount of (\w{3}) ([\d,]+\.\d\d)/.exec(txt) || [];
-    const amt = num(cur[2]) * (cur[1] === 'USD' ? USD : 1);
-    return { ref: (/reference number (\w+)/.exec(txt) || /REF:\s*(\w+)/.exec(subj) || [])[1], type: 'SWIFT ' + (cur[1] || ''), date: iso((/Value Date (\d{1,2}-\w{3}-\d{4})/.exec(txt) || [])[1]), benef: ((/Receiver Name (.+?) Receiver Account/.exec(txt) || [])[1] || '').trim(), amount: Math.round(amt), cref: ((/Purpose (.+?) Processing Date/.exec(txt) || [])[1] || '').trim(), orig: cur[1] ? cur[1] + ' ' + cur[2] : '' };
+    const fx = await toQar(cur[1], num(cur[2])); if (!fx) return { ref: (/reference number (\w+)/.exec(txt) || [])[1] || 'swift-' + id, type: 'SWIFT ' + cur[1], skip: 'нет курса ' + cur[1] + ' — запишу, когда будет' };
+    const amt = fx.qar;
+    return { ref: (/reference number (\w+)/.exec(txt) || /REF:\s*(\w+)/.exec(subj) || [])[1], type: 'SWIFT ' + (cur[1] || ''), date: iso((/Value Date (\d{1,2}-\w{3}-\d{4})/.exec(txt) || [])[1]), benef: ((/Receiver Name (.+?) Receiver Account/.exec(txt) || [])[1] || '').trim(), amount: Math.round(amt), cref: ((/Purpose (.+?) Processing Date/.exec(txt) || [])[1] || '').trim(), orig: cur[1] && cur[1] !== 'QAR' ? cur[1] + ' ' + cur[2] + ' → ' + amt + ' QAR (' + (cur[1] === 'USD' ? 'привязка 3.64' : fx.src + ' ' + (1 / fx.rate).toFixed(2) + ' ' + cur[1] + '/QAR') + ')' : '' };
   }
   return null;
 }
@@ -78,10 +93,10 @@ function decide(tx) {
     if (d.booked > 0) {
       const refund = /refund|возврат/i.test(tx.cref || '');
       const name = (refund ? 'Возврат клиенту ' : '') + tx.benef + (tx.cref && !refund ? ` (${tx.cref})` : '') + ' · auto';
-      const note = `авто из банка: ${tx.type} ${tx.ref}${tx.orig ? ', ' + tx.orig + ' × ' + USD : ''}${d.why ? '; ' + d.why : ''}`;
+      const note = `авто из банка: ${tx.type} ${tx.ref}${tx.orig ? ', ' + tx.orig : ''}${d.why ? '; ' + d.why : ''}`;
       const r = TEST ? (log('[test] finance_add', name, d.booked, tx.date), { ok: true }) : JSON.parse(await require('/home/admin/mcp-servers/jarvis-schedule/bridge.js').call('finance_add', { kind: 'oneoff', name, amount: d.booked, date: tx.date, note }));
       if (!r.ok) { log('finance_add fail', tx.ref, JSON.stringify(r)); continue; } /* не помечаем — повторим через 10 минут */
-      DB.prepare('INSERT OR REPLACE INTO notif(id,title,body,at) VALUES(?,?,?,?)').run('pay-' + tx.ref, '💳 Оплата внесена в Финансы', `${tx.benef}: ${d.booked.toLocaleString('ru-RU')} QAR (${tx.date})${tx.cref ? ' · ' + tx.cref : ''}`, new Date().toISOString());
+      DB.prepare('INSERT OR REPLACE INTO notif(id,title,body,at) VALUES(?,?,?,?)').run('pay-' + tx.ref, '💳 Оплата внесена в Финансы', `${tx.benef}: ${d.booked.toLocaleString('ru-RU')} QAR (${tx.date})${tx.orig ? ' · ' + tx.orig : ''}${tx.cref ? ' · ' + tx.cref : ''}`, new Date().toISOString());
       added++;
     }
     DB.prepare('INSERT OR REPLACE INTO bank_tx(ref,date,benef,amount,cref,action,booked,at) VALUES(?,?,?,?,?,?,?,?)').run(tx.ref, tx.date || null, tx.benef || null, tx.amount || 0, tx.cref || null, d.action, d.booked, new Date().toISOString());
