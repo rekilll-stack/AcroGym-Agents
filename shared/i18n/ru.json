@@ -218,9 +218,9 @@
     "exec_headline_revenue": "Выручка",
     "exec_headline_leads": "Новые лиды",
     "exec_headline_students": "Активные ученики",
-    "exec_status_green": "🟢 Сильный месяц, все KPI на цели или выше",
-    "exec_status_yellow": "🟡 Хороший месяц, есть зоны для роста",
-    "exec_status_red": "🔴 Ниже цели, требуется реакция",
+    "exec_status_green": "🟢 Лиды и поступления выше прошлого месяца",
+    "exec_status_yellow": "🟡 Часть показателей ниже прошлого месяца",
+    "exec_status_red": "🔴 Лиды и поступления ниже прошлого месяца",
     "exec_first_month": "\\(первый месяц трекинга\\)",
     "exec_key_events": "Ключевые события месяца",
     "exec_vs_prev_month": "против {{count}} в прошлом месяце, {{sign}}{{percent}}%",
@@ -289,7 +289,43 @@
     "gym_expiring": "Истекают в ближайшие 14 дней",
     "gym_until": "до",
     "gym_churn": "Перестали ходить",
-    "gym_churn_of": "из"
+    "gym_churn_of": "из",
+    "exec_received": "Получено денег",
+    "exec_active_kids": "Активных детей сейчас",
+    "leads_funnel_line": "из заявок месяца: карточка в in2 {{cards}} · пробное {{trials}} · купили {{bought}} ({{revenue}} QAR)",
+    "leads_trials_line": "Пробные в зале за месяц: {{total}} детей → купили {{bought}} ({{pct}}%)",
+    "src_meta_make": "Meta (реклама)",
+    "src_website_form": "Сайт",
+    "gym_classes_line": "Занятий: {{classes}} · детей на занятиях: {{kids}} · в среднем {{avg}} на занятии",
+    "gym_load_line": "Загрузка зала: {{pct}}% (детей от мест) · занятий без детей: {{empty}}",
+    "gym_money_line": "Деньги: получено {{received}} QAR · продано {{invoiced}} QAR",
+    "gym_overdue_line": "Просрочено клиентами: {{sum}} QAR ({{families}} {{fw}})",
+    "gym_coaches_title": "Тренеры (дети и ЗП по Payroll in2)",
+    "gym_coach_line": "{{name}} — {{classes}} {{cw}}, {{kids}} {{kw}}, ЗП {{pay}} QAR",
+    "gym_salary_word": "оклад",
+    "gym_payroll_total": "ЗП всего по Payroll in2: {{total}} QAR (тренеры {{coaches}}, остальной персонал {{staff}})",
+    "gym_active_kids": "Активных детей: {{kids}} (абонементов {{packages}})",
+    "gym_renewals": "Продления (абонементы, закончившиеся за месяц): продлили {{renewed}} · не продлили {{lost}} · ещё решают {{pending}}",
+    "gym_no_payroll": "Payroll in2 не ответил — дети и ЗП не посчитаны",
+    "outlook_expiring_next": "{{month}}: заканчивается абонементов — {{count}}",
+    "outlook_not_renewed": "Не продлили за {{month}}: {{count}} — список в Джарвисе → «Продления»",
+    "health_within_hour": "Ответ в течение часа: {{n}} из {{total}} ({{pct}}%)",
+    "health_note": "считается по кнопке «✅ Ответил» в карточке лида",
+    "pl_classes": [
+      "занятие",
+      "занятия",
+      "занятий"
+    ],
+    "pl_kids": [
+      "ребёнок",
+      "ребёнка",
+      "детей"
+    ],
+    "pl_families": [
+      "семья",
+      "семьи",
+      "семей"
+    ]
   },
   "pending": {
     "title": "🔥 *Висящие лиды*",
@@ -529,8 +565,8 @@
     "weekly_trend": "Лиды по дням (последние 4 недели)",
     "series_this_week": "Эта неделя",
     "series_prev_week": "Прошлая неделя",
-    "gym_visits_trend": "Посещения зала по дням",
-    "gym_trainers": "Тренеры по посещениям"
+    "gym_visits_trend": "Дети на занятиях по дням",
+    "gym_trainers": "Дети у тренеров за месяц"
   },
   "nurture_summary": {
     "title": "📊 Nurture — сводка прогона",

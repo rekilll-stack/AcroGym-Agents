@@ -50,6 +50,8 @@ data/studio-notify/
 data/studio-week-queue.json
 data/lead-poller-state.json
 docs/payslips/
+docs/board/
+agents/board/strategy.md
 data/payroll-overrides.json
 docs/velantis-ui-1.4-shots/
 

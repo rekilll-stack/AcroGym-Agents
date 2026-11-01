@@ -11,8 +11,9 @@ const in2 = require('/home/admin/acrogym/shared/in2');
 const ARG = process.argv.slice(2);
 const OCC = (ARG.find((a) => a.startsWith('--occ=')) || '').split('=')[1];
 const DATE = ARG.find((a) => /^\d{4}-\d{2}-\d{2}$/.test(a)) || new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
-/* правило владельца: будни до 12:00 — 6 мест; пятница (с 10.10), суббота и всё дневное — 10 */
-const slotsFor = (date, hhmm) => { const d = new Date(date + 'T00:00:00Z').getUTCDay(); return (d !== 6 && d !== 0 && d !== 5 && +hhmm.slice(0, 2) < 12) ? 6 : 10; };
+/* правило владельца: будни до 12:00 — 6 мест; пятница (с 10.10), суббота и всё дневное — 10. Будни в Катаре — вс–чт (27.10: утренние группы Рауфа вс/вт/чт — по 6) */
+/* 01.11 владелец: пятница утро у Андрея (08:00 18+, 09:00 и 10:00 7-10) — по 8 мест */
+const slotsFor = (date, hhmm) => { const d = new Date(date + 'T00:00:00Z').getUTCDay(); if (d === 5 && ['08:00', '09:00', '10:00'].includes(hhmm)) return 8; return (d !== 6 && d !== 5 && +hhmm.slice(0, 2) < 12) ? 6 : 10; };
 
 const readForm = (page) => page.evaluate(() => {
   const val = (ph) => { const i = document.querySelector(`input[placeholder="${ph}"]`); return i ? i.value : null; };
@@ -44,7 +45,9 @@ const readForm = (page) => page.evaluate(() => {
   let problems = 0;
   for (const t of targets) {
     await page.goto(`https://portal.joinin2.com/portal/activities/activity/${t.id}?listView=true`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(3000);
+    /* 01.11: ждём строку «Packages:» до 30 с, а не 3 с — медленная панель давала ложное «🔴 пакеты»;
+       «Packages: No packages applicable» панель показывает и ПОКА грузится — ждём настоящий список; нет его за 30 с — пакетов правда нет */
+    await page.waitForFunction(() => /Packages:/.test(document.body.innerText) && !/No packages applicable/.test(document.body.innerText), { timeout: 30000 }).catch(() => {});
     const pk = await page.evaluate(() => (/No packages applicable/.test(document.body.innerText) ? '' : ((document.body.innerText.match(/Packages:[^\n]*/) || [''])[0])));
     await page.locator('button:has-text("Edit")').first().click({ force: true }).catch(() => {});
     await page.waitForFunction(() => !!document.querySelector('input[placeholder="Title"]'), { timeout: 30000 }).catch(() => {});

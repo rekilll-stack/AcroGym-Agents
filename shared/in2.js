@@ -264,6 +264,36 @@ async function membershipsSummary(monthStartStr, expiringDays = 14) {
   return out;
 }
 
+// ── Payroll панели in2: ЗП и засчитанные дети на каждом занятии ──
+/* 01.11: публичный API не помнит записи прошедших занятий — месячный отчёт показывал «0 посещений» и ЗП по 100.
+   Payroll панели отдаёт по занятию effectiveAttendeeCount (тех, кого in2 засчитал и по кому платит), оклады и сдельно.
+   Заголовки сессии панели (долгоживущий токен) лежат в in2-panel/.in2-auth.json; только чтение. */
+const PANEL_AUTH = '/home/admin/mcp-servers/in2-panel/.in2-auth.json';
+async function panelPost(path, body) {
+  const H = JSON.parse(require('fs').readFileSync(PANEL_AUTH, 'utf8'));
+  const res = await fetch('https://app.joinin2.com/' + path, { method: 'POST', headers: { ...H, 'content-type': 'application/json' },
+    body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
+  if (!res.ok) throw new Error(`in2 panel ${path}: HTTP ${res.status}`);
+  return res.json();
+}
+const dmy = (iso) => String(iso).slice(0, 10).split('-').reverse().join('/');
+async function payrollPeriod(fromDate, toDate) {
+  const base = { fromDate: dmy(fmt(fromDate)), toDate: dmy(fmt(toDate)), groupBy: null, idBranch: 2265 };
+  const sum = await panelPost('payrollAPI/getPayrollReport/', { ...base, idUserBranch: -1 });
+  const out = [];
+  for (const t of (sum && sum.list) || []) {
+    const row = { id: t.id, name: t.name, salary: Math.round(Number(t.salary) || 0), earnings: Math.round(Number(t.earnings) || 0),
+                  privates: Number(t.numberOfPrivateSessions) || 0, classes: [] };
+    if (t.numberOfRegularClasses) {
+      const d = await panelPost('payrollAPI/getPayrollReport/', { ...base, groupByClassesEnum: 'CLASS', idTrainer: t.id });
+      row.classes = ((((d && d.list) || [])[0] || {}).regular || []).map((r) => ({
+        idEvent: r.idEvent, date: txIso(r.eventDate), title: r.title, kids: Number(r.effectiveAttendeeCount) || 0 }));
+    }
+    out.push(row);
+  }
+  return out;
+}
+
 // ── Сегодняшние занятия (для дневного дайджеста, 1 вызов) ──
 async function todayClasses() {
   const today = new Date().toISOString().slice(0, 10);
@@ -283,5 +313,5 @@ function churnFromSummaries(prevOps, curOps, cap = 10) {
   };
 }
 
-module.exports = { call, salesTotals, eventsRange, occurrence, trainers, opsSummary, classPay,
+module.exports = { call, salesTotals, eventsRange, occurrence, trainers, opsSummary, classPay, payrollPeriod,
   customersSummary, membershipsSummary, todayClasses, churnFromSummaries };

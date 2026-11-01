@@ -1,19 +1,15 @@
 'use strict';
 
 /**
- * builders/monthly-builder.js — месячный отчёт (ЗАДАЧА 3 / ПОДЭТАП А).
+ * builders/monthly-builder.js — месячный отчёт владельцу (Telegram + экран «Отчёты → Месяц» в Джарвисе).
  *
- * 7 внутренних секций (структурированные объекты, для PDF/PPTX в ЭТАП 7/8):
- *   1. buildExecSummary   — статус, ключевые цифры
- *   2. buildLeadsSection  — воронка, источники, конверсии
- *   3. buildAttendanceSection — посещаемость (placeholder — нужен in2)
- *   4. buildRevenueSection    — выручка (placeholder — нужен in2)
- *   5. buildCoachesSection    — тренеры (placeholder — нужен in2)
- *   6. buildHealthSection     — время ответа, pendng >24h, аптайм
- *   7. buildOutlookSection    — цель, прогноз (placeholder частично)
- *
- * Telegram summary: секции 1, 2, 6, 7 (то что реально из БД).
- * PDF/PPTX: TODO ЭТАП 7/8 — pdfBuffer и pptxBuffer всегда null.
+ * 01.11 переписан по жалобе владельца «половина неправильно подсчитано»:
+ *   - лиды, источники, время ответа — из нашей БД (как было);
+ *   - занятия, дети на занятиях, загрузка, ЗП — из Payroll панели in2 (shared/in2.payrollPeriod):
+ *     публичный API не помнит записи прошедших занятий («0 посещений»), а прежний сбор обрезал месяц на 200 занятиях;
+ *   - деньги, активные дети, пробные, воронка лидов, продления — из моста Джарвиса (те же расчёты, что в приложении);
+ *   - убраны счётчики «до открытия» (цель 1154 лида, дней до открытия) — после 01.09 они ничего не значили.
+ * Любой источник может не ответить — его строки просто не выводятся.
  */
 
 const dayjs = require('dayjs');
@@ -27,19 +23,13 @@ const { createTranslator } = require('../../../shared/i18n');
 const { escapeMd }         = require('../../../shared/telegram');
 const {
   countLeadsInRange,
-  getTypeBreakdownInRange,
   getSourceBreakdownInRange,
   getQualityStatsInRange,
-  countTotalLeads,
 } = require('../../../shared/db');
 
-const logger       = createLogger('owner-bot');
-const TIMEZONE     = process.env.TIMEZONE || 'Asia/Qatar';
-const OPENING_DATE = '2026-09-01';
-
-const TARGET_STUDENTS = 300;
-const TARGET_CONV     = 0.26;
-const NEEDED_LEADS    = Math.round(TARGET_STUDENTS / TARGET_CONV); // ~1154
+const logger   = createLogger('owner-bot');
+const TIMEZONE = process.env.TIMEZONE || 'Asia/Qatar';
+const BRIDGE   = '/home/admin/mcp-servers/jarvis-schedule/bridge.js'; /* тонкий MCP-клиент моста Джарвиса по localhost */
 
 // ─────────────────────────────────────────────────────────────
 // Date helpers
@@ -65,63 +55,42 @@ function resolveMonthRange(month) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Section builders (return plain JS objects — data for PDF/PPTX)
+// Section builders (plain objects; text is assembled below)
 // ─────────────────────────────────────────────────────────────
 
-function buildExecSummary({ monthTotal, prevMonthTotal, totalAccumulated, daysLeft, requiredPace, monthlyPace }) {
-  const reqNum = parseFloat(requiredPace) || 0;
-  const mNum   = parseFloat(monthlyPace);
-
-  let statusKey;
-  if (!reqNum || mNum >= reqNum)       statusKey = 'monthly.exec_status_green';
-  else if (mNum >= reqNum * 0.7)       statusKey = 'monthly.exec_status_yellow';
-  else                                  statusKey = 'monthly.exec_status_red';
-
-  return {
-    statusKey,
-    monthTotal,
-    prevMonthTotal,
-    totalAccumulated,
-    daysLeft,
-    requiredPace,
-    monthlyPace,
-  };
+/* Светофор месяца — к прошлому месяцу по лидам и полученным деньгам (цели года — в отчёте совета директоров). */
+function buildExecSummary({ monthTotal, prevMonthTotal, received, prevReceived, activeKids }) {
+  const ups = [monthTotal >= prevMonthTotal];
+  if (received != null && prevReceived != null) ups.push(received >= prevReceived);
+  const up = ups.filter(Boolean).length;
+  const statusKey = up === ups.length ? 'monthly.exec_status_green' : up === 0 ? 'monthly.exec_status_red' : 'monthly.exec_status_yellow';
+  return { statusKey, monthTotal, prevMonthTotal, received, prevReceived, activeKids };
 }
 
-function buildLeadsSection({ monthTotal, typeBreakdown, sourceRows }) {
-  const byType = {};
-  for (const { client_type, cnt } of typeBreakdown) byType[client_type] = cnt;
-  return {
-    total:       monthTotal,
-    new:         byType['new']       || 0,
-    existing:    byType['existing']  || 0,
-    returning:   byType['returning'] || 0,
-    sources:     sourceRows,
-    // funnel stages requiring in2:
-    trialBooked:   null,
-    trialAttended: null,
-    subscribed:    null,
-  };
+function buildLeadsSection({ monthTotal, sourceRows, funnel, trials }) {
+  return { total: monthTotal, sources: sourceRows, funnel: funnel || null,
+           trials: trials ? { total: trials.total, bought: trials.bought } : null };
 }
 
-// in2-секции (подключено 07.08.2026): один opsSummary на отчёт, секции прячутся,
-// пока в платформе нет данных (available:false — экспортеры это уже умеют).
-function buildAttendanceSection(ops) {
-  if (!ops || !ops.classes) return { available: false };
-  return { available: true, classes: ops.classes, visits: ops.visits, uniqueClients: ops.uniqueClients,
-           booked: ops.booked, noShowRate: ops.noShowRate, utilization: ops.utilization,
-           fullClasses: ops.fullClasses, truncated: ops.truncated };
-}
-
-function buildRevenueSection(ops) {
-  const r = ops && ops.revenue;
-  if (!r || !r.total) return { available: false };
-  return { available: true, ...r };
-}
-
-function buildCoachesSection(ops) {
-  if (!ops || !ops.trainers || !ops.trainers.length) return { available: false };
-  return { available: true, list: ops.trainers };
+function buildGymSection({ pay, events, money }) {
+  const out = { available: !!(pay || money), payroll: !!pay };
+  if (money) Object.assign(out, { received: money.received, invoiced: money.invoiced, debt: money.debt || {},
+    activeKids: money.activeKids, activePackages: money.activePackages });
+  if (!pay) return out;
+  const slots = new Map((events || []).map((e) => [e.id, Number(e.slots) || 0]));
+  const all = pay.flatMap((t) => t.classes);
+  const kids = all.reduce((s, c) => s + c.kids, 0);
+  const places = all.reduce((s, c) => s + (slots.get(c.idEvent) || 0), 0);
+  const byDate = new Map();
+  for (const c of all) byDate.set(c.date, (byDate.get(c.date) || 0) + c.kids);
+  const payOf = (t) => t.salary + t.earnings;
+  const coaches = pay.filter((t) => t.classes.length).map((t) => ({ name: t.name, classes: t.classes.length,
+    kids: t.classes.reduce((s, c) => s + c.kids, 0), pay: payOf(t), salary: t.salary })).sort((x, y) => y.kids - x.kids);
+  return Object.assign(out, { classes: all.length, kids, empty: all.filter((c) => !c.kids).length,
+    utilization: places ? Math.round(kids / places * 100) : null,
+    visitsByDate: [...byDate.entries()].sort((x, y) => x[0].localeCompare(y[0])), coaches,
+    payCoaches: coaches.reduce((s, t) => s + t.pay, 0),
+    payStaff: pay.filter((t) => !t.classes.length).reduce((s, t) => s + payOf(t), 0) });
 }
 
 function buildHealthSection({ quality }) {
@@ -133,27 +102,28 @@ function buildHealthSection({ quality }) {
   };
 }
 
-function buildOutlookSection({ daysLeft, totalAccumulated, requiredPace }) {
-  return {
-    daysLeft,
-    totalAccumulated,
-    needed:       NEEDED_LEADS,
-    requiredPace,
-  };
-}
-
 // ─────────────────────────────────────────────────────────────
-// Format helper
+// Format helpers
 // ─────────────────────────────────────────────────────────────
 
-function formatDuration(seconds) {
+function formatDuration(seconds, lang = 'en') {
   if (!seconds || seconds < 0) return '—';
+  const [hU, mU, sU] = lang === 'ru' ? [' ч', ' мин', ' с'] : ['h', 'm', 's'];
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m`;
-  return `${Math.round(seconds)}s`;
+  if (h > 0) return `${h}${hU} ${m}${mU}`;
+  if (m > 0) return `${m}${mU}`;
+  return `${Math.round(seconds)}${sU}`;
 }
+
+const num = (x, lang) => Math.round(Number(x) || 0).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US').replace(/[  ]/g, ' ');
+/* ru: 1 занятие / 2 занятия / 5 занятий; en: 1 class / 2 classes */
+const plural = (count, forms, lang) => {
+  const k = Math.abs(count) % 100, d = k % 10;
+  if (lang !== 'ru') return forms[count === 1 ? 0 : 1];
+  return forms[k > 10 && k < 20 ? 2 : d === 1 ? 0 : d >= 2 && d <= 4 ? 1 : 2];
+};
+const dec = (x, lang) => (Number(x) || 0).toFixed(1).replace('.', lang === 'ru' ? ',' : '.');
 
 // ─────────────────────────────────────────────────────────────
 // Main builder
@@ -167,91 +137,80 @@ function formatDuration(seconds) {
  * @param {string}  [opts.month]               — YYYY-MM; defaults to last calendar month
  * @param {boolean} [opts.dryRun=false]
  * @param {boolean} [opts.hasAttachments=false] — true when PDF/PPTX are actually attached
- * @param {boolean} [opts.withPdf=false]        — TODO ЭТАП 7
- * @param {boolean} [opts.withPptx=false]       — TODO ЭТАП 8
- * @returns {Promise<{text: string, pdfBuffer: null, pptxBuffer: null, sections: object}>}
+ * @returns {Promise<{text: string, pdfBuffer: null, pptxBuffer: null, sections: object, in2charts: Buffer[]}>}
  */
-async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttachments = false, withPdf = false, withPptx = false } = {}) {
+// from/to/prevFrom/prevTo — любой период (онлайн-дашборд совета директоров в Джарвисе); без них — месяц month.
+async function buildMonthlyReport({ lang = 'en', month, from, to, prevFrom, prevTo, dryRun = false, hasAttachments = false } = {}) {
   const tr = createTranslator(lang);
-  const now = dayjs().tz(TIMEZONE);
+  const { monthStart, monthEnd, label: monthLabel } = from && to
+    ? { monthStart: from, monthEnd: to, label: dayjs(from).startOf('month') }
+    : resolveMonthRange(month);
 
-  const { monthStart, monthEnd, label: monthLabel } = resolveMonthRange(month);
+  const prevLabel      = monthLabel.subtract(1, 'month');
+  const prevMonthStart = prevFrom || prevLabel.format('YYYY-MM-DD');
+  const prevMonthEnd   = prevTo || prevLabel.endOf('month').format('YYYY-MM-DD');
+  const nextLabel      = monthLabel.add(1, 'month');
 
-  // Previous month range for comparison
-  const prevLabel     = monthLabel.subtract(1, 'month');
-  const prevMonthStart = prevLabel.format('YYYY-MM-DD');
-  const prevMonthEnd   = prevLabel.endOf('month').format('YYYY-MM-DD');
-
-  // ── Data collection ───────────────────────────────────────
+  // ── Наша БД: лиды ─────────────────────────────────────────
   const monthTotal     = countLeadsInRange(monthStart, monthEnd);
   const prevMonthTotal = countLeadsInRange(prevMonthStart, prevMonthEnd);
-  const typeBreakdown  = getTypeBreakdownInRange(monthStart, monthEnd);
   const sourceRows     = getSourceBreakdownInRange(monthStart, monthEnd);
   const quality        = getQualityStatsInRange(monthStart, monthEnd);
 
-  // Goal
-  const opening          = dayjs(OPENING_DATE).tz(TIMEZONE);
-  const daysLeft         = Math.max(0, opening.diff(now.startOf('day'), 'day'));
-  const totalAccumulated = countTotalLeads();
-  const remaining        = Math.max(0, NEEDED_LEADS - totalAccumulated);
-  const monthsLeft       = Math.max(1, Math.ceil(daysLeft / 30));
-  const targetPerMonth   = Math.ceil(remaining / monthsLeft);
-  const monthlyPace      = monthTotal.toFixed(1);
-  const requiredPace     = targetPerMonth.toFixed(1);
+  // ── in2 Payroll + мост Джарвиса ───────────────────────────
+  const in2 = require('../../../shared/in2');
+  const soft = (name, fn) => Promise.resolve().then(fn).catch((err) => {
+    logger.warn({ err: err.message }, `[monthly] ${name} unavailable — lines hidden`);
+    return null;
+  });
+  const bridge = (tool, a, b) => soft(tool, () => require(BRIDGE).call(tool, { dateFrom: a, dateTo: b }).then(JSON.parse));
+  const [pay, events, money, prevMoney, trials, leadStats, ren, renNext] = await Promise.all([
+    soft('payroll', () => in2.payrollPeriod(monthStart, monthEnd)),
+    soft('events', () => in2.eventsRange(monthStart, monthEnd)),
+    bridge('money', monthStart, monthEnd),
+    bridge('money', prevMonthStart, prevMonthEnd),
+    bridge('trials_range', monthStart, monthEnd),
+    bridge('lead_stats', monthStart, monthEnd),
+    bridge('renewals_list', monthStart, monthEnd),
+    bridge('renewals_list', nextLabel.format('YYYY-MM-DD'), nextLabel.endOf('month').format('YYYY-MM-DD')),
+  ]);
 
-  // ── Build section objects ─────────────────────────────────
-  let in2ops = null, in2members = null, in2customers = null, in2churn = null;
-  try {
-    const in2 = require('../../../shared/in2');
-    in2ops = await in2.opsSummary(monthStart, monthEnd);
-    in2customers = await in2.customersSummary(monthStart).catch(() => null);
-    // membership-сводка = N+1 по клиентам; гоняем только когда клиенты вообще есть
-    if (in2customers && in2customers.total > 0) {
-      in2members = await in2.membershipsSummary(monthStart).catch(() => null);
-    }
-    // churn считаем только когда в ТЕКУЩЕМ месяце есть посещения (иначе прошлый прогон зря)
-    if (in2ops && in2ops.visits > 0) {
-      const prevOps = await in2.opsSummary(prevMonthStart, prevMonthEnd).catch(() => null);
-      in2churn = in2.churnFromSummaries(prevOps, in2ops);
-    }
-  } catch (err) {
-    logger.warn({ err: err.message }, '[monthly] in2 summary unavailable — sections hidden');
-  }
-
+  const gym = buildGymSection({ pay, events, money });
   const sections = {
-    exec:       buildExecSummary({ monthTotal, prevMonthTotal, totalAccumulated, daysLeft, requiredPace, monthlyPace }),
-    leads:      buildLeadsSection({ monthTotal, typeBreakdown, sourceRows }),
-    attendance: buildAttendanceSection(in2ops),
-    revenue:    buildRevenueSection(in2ops),
-    coaches:    buildCoachesSection(in2ops),
-    health:     buildHealthSection({ quality }),
-    outlook:    buildOutlookSection({ daysLeft, totalAccumulated, requiredPace }),
+    exec:     buildExecSummary({ monthTotal, prevMonthTotal, received: money && money.received,
+                                 prevReceived: prevMoney && prevMoney.received, activeKids: gym.activeKids }),
+    leads:    buildLeadsSection({ monthTotal, sourceRows, funnel: leadStats && leadStats.sources && leadStats.sources.all, trials }),
+    gym,
+    renewals: ren ? ren.kpi : { available: false },
+    health:   buildHealthSection({ quality }),
+    outlook:  { nextEnding: renNext ? renNext.soon.length + renNext.ended.length : null, notRenewed: ren ? ren.kpi.lost : null },
   };
 
-  // ─────────────────────────────────────────────────────────
-  // Build MarkdownV2 Telegram summary (4 sections: exec, leads, health, outlook)
-  // ─────────────────────────────────────────────────────────
   const monthObj  = tr.tObj('month_names');
   const monthName = monthObj[String(monthLabel.month() + 1)] || monthLabel.format('MMMM');
+  const nextName  = monthObj[String(nextLabel.month() + 1)] || nextLabel.format('MMMM');
   const year      = monthLabel.year();
+  const L = (key, vars) => escapeMd(tr.t('monthly.' + key, vars));
+  const n = (x) => num(x, lang);
+  const pl = (count, what) => plural(count, tr.tObj('monthly.pl_' + what) || ['', '', ''], lang);
 
-  // ── in2-графики для Telegram (только когда есть что рисовать) ──
-  let in2charts = [];
-  if (!dryRun && in2ops && in2ops.visits > 0) {
+  // ── Графики (только когда есть что рисовать) ──
+  const in2charts = [];
+  if (!dryRun && gym.kids > 0) {
     try {
       const { renderLineChart, renderBarChart } = require('../../../shared/chart');
-      if (in2ops.visitsByDate.length > 1) {
+      if (gym.visitsByDate.length > 1) {
         in2charts.push(await renderLineChart({
           title: tr.t('charts.gym_visits_trend'),
-          labels: in2ops.visitsByDate.map(([d]) => d.slice(5)),
-          data: in2ops.visitsByDate.map(([, v]) => v),
+          labels: gym.visitsByDate.map(([d]) => d.slice(5)),
+          data: gym.visitsByDate.map(([, v]) => v),
         }));
       }
-      if (in2ops.trainers.length > 1) {
+      if (gym.coaches.length > 1) {
         in2charts.push(await renderBarChart({
           title: tr.t('charts.gym_trainers'),
-          labels: in2ops.trainers.slice(0, 8).map((t) => t.name.split(' ')[0]),
-          data: in2ops.trainers.slice(0, 8).map((t) => t.visits),
+          labels: gym.coaches.slice(0, 8).map((t) => t.name.split(' ')[0]),
+          data: gym.coaches.slice(0, 8).map((t) => t.kids),
         }));
       }
     } catch (err) {
@@ -259,156 +218,102 @@ async function buildMonthlyReport({ lang = 'en', month, dryRun = false, hasAttac
     }
   }
 
-  const dryMark = dryRun ? '\n_dry run_' : '';
+  const vsPrev = (cur, prev) => {
+    if (prev == null) return null;
+    if (!prev) return cur > 0 ? tr.t('monthly.exec_first_month') : null;
+    const d = cur - prev;
+    return tr.t('monthly.exec_vs_prev_month', { count: n(prev), sign: d >= 0 ? escapeMd('+') : '\\-', percent: Math.abs(Math.round(d / prev * 100)) });
+  };
 
-  let text = tr.t('monthly.title') + dryMark + '\n';
-  text += tr.t('monthly.subtitle', {
-    month_name: escapeMd(monthName),
-    year:       year,
-  }) + '\n\n';
+  let text = tr.t('monthly.title') + (dryRun ? '\n_dry run_' : '') + '\n';
+  text += tr.t('monthly.subtitle', { month_name: escapeMd(monthName), year }) + '\n\n';
 
-  // ── Section 1: Exec summary ───────────────────────────────
+  // ── Итоги месяца ──────────────────────────────────────────
+  const ex = sections.exec;
   text += `*${escapeMd(tr.t('monthly.section_exec'))}*\n`;
-  text += tr.t(sections.exec.statusKey) + '\n';
+  text += escapeMd(tr.t(ex.statusKey)) + '\n';
   text += `• ${escapeMd(tr.t('monthly.exec_headline_leads'))}: *${monthTotal}*\n`;
-
-  const mDelta    = monthTotal - prevMonthTotal;
-  const deltaSign = mDelta >= 0 ? escapeMd('+') : '\\-';
-
-  let vsLine;
-  if (prevMonthTotal === 0 && monthTotal > 0) {
-    // First month with actual data — no meaningful % comparison
-    vsLine = tr.t('monthly.exec_first_month');
-  } else {
-    const deltaPct = prevMonthTotal > 0
-      ? Math.abs(Math.round(mDelta / prevMonthTotal * 100))
-      : 0;
-    vsLine = tr.t('monthly.exec_vs_prev_month', {
-      count:   prevMonthTotal,
-      sign:    deltaSign,
-      percent: deltaPct,
-    });
+  const vsLeads = vsPrev(monthTotal, prevMonthTotal);
+  if (vsLeads) text += `  _${vsLeads}_\n`;
+  if (ex.received != null) {
+    text += `• ${L('exec_received')}: *${escapeMd(n(ex.received))} QAR*\n`;
+    const vsCash = vsPrev(ex.received, ex.prevReceived);
+    if (vsCash) text += `  _${vsCash}_\n`;
   }
-  text += `  _${vsLine}_\n`;
+  if (ex.activeKids != null) text += `• ${L('exec_active_kids')}: *${ex.activeKids}*\n`;
   text += '\n';
 
-  // ── Section 2: Leads ──────────────────────────────────────
+  // ── Лиды и продажи ────────────────────────────────────────
+  const ld = sections.leads;
   text += `*${escapeMd(tr.t('monthly.section_leads'))}*\n`;
-  const { new: newC, existing: existC, returning: retC } = sections.leads;
   text += `• ${escapeMd(tr.t('monthly.leads_funnel_stage_submitted'))}: ${monthTotal}\n`;
-  if (newC)  text += `  ↳ new: ${newC}`;
-  if (existC) text += ` / existing: ${existC}`;
-  if (retC)   text += ` / returning: ${retC}`;
-  if (newC || existC || retC) text += '\n';
-
+  if (ld.funnel) text += `  ↳ ${L('leads_funnel_line', { cards: ld.funnel.cards, trials: ld.funnel.trials, bought: ld.funnel.bought, revenue: n(ld.funnel.revenue) })}\n`;
+  if (ld.trials && ld.trials.total) {
+    text += `• ${L('leads_trials_line', { total: ld.trials.total, bought: ld.trials.bought, pct: Math.round(ld.trials.bought / ld.trials.total * 100) })}\n`;
+  }
   if (sourceRows.length > 0) {
     const srcTotal = sourceRows.reduce((s, r) => s + r.cnt, 0);
     text += `\n*${escapeMd(tr.t('monthly.leads_sources_title'))}*\n`;
     for (const { source, cnt } of sourceRows.slice(0, 5)) {
       const pct = srcTotal > 0 ? Math.round(cnt / srcTotal * 100) : 0;
-      text += `• ${escapeMd(source)}: ${cnt} \\(${pct}%\\)\n`;
+      const key = 'monthly.src_' + source, name = tr.t(key);
+      text += `• ${escapeMd(name === key ? source : name)}: ${cnt} \\(${pct}%\\)\n`;
     }
   }
   text += '\n';
 
-  // ── Section in2: зал — посещения / выручка / тренеры (виден только с данными) ──
-  if (sections.attendance.available || sections.revenue.available) {
+  // ── Зал ───────────────────────────────────────────────────
+  if (gym.available) {
     text += `*${escapeMd(tr.t('monthly.section_gym'))}*\n`;
-    if (sections.attendance.available) {
-      const a = sections.attendance;
-      text += `• ${escapeMd(tr.t('monthly.gym_attendance'))}: ${a.classes} ${escapeMd(tr.t('monthly.gym_classes_word'))} · ${a.visits} ${escapeMd(tr.t('monthly.gym_visits_word'))} · ${a.uniqueClients} ${escapeMd(tr.t('monthly.gym_clients_word'))}\n`;
+    if (gym.payroll) {
+      text += `• ${L('gym_classes_line', { classes: gym.classes, kids: n(gym.kids), avg: dec(gym.classes ? gym.kids / gym.classes : 0, lang) })}\n`;
+      if (gym.utilization != null) text += `• ${L('gym_load_line', { pct: gym.utilization, empty: gym.empty })}\n`;
+    } else {
+      text += `• ${L('gym_no_payroll')}\n`;
     }
-    if (sections.revenue.available) {
-      const r = sections.revenue;
-      text += `• ${escapeMd(tr.t('monthly.gym_revenue'))}: *${escapeMd(String(Math.round(r.total)))} QAR*\n`;
-    }
-    if (sections.attendance.available) {
-      const a = sections.attendance;
-      const extras = [];
-      if (a.noShowRate != null && a.noShowRate > 0) extras.push(`${escapeMd(tr.t('monthly.gym_noshow'))}: ${a.noShowRate}%`);
-      if (a.utilization != null) extras.push(`${escapeMd(tr.t('monthly.gym_utilization'))}: ${a.utilization}%`);
-      if (a.fullClasses) extras.push(`${escapeMd(tr.t('monthly.gym_full_classes'))}: ${a.fullClasses}`);
-      if (extras.length) text += `• ${extras.join(' · ')}\n`;
-    }
-    if (sections.coaches.available) {
-      text += `*${escapeMd(tr.t('monthly.gym_coaches'))}*\n`;
-      sections.coaches.list.slice(0, 6).forEach((t, i) => {
-        const rev = t.revenue != null ? `, ${escapeMd(tr.t('monthly.gym_trainer_revenue'))} ${escapeMd(String(t.revenue))} QAR` : '';
-        text += `${i + 1}\\. ${escapeMd(t.name)} — ${t.classes} ${escapeMd(tr.t('monthly.gym_classes_word'))}, ${t.visits} ${escapeMd(tr.t('monthly.gym_visits_word'))}, ${t.uniqueClients} ${escapeMd(tr.t('monthly.gym_clients_word'))}, ${escapeMd(tr.t('monthly.gym_pay'))} \\~${escapeMd(String(t.estPay))} QAR${rev}\n`;
+    if (gym.received != null) text += `• ${L('gym_money_line', { received: n(gym.received), invoiced: n(gym.invoiced) })}\n`;
+    if (gym.debt && gym.debt.overdue > 0) text += `• ⚠️ ${L('gym_overdue_line', { sum: n(gym.debt.overdue), families: gym.debt.families, fw: pl(gym.debt.families, 'families') })}\n`;
+    if (gym.payroll && gym.coaches.length) {
+      text += `*${L('gym_coaches_title')}*\n`;
+      gym.coaches.forEach((t, i) => {
+        const sal = t.salary ? ` \\(${L('gym_salary_word')}${t.pay > t.salary ? ' ' + escapeMd(n(t.salary)) : ''}\\)` : '';
+        text += `${i + 1}\\. ${L('gym_coach_line', { name: t.name, classes: t.classes, cw: pl(t.classes, 'classes'), kids: n(t.kids), kw: pl(t.kids, 'kids'), pay: n(t.pay) })}${sal}\n`;
       });
+      text += `• ${L('gym_payroll_total', { total: n(gym.payCoaches + gym.payStaff), coaches: n(gym.payCoaches), staff: n(gym.payStaff) })}\n`;
     }
-    if (in2customers && in2customers.total > 0) {
-      text += `• ${escapeMd(tr.t('monthly.gym_customers'))}: ${in2customers.total}`;
-      if (in2customers.newThisMonth) text += ` \\(${escapeMd(tr.t('monthly.gym_customers_new'))}: ${in2customers.newThisMonth}\\)`;
-      text += '\n';
-      if (in2customers.debtors > 0) {
-        text += `• ⚠️ ${escapeMd(tr.t('monthly.gym_debt'))}: ${in2customers.debtTotal} QAR \\(${in2customers.debtors}\\)\n`;
-      }
-    }
-    if (in2churn && in2churn.lost > 0) {
-      text += `• 📉 ${escapeMd(tr.t('monthly.gym_churn'))}: ${in2churn.lost} ${escapeMd(tr.t('monthly.gym_churn_of'))} ${in2churn.prevClients}\n`;
-      if (in2churn.names.length) text += `  ↳ ${escapeMd(in2churn.names.slice(0, 5).join(', '))}\n`;
-    }
-    if (in2members && in2members.active > 0) {
-      text += `• ${escapeMd(tr.t('monthly.gym_memberships'))}: ${in2members.active}`;
-      const parts = [];
-      if (in2members.newThisMonth) parts.push(`${escapeMd(tr.t('monthly.gym_memberships_new'))}: ${in2members.newThisMonth}`);
-      if (in2members.frozen) parts.push(`${escapeMd(tr.t('monthly.gym_memberships_frozen'))}: ${in2members.frozen}`);
-      if (parts.length) text += ` \\(${parts.join(' · ')}\\)`;
-      text += '\n';
-      if (in2members.expiringSoon.length) {
-        text += `• ⏳ ${escapeMd(tr.t('monthly.gym_expiring'))}:\n`;
-        for (const m of in2members.expiringSoon.slice(0, 5)) {
-          text += `  ↳ ${escapeMd(m.client)} — ${escapeMd(m.membership || '')} ${escapeMd(tr.t('monthly.gym_until'))} ${escapeMd(m.expiry)}\n`;
-        }
-        if (in2members.expiringSoon.length > 5) text += `  ↳ \\+${in2members.expiringSoon.length - 5}\n`;
-      }
+    if (gym.activeKids != null) text += `• ${L('gym_active_kids', { kids: gym.activeKids, packages: gym.activePackages })}\n`;
+    if (ren) {
+      const k = sections.renewals;
+      text += `• ${L('gym_renewals', { renewed: k.renewed, lost: k.lost, pending: k.pending })}\n`;
     }
     text += '\n';
   }
 
-  // ── Section 3: Health ─────────────────────────────────────
+  // ── Операционное здоровье ─────────────────────────────────
   text += `*${escapeMd(tr.t('monthly.section_health'))}*\n`;
-  text += `• ${escapeMd(tr.t('monthly.health_response_time'))}: ${escapeMd(formatDuration(quality.avg_seconds))}\n`;
+  text += `• ${escapeMd(tr.t('monthly.health_response_time'))}: ${escapeMd(formatDuration(quality.avg_seconds, lang))}\n`;
   text += `• ${tr.t('monthly.health_pending_24h')}: ${quality.pending_24h}\n`;
   if (quality.total_responded > 0) {
-    const pct = Math.round(quality.within_hour / quality.total_responded * 100);
-    text += `• Responded within 1h: ${quality.within_hour}/${quality.total_responded} \\(${pct}%\\)\n`;
+    text += `• ${L('health_within_hour', { n: quality.within_hour, total: quality.total_responded, pct: Math.round(quality.within_hour / quality.total_responded * 100) })}\n`;
+    text += `  _${L('health_note')}_\n`;
   }
   text += '\n';
 
-  // ── Section 4: Goal / Outlook ─────────────────────────────
-  text += `*${escapeMd(tr.t('monthly.section_outlook'))}*\n`;
-  text += `• ${escapeMd(tr.t('monthly.outlook_targets'))}: ${tr.t('monthly.outlook_leads_target', { count: escapeMd(requiredPace) })}\n`;
-  text += `• ${tr.t('monthly.outlook_pipeline', {
-    current: totalAccumulated,
-    target:  NEEDED_LEADS,
-    percent: Math.round(totalAccumulated / NEEDED_LEADS * 100),
-  })}\n`;
-  text += `• ${tr.t('monthly.outlook_days_until_launch', { days: daysLeft })}\n`;
-  text += '\n';
+  // ── Следующий месяц ───────────────────────────────────────
+  const ol = sections.outlook;
+  if (ol.nextEnding != null || ol.notRenewed) {
+    text += `*${escapeMd(tr.t('monthly.section_outlook'))}*\n`;
+    if (ol.nextEnding != null) text += `• ${L('outlook_expiring_next', { month: nextName, count: ol.nextEnding })}\n`;
+    if (ol.notRenewed) text += `• ${L('outlook_not_renewed', { month: lang === 'ru' ? monthName.toLowerCase() : monthName, count: ol.notRenewed })}\n`;
+    text += '\n';
+  }
 
   // ── Footer ─────────────────────────────────────────────────
-  if (hasAttachments) {
-    // PDF/PPTX are actually attached below this message
-    text += `_${escapeMd(tr.t('monthly.telegram_summary_header'))}_\n`;
-  } else {
-    // Attachments not yet generated — point to /export command
-    text += tr.t('monthly.summary_no_attachments_yet') + '\n';
-  }
+  text += hasAttachments
+    ? `_${escapeMd(tr.t('monthly.telegram_summary_header'))}_\n`
+    : tr.t('monthly.summary_no_attachments_yet') + '\n';
 
-  if (withPdf || withPptx) {
-    logger.warn('[monthly-builder] PDF/PPTX generation not yet implemented (ЭТАП 7/8)');
-  }
-
-  return {
-    in2charts,
-    text,
-    lang,
-    pdfBuffer:  null,
-    pptxBuffer: null,
-    sections,
-  };
+  return { in2charts, text, lang, pdfBuffer: null, pptxBuffer: null, sections };
 }
 
 module.exports = { buildMonthlyReport };

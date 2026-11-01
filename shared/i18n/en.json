@@ -218,9 +218,9 @@
     "exec_headline_revenue": "Revenue",
     "exec_headline_leads": "New leads",
     "exec_headline_students": "Active students",
-    "exec_status_green": "🟢 Strong month, all KPIs on or above target",
-    "exec_status_yellow": "🟡 Solid month, room for improvement in some areas",
-    "exec_status_red": "🔴 Below target, action required",
+    "exec_status_green": "🟢 Leads and cash in are above last month",
+    "exec_status_yellow": "🟡 Some numbers are below last month",
+    "exec_status_red": "🔴 Leads and cash in are below last month",
     "exec_first_month": "\\(first month of tracking\\)",
     "exec_key_events": "Key events this month",
     "exec_vs_prev_month": "vs {{count}} prev month, {{sign}}{{percent}}%",
@@ -289,7 +289,43 @@
     "gym_expiring": "Expiring within 14 days",
     "gym_until": "until",
     "gym_churn": "Stopped visiting",
-    "gym_churn_of": "of"
+    "gym_churn_of": "of",
+    "exec_received": "Cash received",
+    "exec_active_kids": "Active kids now",
+    "leads_funnel_line": "of this month’s leads: in2 card {{cards}} · trial {{trials}} · bought {{bought}} ({{revenue}} QAR)",
+    "leads_trials_line": "Trials in the gym this month: {{total}} kids → bought {{bought}} ({{pct}}%)",
+    "src_meta_make": "Meta (ads)",
+    "src_website_form": "Website",
+    "gym_classes_line": "Classes: {{classes}} · kids in classes: {{kids}} · {{avg}} per class on average",
+    "gym_load_line": "Capacity used: {{pct}}% (kids vs places) · classes with no kids: {{empty}}",
+    "gym_money_line": "Money: received {{received}} QAR · sold {{invoiced}} QAR",
+    "gym_overdue_line": "Overdue from clients: {{sum}} QAR ({{families}} {{fw}})",
+    "gym_coaches_title": "Coaches (kids and pay from in2 Payroll)",
+    "gym_coach_line": "{{name}} — {{classes}} {{cw}}, {{kids}} {{kw}}, pay {{pay}} QAR",
+    "gym_salary_word": "salary",
+    "gym_payroll_total": "Total pay in in2 Payroll: {{total}} QAR (coaches {{coaches}}, other staff {{staff}})",
+    "gym_active_kids": "Active kids: {{kids}} ({{packages}} packages)",
+    "gym_renewals": "Renewals (packages that ended this month): renewed {{renewed}} · did not renew {{lost}} · still deciding {{pending}}",
+    "gym_no_payroll": "in2 Payroll did not respond — kids and pay not counted",
+    "outlook_expiring_next": "{{month}}: packages ending — {{count}}",
+    "outlook_not_renewed": "Did not renew in {{month}}: {{count}} — list in Jarvis → Renewals",
+    "health_within_hour": "Answered within an hour: {{n}} of {{total}} ({{pct}}%)",
+    "health_note": "counted by the “✅ Responded” button on the lead card",
+    "pl_classes": [
+      "class",
+      "classes",
+      "classes"
+    ],
+    "pl_kids": [
+      "kid",
+      "kids",
+      "kids"
+    ],
+    "pl_families": [
+      "family",
+      "families",
+      "families"
+    ]
   },
   "pending": {
     "title": "🔥 *Pending Leads*",
@@ -529,8 +565,8 @@
     "weekly_trend": "Daily Leads Trend (last 4 weeks)",
     "series_this_week": "This week",
     "series_prev_week": "Previous week",
-    "gym_visits_trend": "Gym visits by day",
-    "gym_trainers": "Coaches by visits"
+    "gym_visits_trend": "Kids in classes by day",
+    "gym_trainers": "Kids per coach this month"
   },
   "nurture_summary": {
     "title": "📊 Nurture — execution summary",
