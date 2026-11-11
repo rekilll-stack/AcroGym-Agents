@@ -70,7 +70,7 @@ const CODE_SOURCES = [
   path.join(HOME, '.claude/CLAUDE.md'), path.join(HOME, '.claude/settings.json'), path.join(HOME, '.claude/projects/-home-admin/memory'), /* правила, хуки и файловая память ассистента */
   path.join(HOME, 'bin'), path.join(HOME, '.config/systemd/user'), /* сторож лимита, юнит claude-tmux */
 ];
-const CODE_EXCLUDES = ['node_modules', '.git', 'dist', 'build', '.gradle', '.tts-venv', 'emb-model', '*.apk', '*.aab', '*.tar.gz', '*.tgz', '*.tar.gpg', '*.dump', 'logs', '*.log', 'ms-playwright', '.cache', '.output', '.nuxt', 'web/preview', 'jarvis-bridge/reports', 'acrogym/backups', 'acrogym/assets/game', /* 420 МБ исходников графики игры — в еженедельной копии на Я.Диск */ '.env', '.env.*', '*.bak-*'];
+const CODE_EXCLUDES = ['node_modules', '.git', 'dist', 'build', '.gradle', '.tts-venv', 'emb-model', '*.apk', '*.aab', '*.tar.gz', '*.tgz', '*.tar.gpg', '*.dump', 'logs', '*.log', 'ms-playwright', '.cache', '.output', '.nuxt', 'web/preview', 'web/preview.*', /* 11.11: preview.prev и preview.next — прошлые и строящиеся сборки Velantis, по 17 МБ в день */ 'jarvis-bridge/reports', 'acrogym/backups', 'acrogym/assets/game', /* 420 МБ исходников графики игры — в еженедельной копии на Я.Диск */ '.env', '.env.*', '*.bak-*'];
 const SRC = SET === 'code' ? CODE_SOURCES : SET === 'assets' ? [path.join(ROOT, 'assets/game')] : SOURCES, EXCL = SET === 'code' ? CODE_EXCLUDES : []; /* assets — раз в неделю: 420 МБ исходников графики игры */
 const MUST = SET === 'code' ? /velantis\/src\/app\.js$/ : SET === 'assets' ? /assets\/game\/models\// : /acrogym\/\.env$/;
 
